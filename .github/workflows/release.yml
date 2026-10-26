@@ -26,7 +26,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
+          # A release build never reads or writes the dependency cache.
+          package-manager-cache: false
           registry-url: https://registry.npmjs.org
       - id: version
         run: |
@@ -60,8 +61,9 @@ jobs:
             echo "Then run the GitHub release workflow to tag and release v$version."
           } >> "$GITHUB_STEP_SUMMARY"
         env:
-          # A "Read and write (stage only)" token, because npm is ending direct
-          # publishing with tokens. If you later set up trusted publishing for
-          # this workflow on npmjs.com, delete this line and the NPM_TOKEN
-          # secret.
+          # Used for the first stage of a new package, and as a fallback. A
+          # "Read and write (stage only)" token, because npm is ending direct
+          # publishing with tokens. Once a trusted publisher is set up for this
+          # workflow on npmjs.com, npm authenticates with OIDC instead, and
+          # this line and the NPM_TOKEN secret can go.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
