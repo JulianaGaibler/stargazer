@@ -1,16 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { GpuGfx } from './GpuGfx'
 import { GfxPath } from './GfxPath'
-import { MockGfxDevice } from './mock/mockGfxDevice'
 import type { DrawRecord } from './mock/mockGfxDevice'
-import {
-  beginFrame as beginHarnessFrame,
-  makeGpuGfx as makeHarnessGfx,
-} from './testing/gpuGfxHarness'
-
-const makeGpuGfx = (stencil = false) => makeHarnessGfx({ stencil })
-const beginFrame = (gfx: GpuGfx, device: MockGfxDevice) =>
-  beginHarnessFrame(gfx, device, { clearColor: '#000' })
+import { beginFrame, makeGpuGfx } from './testing/gpuGfxHarness'
 
 /** The clip dynamic offset a draw binds through the group-0 frame group. */
 const clipOffset = (d: DrawRecord): number =>
@@ -87,7 +78,7 @@ describe('GpuGfx analytic clip', () => {
 
 describe('GpuGfx analytic clip with stencil paths', () => {
   it('stamps the current clip record on the fan and cover vertices', async () => {
-    const { gfx, device } = makeGpuGfx(true)
+    const { gfx, device } = makeGpuGfx({ stencil: true })
     await beginFrame(gfx, device)
     const star = new GfxPath()
     for (let i = 0; i < 5; i++) {

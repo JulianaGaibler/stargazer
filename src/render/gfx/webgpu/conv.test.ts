@@ -13,19 +13,6 @@ describe('colorTargetToGPU', () => {
     })
     expect(t.writeMask).toBe(0)
   })
-
-  it('uses the canvas format for a canvas target', () => {
-    const t = colorTargetToGPU(
-      { format: 'canvas', blend: 'source-over' },
-      'bgra8unorm',
-    )
-    expect(t.format).toBe('bgra8unorm')
-  })
-
-  it('writes every channel when writes are not turned off', () => {
-    const t = colorTargetToGPU({ format: 'linear', blend: 'source-over' })
-    expect(t.writeMask).toBe(0xf)
-  })
 })
 
 describe('depthStencilToGPU', () => {

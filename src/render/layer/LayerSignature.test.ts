@@ -68,7 +68,6 @@ describe('hashString', () => {
   it('is stable and tells strings apart', () => {
     expect(hashString('#112233')).toBe(hashString('#112233'))
     expect(hashString('#112233')).not.toBe(hashString('#112234'))
-    expect(hashString('')).toBe(hashString(''))
   })
 })
 

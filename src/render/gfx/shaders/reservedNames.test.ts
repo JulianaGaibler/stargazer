@@ -12,35 +12,10 @@
 // Scanned from `src` down, so this covers every shader module in the engine
 // and every display that authors its own.
 
-import { readFileSync, readdirSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { filesUnderSrc } from './srcScan.testutil'
 
-const HERE = dirname(fileURLToPath(import.meta.url))
-
-/** Walk up from this test file to the `src` directory that contains it. */
-function findSrcRoot(from: string): string {
-  let dir = from
-  while (dirname(dir) !== dir) {
-    if (dir.endsWith('/src')) return dir
-    dir = dirname(dir)
-  }
-  throw new Error(`could not find an ancestor "src" directory from ${from}`)
-}
-
-/** Recursively collect every file under `dir` whose name matches `suffix`. */
-function collectFiles(dir: string, suffix: string): string[] {
-  const out: string[] = []
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name)
-    if (entry.isDirectory()) out.push(...collectFiles(full, suffix))
-    else if (entry.name.endsWith(suffix)) out.push(full)
-  }
-  return out
-}
-
-const SRC_ROOT = findSrcRoot(HERE)
 
 /**
  * Reserved in Metal or HLSL and unsafe as a WGSL struct member or variable.
@@ -109,7 +84,7 @@ const RESERVED = new Set([
   'auto',
 ])
 
-const shaders = collectFiles(SRC_ROOT, '.wgsl')
+const shaders = filesUnderSrc('.wgsl')
 
 /**
  * Struct member declarations: an optional run of attributes, then `name:`.

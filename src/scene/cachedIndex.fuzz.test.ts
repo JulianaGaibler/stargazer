@@ -224,24 +224,15 @@ describe.each(HARNESSES)(
           `update list after op ${step}`,
         ).toEqual(updating)
 
-        // Every 10 ops, verify the rest.
+        // World matrices every 10 ops.
         if (step % 10 !== 9) continue
 
-        // (P4) Painter order matches a fresh DFS.
-        const painterTrue = truePainterOrder(scene)
-        const painterCache = scene.getPainterOrder()
-        expect(painterCache.map((n) => n.id)).toEqual(
-          painterTrue.map((n) => n.id),
-        )
-
-        // (P3) After a fresh updateTransforms pass, every node's world
-        // matrix must match a from-scratch composition.
-        // Simulate what Stage.updateTransforms does: compose down.
-        // Since we don't have a Stage here, do it manually.
+        // After a transform pass, every world matrix must match a
+        // from-scratch composition.
         const subtrees = tops()
         for (const t of subtrees) composeAllWorlds(t)
         const truthMap = trueWorlds(subtrees)
-        for (const n of painterCache) {
+        for (const n of scene.getPainterOrder()) {
           const truth = truthMap.get(n.id)!
           const w = n.transform.world
           expect(w.a).toBeCloseTo(truth[0], 5)

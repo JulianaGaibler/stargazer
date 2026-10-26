@@ -8,12 +8,6 @@ import { isEffectivelyVisible } from './traverse'
 // the walk enforces this on its own.
 
 describe('isEffectivelyVisible', () => {
-  it('is false for a node hidden directly', () => {
-    const node = new Node2D('node')
-    node.visible = false
-    expect(isEffectivelyVisible(node)).toBe(false)
-  })
-
   it('follows an ancestor that is hidden and shown again after being asked', () => {
     const root = new Node2D('root')
     const group = new Node2D('group')

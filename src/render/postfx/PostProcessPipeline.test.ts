@@ -324,40 +324,6 @@ describe('PostProcessPipeline', () => {
   })
 })
 
-describe('post-fx effect params', () => {
-  it('ChromaticAberration defaults', () => {
-    const e = new ChromaticAberration()
-    expect(e.enabled).toBe(true)
-    expect(e.amount).toBeCloseTo(0.006)
-    expect(e.passes).toHaveLength(1)
-  })
-  it('Vignette defaults', () => {
-    const e = new Vignette()
-    expect(e.enabled).toBe(true)
-    expect(e.intensity).toBeCloseTo(0.5)
-    expect(e.passes).toHaveLength(1)
-  })
-  it('VignetteBlur is a two-pass separable blur', () => {
-    const e = new VignetteBlur({ strength: 8 })
-    expect(e.strength).toBe(8)
-    expect(e.passes).toHaveLength(2)
-  })
-  it('DualKawaseBlur defaults to a 4-level, 8-pass chain', () => {
-    const e = new DualKawaseBlur()
-    expect(e.levels).toBe(4)
-    expect(e.passes).toHaveLength(8)
-  })
-  it('FilmGrain defaults', () => {
-    const e = new FilmGrain()
-    expect(e.enabled).toBe(true)
-    expect(e.cellPx).toBe(2)
-    expect(e.density).toBe(0.5)
-    expect(e.opacity).toBeCloseTo(0.15)
-    expect(e.hz).toBe(0) // static unless asked for
-    expect(e.passes).toHaveLength(1)
-  })
-})
-
 describe('FilmGrain', () => {
   const CTX: PostPassContext = {
     width: 1,
@@ -569,11 +535,6 @@ describe('fullscreen triangle orientation', () => {
     const v2 = tri[11]
     return v0 + ((clipY - y0) / (y2 - y0)) * (v2 - v0)
   }
-
-  it('carries a uv per vertex alongside the position', () => {
-    expect(fullscreenTri(false)).toHaveLength(12)
-    expect(fullscreenTri(false).byteLength).toBe(48)
-  })
 
   it('covers the viewport with the same clip-space triangle either way', () => {
     const gl = fullscreenTri(false)

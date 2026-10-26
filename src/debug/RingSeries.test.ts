@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { FrameStats } from './FrameStats'
 import { RingSeries, foldWorst } from './RingSeries'
 
 describe('RingSeries', () => {
@@ -56,5 +57,35 @@ describe('foldWorst', () => {
     const out = new Float32Array(10)
     expect(foldWorst(new Float32Array([4, 5]), 2, 10, out)).toBe(2)
     expect([...out.slice(0, 2)]).toEqual([4, 5])
+  })
+})
+
+describe('FrameStats', () => {
+  it('reports zeros when empty', () => {
+    const s = new FrameStats(10)
+    const p = s.percentiles()
+    expect(p).toEqual({ p50: 0, p95: 0, p99: 0, max: 0, count: 0 })
+  })
+
+  it('computes percentiles from a monotonic sample', () => {
+    const s = new FrameStats(100)
+    for (let i = 1; i <= 100; i++) s.push(i / 1000) // 1ms to 100ms
+    const p = s.percentiles()
+    expect(p.count).toBe(100)
+    // With 100 samples, floor(100 * 0.5) = 50 -> sorted[50] = 51ms.
+    expect(p.p50).toBeCloseTo(0.051, 6)
+    expect(p.p95).toBeCloseTo(0.096, 6)
+    expect(p.p99).toBeCloseTo(0.1, 6)
+    expect(p.max).toBeCloseTo(0.1, 6)
+  })
+
+  it('rings around at capacity, only the last N samples count', () => {
+    const s = new FrameStats(10)
+    for (let i = 0; i < 15; i++) s.push(i)
+    const p = s.percentiles()
+    expect(p.count).toBe(10)
+    // Last 10 samples are [5..14]. Sorted, p50 = pick(0.5) = sorted[5] = 10.
+    expect(p.p50).toBe(10)
+    expect(p.max).toBe(14)
   })
 })

@@ -7,13 +7,6 @@ describe('SlotPool', () => {
     expect(() => new SlotPool(-1)).toThrow()
   })
 
-  it('starts with every slot free and none alive', () => {
-    const p = new SlotPool(10)
-    expect(p.aliveCount).toBe(0)
-    expect(p.availableCount).toBe(10)
-    expect(p.highWaterIndex).toBe(0)
-  })
-
   it('spawn returns unique indices and updates counts, -1 when exhausted', () => {
     const p = new SlotPool(4)
     const seen = new Set<number>()

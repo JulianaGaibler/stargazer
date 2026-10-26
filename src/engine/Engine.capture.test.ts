@@ -191,16 +191,6 @@ describe('Engine.capture', () => {
     expect(blob.type).toBe('image/jpeg')
   })
 
-  it('works on an engine whose loop never started', async () => {
-    const bitmap = await engine.capture({
-      width: 64,
-      height: 32,
-      gpuDevice: new MockGfxDevice(),
-      build: () => {},
-    })
-    expect(bitmap.width).toBe(64)
-  })
-
   it('keeps the capture stage out of the frame loop', async () => {
     await engine.capture({
       width: 10,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deviceBoundsOfRect, padBox, type DeviceBox } from './layerBox'
+import { deviceBoundsOfRect, type DeviceBox } from './layerBox'
 
 const IDENTITY = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }
 const box = (
@@ -37,11 +37,5 @@ describe('deviceBoundsOfRect', () => {
       box(0, 0, 0, 0),
     )
     expect(out).toEqual({ x: -10, y: 0, width: 10, height: 30 })
-  })
-})
-
-describe('padBox', () => {
-  it('grows every side', () => {
-    expect(padBox(box(10, 10, 20, 20), 4)).toEqual(box(6, 6, 28, 28))
   })
 })

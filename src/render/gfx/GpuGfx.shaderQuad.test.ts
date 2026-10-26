@@ -3,14 +3,7 @@ import { GpuGfx } from './GpuGfx'
 import { GfxPath } from './GfxPath'
 import { MockGfxDevice } from './mock/mockGfxDevice'
 import { DataTexture, ShaderQuad, quadShader } from './ShaderQuad'
-import {
-  beginFrame,
-  makeGpuGfx as makeHarnessGfx,
-} from './testing/gpuGfxHarness'
-
-const makeGpuGfx = (stencil = false) => makeHarnessGfx({ stencil })
-const frame = (gfx: GpuGfx, device: MockGfxDevice) =>
-  beginFrame(gfx, device, { clearColor: '#000000' })
+import { beginFrame, makeGpuGfx } from './testing/gpuGfxHarness'
 
 /** Lets the quad's async pipeline compile settle. */
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
@@ -31,7 +24,7 @@ async function primed(
   device: MockGfxDevice,
   quad: ShaderQuad,
 ): Promise<void> {
-  await frame(gfx, device)
+  await beginFrame(gfx, device)
   gfx.drawShaderQuad(quad, 0, 0, 10, 10)
   gfx.endFrame()
   await settle()
@@ -41,13 +34,13 @@ describe('GpuGfx.drawShaderQuad', () => {
   it('draws nothing until the quad pipeline has compiled', async () => {
     const { gfx, device } = makeGpuGfx()
     const quad = makeQuad()
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     gfx.drawShaderQuad(quad, 0, 0, 10, 10)
     gfx.endFrame()
     expect(device.draws.length).toBe(0)
 
     await settle()
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     gfx.drawShaderQuad(quad, 0, 0, 10, 10)
     gfx.endFrame()
     expect(device.draws.length).toBe(1)
@@ -58,7 +51,7 @@ describe('GpuGfx.drawShaderQuad', () => {
     const quad = makeQuad()
     await primed(gfx, device, quad)
 
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     quad.params[0] = 1
     gfx.drawShaderQuad(quad, 0, 0, 10, 10)
     quad.params[0] = 2
@@ -79,7 +72,7 @@ describe('GpuGfx.drawShaderQuad', () => {
     const quad = makeQuad()
     await primed(gfx, device, quad)
 
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     for (let i = 0; i < 1500; i++) gfx.drawShaderQuad(quad, i % 300, 0, 4, 4)
     gfx.endFrame()
     expect(device.draws.reduce((n, d) => n + (d.instanceCount ?? 0), 0)).toBe(
@@ -88,11 +81,11 @@ describe('GpuGfx.drawShaderQuad', () => {
   })
 
   it('tests the clip depth inside a path clip', async () => {
-    const { gfx, device } = makeGpuGfx(true)
+    const { gfx, device } = makeGpuGfx({ stencil: true })
     const quad = makeQuad()
     await primed(gfx, device, quad)
 
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     const clip = new GfxPath().moveTo(0, 0).lineTo(50, 0).lineTo(0, 50).close()
     gfx.save()
     gfx.clipPath(clip)
@@ -110,7 +103,7 @@ describe('GpuGfx.drawShaderQuad', () => {
     const quad = makeQuad()
     await primed(gfx, device, quad)
 
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     gfx.fillRect(0, 0, 5, 5, '#ff0000')
     gfx.drawShaderQuad(quad, 0, 0, 10, 10)
     gfx.fillRect(10, 0, 5, 5, '#00ff00')
@@ -129,7 +122,7 @@ describe('GpuGfx.drawShaderQuad', () => {
     await primed(gfx, device, quad)
 
     const drawTwice = async () => {
-      await frame(gfx, device)
+      await beginFrame(gfx, device)
       gfx.drawShaderQuad(quad, 0, 0, 10, 10)
       gfx.drawShaderQuad(quad, 20, 0, 10, 10)
       gfx.endFrame()
@@ -153,7 +146,7 @@ describe('GpuGfx.drawShaderQuad', () => {
     const quad = makeQuad()
     await primed(gfx, device, quad)
 
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     gfx.setBlend('lighter')
     gfx.drawShaderQuad(quad, 0, 0, 10, 10)
     gfx.endFrame()
@@ -161,7 +154,7 @@ describe('GpuGfx.drawShaderQuad', () => {
     expect(device.draws.length).toBe(0)
 
     await settle()
-    await frame(gfx, device)
+    await beginFrame(gfx, device)
     gfx.setBlend('lighter')
     gfx.drawShaderQuad(quad, 0, 0, 10, 10)
     gfx.endFrame()
