@@ -3,15 +3,12 @@
 // no-ops. Anything that actually rasterises (isPointInPath, getImageData) is
 // verified visually in `?demo=…` sandbox scenes, not here.
 
-import { vi } from 'vitest'
+import { setSmoothCornerFieldLoader } from './src/render/gfx/squircleField'
 
-// There is no server to fetch the smooth-corner field from, so it is never
-// loaded and smoothed corners draw circular. A test that needs the field mocks
-// `loadField` itself.
-vi.mock('./src/render/gfx/squircleField', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./src/render/gfx/squircleField')>()),
-  loadField: () => Promise.resolve(null),
-}))
+// Vite serves the smooth-corner field over HTTP, and no server runs during
+// tests, so smoothed corners draw circular. A test that needs the field sets
+// its own loader.
+setSmoothCornerFieldLoader(() => Promise.resolve(null))
 
 // happy-dom does not always attach `localStorage` in the current Node
 // version. Install a tiny in-memory shim so tests that persist scores /

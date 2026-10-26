@@ -1,8 +1,8 @@
 import type { CameraView2D } from '../../camera/CameraView2D'
 import type { Node2D } from '../../scene/Node2D'
 import { Canvas } from './Canvas'
-import { beginPaint, endPaint } from './paintState'
-import { Op, Picture } from './Picture'
+import { recordPaint } from './paintState'
+import { opName, Picture } from './Picture'
 
 /** One call a replayed picture made into the renderer. */
 export interface PaintCall {
@@ -16,10 +16,6 @@ function viewWith(screenScale: number): CameraView2D {
     visibleWorldRect: () => ({ x: 0, y: 0, width: 1000, height: 1000 }),
   } as unknown as CameraView2D
 }
-
-const OP_NAMES = Object.fromEntries(
-  Object.entries(Op).map(([name, code]) => [code, name]),
-)
 
 /**
  * Run a node's `paint` and return the drawing calls it made, in order, with
@@ -45,7 +41,7 @@ export function paintCalls(
 ): PaintCall[] {
   const picture = paintPicture(node, opts)
   return picture.ops.map((op, i) => ({
-    name: OP_NAMES[op] ?? String(op),
+    name: opName(op) ?? String(op),
     args: picture.args[i] ?? [],
   }))
 }
@@ -60,14 +56,12 @@ export function paintPicture(
   opts: { deviceScale?: number; screenScale?: number } = {},
 ): Picture {
   const picture = new Picture()
-  const canvas = new Canvas()
-  beginPaint(node)
-  canvas.begin(picture, opts.deviceScale ?? 1, viewWith(opts.screenScale ?? 1))
-  try {
-    node.paint?.(canvas)
-  } finally {
-    canvas.end()
-    endPaint()
-  }
+  recordPaint(
+    node,
+    new Canvas(),
+    picture,
+    opts.deviceScale ?? 1,
+    viewWith(opts.screenScale ?? 1),
+  )
   return picture
 }

@@ -52,10 +52,10 @@ export type MeasurableNode = Node2D & Measurable
  * composes with transforms, culling, hit-testing, behaviors, and tweens like
  * any other node.
  *
- * `arrange` should set `transform.x`/`transform.y` for position (never scale)
- * and write `boundsOverride = { x: 0, y: 0, width: w, height: h }` so the node
- * culls and hit-tests correctly. Call {@link markLayoutDirty} whenever an input
- * that affects your measured size changes (a child added, a size prop set). It
+ * `arrange` should call {@link place}, which sets `transform.x`/`transform.y`
+ * for position (never scale) and sizes `boundsOverride` so the node culls and
+ * hit-tests correctly. Call {@link markLayoutDirty} whenever an input that
+ * affects your measured size changes (a child added, a size prop set). It
  * schedules one coalesced layout pass on the next frame.
  *
  * @example
@@ -72,9 +72,7 @@ export type MeasurableNode = Node2D & Measurable
  *       return this.measuredSize
  *     }
  *     arrange(x: number, y: number, w: number, h: number): void {
- *       this.transform.x = x
- *       this.transform.y = y
- *       this.boundsOverride = { x: 0, y: 0, width: w, height: h }
+ *       this.place(x, y, w, h)
  *     }
  *   }
  */
@@ -87,6 +85,13 @@ export abstract class LayoutNode extends Node2D implements Measurable {
 
   abstract measure(constraints: BoxConstraints): Size
   abstract arrange(x: number, y: number, w: number, h: number): void
+
+  /** Move the node to `(x, y)` and set its bounds to `w × h`. */
+  protected place(x: number, y: number, w: number, h: number): void {
+    this.transform.x = x
+    this.transform.y = y
+    this.boundsOverride = { x: 0, y: 0, width: w, height: h }
+  }
 
   /**
    * Request a layout pass. Walks up to the owning {@link LayoutRoot} and marks

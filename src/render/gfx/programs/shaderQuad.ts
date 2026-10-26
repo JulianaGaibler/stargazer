@@ -34,7 +34,8 @@ import {
   type ShaderQuad,
 } from '../ShaderQuad'
 import { CLIP_DEPTH_SHIFT } from '../stencilRecipe'
-import { UboRing, unitQuadLayout, buildBlendPipelines } from './programCommon'
+import { UboRing, buildBlendPipelines } from './programCommon'
+import { instancedQuadLayout } from './instancedQuad'
 
 /** Params slices the ring starts with. It grows when a frame needs more. */
 const PARAMS_SLOTS = 512
@@ -96,17 +97,14 @@ export class ShaderQuadProgram implements GpuProgram {
     )
     this.#gpu = new WeakMap()
     this.#uploads = new WeakMap()
-    this.#vertexLayout = [
-      unitQuadLayout(LOC_QUAD_UNIT),
-      {
-        arrayStride: SHADER_QUAD_INSTANCE_STRIDE,
-        stepMode: 'instance',
-        attributes: [
-          { location: LOC_QUAD_ORIGIN_AXISX, format: 'float32x4', offset: 0 },
-          { location: LOC_QUAD_AXISY_ALPHA, format: 'float32x4', offset: 16 },
-        ],
-      },
-    ]
+    this.#vertexLayout = instancedQuadLayout(
+      LOC_QUAD_UNIT,
+      SHADER_QUAD_INSTANCE_STRIDE,
+      [
+        { location: LOC_QUAD_ORIGIN_AXISX, format: 'float32x4', offset: 0 },
+        { location: LOC_QUAD_AXISY_ALPHA, format: 'float32x4', offset: 16 },
+      ],
+    )
   }
 
   // Pipelines belong to each quad's own shader, so there is nothing to warm

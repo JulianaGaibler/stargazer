@@ -19,7 +19,7 @@ import {
   type ScreenProjection,
 } from './Camera3D'
 import type { CameraView3D } from './CameraView3D'
-import type { CameraHost } from './CameraHost'
+import { CameraSlot } from './CameraHost'
 import { rejectDetached } from '../anim/abortSignal'
 import { StargazerError } from '../diagnostics/StargazerError'
 
@@ -41,22 +41,18 @@ export class CameraNode3D extends Node3D implements CameraView3D {
    */
   readonly #proj = new Camera3D()
 
-  #enabled = true
   /** Tiebreak for auto pick-next when the current camera detaches, higher wins. */
   priority = 0
-  /** `makeCurrent()` called before attach, consumed on first register. */
-  #wantsCurrent = false
-  #registeredHost: CameraHost | null = null
+  readonly #slot = new CameraSlot<CameraNode3D>(this)
 
   #worldGen = 0
-  #projGen = 0
   #cachedWorldGen = -1
-  #cachedProjGen = -1
+  #cachedProjVersion = -1
   readonly #view: Mat4 = mat4()
   readonly #viewProj: Mat4 = mat4()
   readonly #invViewProj: Mat4 = mat4()
 
-  // --- projection params (delegate to helper, bump projGen) ------------------
+  // --- projection params ----------------------------------------------------
 
   // Projection settings, forwarded to the wrapped Camera3D, which documents
   // each one. They live here so a camera node reads like a single object.
@@ -66,7 +62,6 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   }
   set fovY(v: number) {
     this.#proj.fovY = v
-    this.#projGen++
   }
   /** Near clip distance. */
   get near(): number {
@@ -74,7 +69,6 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   }
   set near(v: number) {
     this.#proj.near = v
-    this.#projGen++
   }
   /** Far clip distance. */
   get far(): number {
@@ -82,7 +76,6 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   }
   set far(v: number) {
     this.#proj.far = v
-    this.#projGen++
   }
   /**
    * Depth at which ortho and perspective match in scale, so a projection blend
@@ -93,7 +86,6 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   }
   set focalDistance(v: number) {
     this.#proj.focalDistance = v
-    this.#projGen++
   }
   /** Ortho to perspective blend in `[0, 1]`. `0` is orthographic. */
   get projectionness(): Projectionness {
@@ -101,7 +93,6 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   }
   set projectionness(t: Projectionness) {
     this.#proj.projectionness = t
-    this.#projGen++
   }
   /** Viewport aspect ratio, kept in sync by the stage on resize. */
   get aspect(): number {
@@ -113,7 +104,6 @@ export class CameraNode3D extends Node3D implements CameraView3D {
 
   setAspect(aspect: number): void {
     this.#proj.setAspect(aspect)
-    this.#projGen++
   }
 
   /**
@@ -156,12 +146,12 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   #ensureMatrices(): void {
     if (
       this.#cachedWorldGen === this.#worldGen &&
-      this.#cachedProjGen === this.#projGen
+      this.#cachedProjVersion === this.#proj.projectionVersion
     ) {
       return
     }
     this.#cachedWorldGen = this.#worldGen
-    this.#cachedProjGen = this.#projGen
+    this.#cachedProjVersion = this.#proj.projectionVersion
     // View = inverse of the node's world pose (world->camera).
     mat4Invert(this.#view, this.worldMatrix)
     mat4Multiply(this.#viewProj, this.#proj.projection, this.#view)
@@ -261,17 +251,15 @@ export class CameraNode3D extends Node3D implements CameraView3D {
    * current one promotes the next.
    */
   get enabled(): boolean {
-    return this.#enabled
+    return this.#slot.enabled
   }
   set enabled(v: boolean) {
-    if (this.#enabled === v) return
-    this.#enabled = v
-    if (!v) this.#host()?.reevaluateCurrent3D()
+    this.#slot.setEnabled(v)
   }
 
   /** Whether this is the stage's current 3D camera. */
   get isCurrent(): boolean {
-    return this.#host()?.isCurrent3D(this) ?? false
+    return this.#slot.isCurrent
   }
 
   /**
@@ -279,16 +267,12 @@ export class CameraNode3D extends Node3D implements CameraView3D {
    * consumed on register.
    */
   makeCurrent(): void {
-    const host = this.#host()
-    if (host) host.makeCurrent3D(this)
-    else this.#wantsCurrent = true
+    this.#slot.makeCurrent()
   }
 
   /** Stop being current. By default the next enabled camera is promoted. */
   clearCurrent(enableNext = true): void {
-    this.#wantsCurrent = false
-    const host = this.#host()
-    if (host && host.isCurrent3D(this) && enableNext) host.reevaluateCurrent3D()
+    this.#slot.clearCurrent(enableNext)
   }
 
   /**
@@ -297,7 +281,7 @@ export class CameraNode3D extends Node3D implements CameraView3D {
    * @internal
    */
   get wantsCurrent(): boolean {
-    return this.#wantsCurrent
+    return this.#slot.wantsCurrent
   }
   /**
    * Clear the request set by {@link CameraNode3D.wantsCurrent}.
@@ -305,32 +289,20 @@ export class CameraNode3D extends Node3D implements CameraView3D {
    * @internal
    */
   consumeWantsCurrent(): void {
-    this.#wantsCurrent = false
-  }
-
-  #host(): CameraHost | null {
-    return (this.owner as SceneTree | null)?.stage ?? null
+    this.#slot.wantsCurrent = false
   }
 
   // --- lifecycle -------------------------------------------------------------
 
   protected override _onAttach(): void {
-    const host = this.#host()
-    if (!host) {
-      throw new StargazerError(
-        'SG5007',
-
-        `CameraNode3D '${this.id}' was attached to a tree with no camera host ` +
-          `(SceneTree.stage is null). Camera nodes must live under a Stage's tree.`,
-      )
-    }
-    this.#registeredHost = host
-    host.registerCamera3D(this)
+    this.#slot.attach(
+      (this.owner as SceneTree | null)?.stage?._cameras3D,
+      `CameraNode3D '${this.id}'`,
+    )
   }
 
   protected override _onDetach(): void {
-    this.#registeredHost?.unregisterCamera3D(this)
-    this.#registeredHost = null
+    this.#slot.detach()
   }
 
   // --- leaf-only -------------------------------------------------------------

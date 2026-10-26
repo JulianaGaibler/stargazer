@@ -1,12 +1,9 @@
-import {
-  createEngineHost,
-  type EngineHostOptions,
-} from '../src/engine/EngineHost'
+import { createEngineHost } from '../src/engine/EngineHost'
 import { CameraNode3D } from '../src/camera/CameraNode3D'
 import { DirectionalLight3D } from '../src/nodes/Light3D'
 import { MeshNode, createBoxGeometry } from '../src/nodes/MeshNode'
 import { quat, quatFromAxisAngle } from '../src/math/Quat'
-import { WebGPUDevice } from '../src/render/gfx/webgpu/WebGPUDevice'
+import { gpuDeviceFromUrl } from './gpuDevice'
 import type { DemoFn } from './types'
 
 // Minimal 3D diagnostic scene: solid-color primitive boxes that each isolate
@@ -21,16 +18,7 @@ import type { DemoFn } from './types'
 // mis-placed box. Force the backend with `?gfx=webgpu`. Debug HUD is on.
 
 const runDemo: DemoFn = async ({ canvas, signal, attach }) => {
-  const wantsWebGPU =
-    new URLSearchParams(window.location.search).get('gfx') === 'webgpu'
-  let gpuDevice: EngineHostOptions['gpuDevice']
-  if (wantsWebGPU) {
-    try {
-      gpuDevice = await WebGPUDevice.create(canvas)
-    } catch (err) {
-      console.warn('[demo-boxes3d] WebGPU unavailable, using WebGL2:', err)
-    }
-  }
+  const gpuDevice = await gpuDeviceFromUrl(canvas)
 
   const host = createEngineHost({
     canvas,

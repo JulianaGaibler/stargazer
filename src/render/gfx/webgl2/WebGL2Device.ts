@@ -1524,7 +1524,7 @@ export class WebGL2Device implements GfxDevice {
       this.#passH = size
       this.#setScissor(undefined)
       if ((desc.depth?.loadOp ?? 'clear') === 'clear') {
-        this.setDepthWrite(true)
+        this.#setDepthWrite(true)
         gl.clearDepth(desc.depth?.clearValue ?? 1.0)
         gl.clear(gl.DEPTH_BUFFER_BIT)
       }
@@ -1559,7 +1559,7 @@ export class WebGL2Device implements GfxDevice {
       mask |= gl.COLOR_BUFFER_BIT
     }
     if (desc.depth && desc.depth.loadOp === 'clear') {
-      this.setDepthWrite(true)
+      this.#setDepthWrite(true)
       gl.clearDepth(desc.depth.clearValue ?? 1.0)
       mask |= gl.DEPTH_BUFFER_BIT
     }
@@ -1567,7 +1567,7 @@ export class WebGL2Device implements GfxDevice {
       // `gl.clear` is gated by the stencil write mask the same way it is by the
       // depth mask, so a pipeline's narrower mask left over from the last frame
       // would make this silently do nothing.
-      this.setStencilWriteMask(0xff)
+      this.#setStencilWriteMask(0xff)
       gl.clearStencil(desc.stencil.clearValue ?? 0)
       mask |= gl.STENCIL_BUFFER_BIT
     }
@@ -1842,34 +1842,11 @@ export class WebGL2Device implements GfxDevice {
     const slotOffsets: number[] = []
     for (let i = 0; i < p.vertexLayout.length; i++) {
       const layout = p.vertexLayout[i]
-      const binding = call.vertexBuffers[i]
-      const buf = binding.buffer as WebGL2Buffer
-      this.#bindArrayBuffer(buf.gl)
-      const divisor = layout.stepMode === 'instance' ? 1 : 0
       for (const attr of layout.attributes) {
-        const fmt = FORMAT_INFO[attr.format]
         gl.enableVertexAttribArray(attr.location)
-        if (fmt.integer) {
-          gl.vertexAttribIPointer(
-            attr.location,
-            fmt.size,
-            fmt.glType,
-            layout.arrayStride,
-            attr.offset + binding.offset,
-          )
-        } else {
-          gl.vertexAttribPointer(
-            attr.location,
-            fmt.size,
-            fmt.glType,
-            fmt.normalized,
-            layout.arrayStride,
-            attr.offset + binding.offset,
-          )
-        }
-        gl.vertexAttribDivisor(attr.location, divisor)
       }
-      slotOffsets[i] = binding.offset
+      this.#pointSlot(layout, call.vertexBuffers[i])
+      slotOffsets[i] = call.vertexBuffers[i].offset
     }
     let indexType: IndexType | undefined
     const bufferIds = call.vertexBuffers.map(
@@ -1900,37 +1877,43 @@ export class WebGL2Device implements GfxDevice {
     vao: WebGL2Vao,
     call: DrawCall,
   ): void {
-    const gl = this.#gl
     for (let i = 0; i < p.vertexLayout.length; i++) {
       const binding = call.vertexBuffers[i]
       if (vao.slotOffsets[i] === binding.offset) continue
-      const layout = p.vertexLayout[i]
-      const buf = binding.buffer as WebGL2Buffer
-      this.#bindArrayBuffer(buf.gl)
-      const divisor = layout.stepMode === 'instance' ? 1 : 0
-      for (const attr of layout.attributes) {
-        const fmt = FORMAT_INFO[attr.format]
-        if (fmt.integer) {
-          gl.vertexAttribIPointer(
-            attr.location,
-            fmt.size,
-            fmt.glType,
-            layout.arrayStride,
-            attr.offset + binding.offset,
-          )
-        } else {
-          gl.vertexAttribPointer(
-            attr.location,
-            fmt.size,
-            fmt.glType,
-            fmt.normalized,
-            layout.arrayStride,
-            attr.offset + binding.offset,
-          )
-        }
-        gl.vertexAttribDivisor(attr.location, divisor)
-      }
+      this.#pointSlot(p.vertexLayout[i], binding)
       vao.slotOffsets[i] = binding.offset
+    }
+  }
+
+  /** Points the bound VAO's attributes for one slot at `binding`. */
+  #pointSlot(
+    layout: VertexBufferLayout,
+    binding: DrawCall['vertexBuffers'][number],
+  ): void {
+    const gl = this.#gl
+    this.#bindArrayBuffer((binding.buffer as WebGL2Buffer).gl)
+    const divisor = layout.stepMode === 'instance' ? 1 : 0
+    for (const attr of layout.attributes) {
+      const fmt = FORMAT_INFO[attr.format]
+      if (fmt.integer) {
+        gl.vertexAttribIPointer(
+          attr.location,
+          fmt.size,
+          fmt.glType,
+          layout.arrayStride,
+          attr.offset + binding.offset,
+        )
+      } else {
+        gl.vertexAttribPointer(
+          attr.location,
+          fmt.size,
+          fmt.glType,
+          fmt.normalized,
+          layout.arrayStride,
+          attr.offset + binding.offset,
+        )
+      }
+      gl.vertexAttribDivisor(attr.location, divisor)
     }
   }
 
@@ -2111,11 +2094,6 @@ export class WebGL2Device implements GfxDevice {
     this.#curDepthWrite = enabled
   }
 
-  // Public so shadow-pass clears (which need writes on) route through the cache.
-  setDepthWrite(enabled: boolean): void {
-    this.#setDepthWrite(enabled)
-  }
-
   #setDepthFunc(compare: CompareFn): void {
     if (this.#curDepthFunc === compare) return
     this.#gl.depthFunc(compareFnGl(this.#gl, compare))
@@ -2197,15 +2175,6 @@ export class WebGL2Device implements GfxDevice {
     if (this.#curStencilWriteMask === mask) return
     this.#gl.stencilMask(mask)
     this.#curStencilWriteMask = mask
-  }
-
-  /**
-   * Public so a stencil clear can force writes on first. `gl.clear` is gated by
-   * the stencil write mask exactly as it is by the depth mask, so clearing with
-   * a pipeline's narrower mask still in place silently does nothing.
-   */
-  setStencilWriteMask(mask: number): void {
-    this.#setStencilWriteMask(mask)
   }
 
   #setColorWrite(enabled: boolean): void {

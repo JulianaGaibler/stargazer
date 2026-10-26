@@ -3,16 +3,9 @@
 // flatten scratch) since every stroke shape funnels through the polyline
 // emitter.
 
-import type {
-  BindGroup,
-  BindGroupLayout,
-  GfxDevice,
-  Pipeline,
-  VertexBufferLayout,
-} from '../GfxDevice'
+import type { BindGroup, GfxDevice } from '../GfxDevice'
 import type { SolidStrokeStyle } from '../Gfx2D'
 import { flattenQuadratic } from '../../../assets/SvgPathContours'
-import { RingStream } from '../RingStream'
 import { RetainedCache, type RetainedEntry } from '../RetainedCache'
 import { packColor, resolveDash } from '../packing'
 import {
@@ -27,14 +20,9 @@ import {
   STROKE_INSTANCE_STRIDE,
 } from '../batchLayout'
 import type { DrawRun, GpuBatchContext } from '../GpuBatchContext'
-import type { GpuProgram } from '../GpuProgram'
 import { STENCIL_ROWS, stencilReferenceFor } from '../stencilRecipe'
-import {
-  drawInstancedRun,
-  unitQuadLayout,
-  warmupBlendPipelines,
-} from './programCommon'
-import type { ShaderReflection } from '../GfxDevice'
+import type { BlendPipelineOptions } from './programCommon'
+import { InstancedQuadProgram } from './instancedQuad'
 import strokeWgsl from '../shaders/stroke.gen.wgsl?raw'
 import strokeVertSrc from '../shaders/stroke.gen.vert.glsl?raw'
 import strokeFragSrc from '../shaders/stroke.gen.frag.glsl?raw'
@@ -52,14 +40,9 @@ interface StrokeEntry extends RetainedEntry {
   bounds: Float64Array
 }
 
-export class StrokeProgram implements GpuProgram {
+export class StrokeProgram extends InstancedQuadProgram {
   readonly kind = 'stroke' as const
 
-  #shader!: import('../GfxDevice').ShaderModule
-  #stream!: RingStream
-  #pipelines: Map<string, Pipeline> = new Map()
-  #vertexLayout: VertexBufferLayout[] = []
-  #materialLayout!: BindGroupLayout
   /** `coreOnly = 0`: every fragment, including the antialiased rim. */
   #fringeBind!: BindGroup
   /** `coreOnly = 1`: only near-full coverage, for the first of the two passes. */
@@ -69,24 +52,36 @@ export class StrokeProgram implements GpuProgram {
   cache!: RetainedCache<StrokeEntry>
   #device!: GfxDevice
 
-  get stream(): RingStream {
-    return this.#stream
-  }
-
   /** Curve flattening scratch. Reused across calls since strokes don't nest. */
   readonly #flattenScratch = new Float32Array(CURVE_FLATTEN_MAX_POINTS * 2)
 
-  init(device: GfxDevice, _ctx: GpuBatchContext): void {
-    this.#shader = device.createShaderModule({
-      glsl: { vertex: strokeVertSrc, fragment: strokeFragSrc },
-      wgsl: {
-        code: strokeWgsl,
-        vertexEntry: 'vs_main',
-        fragmentEntry: 'fs_main',
-      },
-      reflection: strokeReflect as ShaderReflection,
+  constructor() {
+    super({
       label: 'stroke',
+      vertex: strokeVertSrc,
+      fragment: strokeFragSrc,
+      wgsl: strokeWgsl,
+      reflection: strokeReflect,
+      bufferBytes: STROKE_BUFFER_BYTES,
+      stride: STROKE_INSTANCE_STRIDE,
+      unitLocation: LOC_STROKE_UNIT,
+      attributes: [
+        { location: LOC_STROKE_P0, format: 'float32x2', offset: 0 },
+        { location: LOC_STROKE_P1, format: 'float32x2', offset: 8 },
+        { location: LOC_STROKE_COLOR, format: 'unorm8x4', offset: 16 },
+        { location: LOC_STROKE_WIDTHDASH, format: 'float32x4', offset: 20 },
+      ],
+      // Two constant uniform blocks rather than a per-draw ring: the only
+      // value is a pass flag, so there are exactly two of them for the life of
+      // the program.
+      // Binding 2 to match the shader: uniform-block binding numbers must be
+      // unique across both groups, since the WebGL2 reflection has no group.
+      material: [{ binding: 2, type: 'uniform-buffer' }],
     })
+  }
+
+  override init(device: GfxDevice, ctx: GpuBatchContext): void {
+    super.init(device, ctx)
     this.#device = device
     // A rebuilt device has already lost the old buffers.
     this.cache?.clear(false)
@@ -95,33 +90,6 @@ export class StrokeProgram implements GpuProgram {
       idleFrames: 120,
       budgetBytes: 16 * 1024 * 1024,
     })
-    this.#stream = new RingStream(
-      device,
-      STROKE_BUFFER_BYTES,
-      STROKE_INSTANCE_STRIDE,
-      'stroke',
-    )
-    this.#vertexLayout = [
-      unitQuadLayout(LOC_STROKE_UNIT),
-      {
-        arrayStride: STROKE_INSTANCE_STRIDE,
-        stepMode: 'instance',
-        attributes: [
-          { location: LOC_STROKE_P0, format: 'float32x2', offset: 0 },
-          { location: LOC_STROKE_P1, format: 'float32x2', offset: 8 },
-          { location: LOC_STROKE_COLOR, format: 'unorm8x4', offset: 16 },
-          { location: LOC_STROKE_WIDTHDASH, format: 'float32x4', offset: 20 },
-        ],
-      },
-    ]
-    // Two constant uniform blocks rather than a per-draw ring: the only value
-    // is a pass flag, so there are exactly two of them for the life of the
-    // program.
-    // Binding 2 to match the shader: uniform-block binding numbers must be
-    // unique across BOTH groups, since the WebGL2 reflection has no group.
-    this.#materialLayout = device.createBindGroupLayout([
-      { binding: 2, type: 'uniform-buffer' },
-    ])
     this.#fringeBind = this.#makeBind(device, 0)
     this.#coreBind = this.#makeBind(device, 1)
   }
@@ -131,28 +99,25 @@ export class StrokeProgram implements GpuProgram {
     data[0] = coreOnly
     const ubo = device.createUniformBuffer(STROKE_UBO_BYTES)
     device.updateUniformBuffer(ubo, data)
-    return device.createBindGroup(this.#materialLayout, [
+    return device.createBindGroup(this.materialLayout, [
       { binding: 2, resource: { uniformBuffer: ubo } },
     ])
   }
 
-  async warmup(device: GfxDevice, ctx: GpuBatchContext): Promise<void> {
-    this.#pipelines = await warmupBlendPipelines(device, ctx, {
-      shader: this.#shader,
-      vertexLayout: this.#vertexLayout,
-      bindGroupLayouts: [ctx.frameBindGroupLayout, this.#materialLayout],
-      // Only worth building where a stencil buffer exists to use them.
-      variants: ctx.targetHasStencil
-        ? [
-            { suffix: 'draw', stencil: STENCIL_ROWS.strokeMark.state },
-            {
-              suffix: 'reset',
-              stencil: STENCIL_ROWS.strokeReset.state,
-              colorWrite: false,
-            },
-          ]
-        : [],
-    })
+  protected override pipelineVariants(
+    ctx: GpuBatchContext,
+  ): BlendPipelineOptions['variants'] {
+    // Only worth building where a stencil buffer exists to use them.
+    return ctx.targetHasStencil
+      ? [
+          { suffix: 'draw', stencil: STENCIL_ROWS.strokeMark.state },
+          {
+            suffix: 'reset',
+            stencil: STENCIL_ROWS.strokeReset.state,
+            colorWrite: false,
+          },
+        ]
+      : []
   }
 
   /**
@@ -177,7 +142,7 @@ export class StrokeProgram implements GpuProgram {
       out.set(run.instances.bounds)
       return true
     }
-    const f = this.#stream.floatView
+    const f = this.ring.floatView
     const words = STROKE_INSTANCE_STRIDE / 4
     let minX = Infinity
     let minY = Infinity
@@ -212,12 +177,8 @@ export class StrokeProgram implements GpuProgram {
         : run.strokePass === 'reset'
           ? 'reset'
           : 'draw'
-    drawInstancedRun(
+    this.drawInstanced(
       ctx,
-      this.#pipelines,
-      ctx.unitQuadBuffer,
-      this.#stream,
-      STROKE_INSTANCE_STRIDE,
       run,
       run.strokePass === 'core' ? this.#coreBind : this.#fringeBind,
       variant,
@@ -457,11 +418,11 @@ export class StrokeProgram implements GpuProgram {
     dashOnLen: number,
   ): void {
     ctx.beginBatch('stroke')
-    const off = ctx.reserveInstance(this.#stream)
+    const off = ctx.reserveInstance(this.ring)
     if (off < 0) return
     const slot = ctx.curSlot
-    const f = this.#stream.floatView
-    const u = this.#stream.uintView
+    const f = this.ring.floatView
+    const u = this.ring.uintView
     f[off + 0] = p0x
     f[off + 1] = p0y
     f[off + 2] = p1x
@@ -471,7 +432,7 @@ export class StrokeProgram implements GpuProgram {
     f[off + 6] = dashStart
     f[off + 7] = dashPeriod
     f[off + 8] = dashOnLen
-    this.#stream.commitInstance(slot)
+    this.ring.commitInstance(slot)
     ctx.stats.strokeInstances++
   }
 }

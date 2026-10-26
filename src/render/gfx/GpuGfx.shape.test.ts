@@ -21,6 +21,7 @@ vi.mock('./rasterizeLabel', async (importOriginal) => {
 
 import { GpuGfx } from './GpuGfx'
 import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { setSmoothCornerFieldLoader } from './squircleField'
 
 function makeGpuGfx(): { gfx: GpuGfx; device: MockGfxDevice } {
   const canvas = document.createElement('canvas')
@@ -130,27 +131,23 @@ describe('GpuGfx smooth corners', () => {
   })
 
   it('writes each corner its fitted smoothing once the field is loaded', async () => {
-    vi.resetModules()
-    vi.doMock('./squircleField', async (importOriginal) => ({
-      ...(await importOriginal<typeof import('./squircleField')>()),
-      loadField: () => Promise.resolve(new Uint16Array(64 * 64 * 21 * 4)),
-    }))
-    const { GpuGfx: FieldGpuGfx } = await import('./GpuGfx')
-    const canvas = document.createElement('canvas')
-    canvas.width = 400
-    canvas.height = 300
-    const device = new MockGfxDevice()
-    const gfx = new FieldGpuGfx(canvas, device)
-    await beginFrame(gfx, device)
-    // Uniform radius 40 on 200 x 100: each corner may use 50 of a side, so
-    // smoothing 0.6 is fitted down to 50 / 40 - 1 = 0.25.
-    gfx.fillRoundRect(0, 0, 200, 100, 40, '#fff', 0.6)
-    gfx.fillRoundRect(0, 0, 200, 200, 40, '#fff', 0.6)
-    gfx.endFrame()
-    for (const v of smoothingOf(device, 0)) expect(v).toBeCloseTo(0.25)
-    for (const v of smoothingOf(device, 1)) expect(v).toBeCloseTo(0.6)
-    expect(device.dataUploads).toHaveLength(1)
-    vi.doUnmock('./squircleField')
+    setSmoothCornerFieldLoader(() =>
+      Promise.resolve(new Uint16Array(64 * 64 * 21 * 4)),
+    )
+    try {
+      const { gfx, device } = makeGpuGfx()
+      await beginFrame(gfx, device)
+      // Uniform radius 40 on 200 x 100: each corner may use 50 of a side, so
+      // smoothing 0.6 is fitted down to 50 / 40 - 1 = 0.25.
+      gfx.fillRoundRect(0, 0, 200, 100, 40, '#fff', 0.6)
+      gfx.fillRoundRect(0, 0, 200, 200, 40, '#fff', 0.6)
+      gfx.endFrame()
+      for (const v of smoothingOf(device, 0)) expect(v).toBeCloseTo(0.25)
+      for (const v of smoothingOf(device, 1)) expect(v).toBeCloseTo(0.6)
+      expect(device.dataUploads).toHaveLength(1)
+    } finally {
+      setSmoothCornerFieldLoader(() => Promise.resolve(null))
+    }
   })
 })
 

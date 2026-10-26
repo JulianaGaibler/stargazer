@@ -115,6 +115,20 @@ describe('Emitter', () => {
       expect(warnings.some((w) => /reentrant/i.test(w))).toBe(true)
     })
 
+    it('a reentrant emit leaves the outer dispatch intact', () => {
+      const e = createEmitter<M>()
+      const first: number[] = []
+      const second: number[] = []
+      e.on('count', (n) => {
+        first.push(n)
+        if (n === 1) e.emit('count', 2)
+      })
+      e.on('count', (n) => second.push(n))
+      e.emit('count', 1)
+      expect(first).toEqual([1, 2])
+      expect(second).toEqual([2, 1])
+    })
+
     it('emits on different keys do not interfere with each other', () => {
       const e = createEmitter<M>()
       const seenGreet: string[] = []

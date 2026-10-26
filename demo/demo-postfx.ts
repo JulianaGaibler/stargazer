@@ -1,13 +1,10 @@
-import {
-  createEngineHost,
-  type EngineHostOptions,
-} from '../src/engine/EngineHost'
+import { createEngineHost } from '../src/engine/EngineHost'
 import { CameraNode2D } from '../src/camera/CameraNode2D'
 import { ShapeNode } from '../src/nodes/ShapeNode'
 import { Layer } from '../src/scene/Layer'
 import { DualKawaseBlur } from '../src/render/postfx/effects/DualKawaseBlur'
 import { FilmGrain } from '../src/render/postfx/effects/FilmGrain'
-import { WebGPUDevice } from '../src/render/gfx/webgpu/WebGPUDevice'
+import { gpuDeviceFromUrl } from './gpuDevice'
 import type { DemoFn } from './types'
 
 // Post-fx sandbox. The scene is built to make each effect legible on its own:
@@ -124,17 +121,9 @@ function slider(
 
 const runDemo: DemoFn = async ({ canvas, signal, attach }) => {
   const params = new URLSearchParams(window.location.search)
-  const wantsWebGPU = params.get('gfx') === 'webgpu'
   const stageOff = params.get('stage') === 'off'
   const cacheOn = params.get('cache') === 'on'
-  let gpuDevice: EngineHostOptions['gpuDevice']
-  if (wantsWebGPU) {
-    try {
-      gpuDevice = await WebGPUDevice.create(canvas)
-    } catch (err) {
-      console.warn('[demo-postfx] WebGPU unavailable, using WebGL2:', err)
-    }
-  }
+  const gpuDevice = await gpuDeviceFromUrl(canvas)
 
   const host = createEngineHost({
     canvas,

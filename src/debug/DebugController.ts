@@ -74,6 +74,10 @@ export interface DebugToggleState {
   flyPointerLocked: boolean
 }
 
+/** The plain on/off switches of {@link DebugToggleState}. */
+type DebugFlag =
+  'outlines' | 'layoutOutlines' | 'follow' | 'grid' | 'pointerOverlay'
+
 /** Flattened view of one active pointer, shaped for the HUD's pointer sections. */
 export interface ActivePointerReadout {
   id: number
@@ -304,11 +308,13 @@ export class DebugController {
   /** Reactive HUD visibility, subscribe from Svelte with `$`. */
   readonly hudVisible$: Readable<boolean> = this.#hudVisibleStore
   #_cameraActive = false
-  #_outlinesVisible = false
-  #_layoutOutlinesVisible = false
-  #_followGameCamera = false
-  #_gridVisible = false
-  #_pointerOverlayVisible = false
+  readonly #flags: Record<DebugFlag, boolean> = {
+    outlines: false,
+    layoutOutlines: false,
+    follow: false,
+    grid: false,
+    pointerOverlay: false,
+  }
   /**
    * Which space the debug camera, grid, and camera pad act on. One mode at a
    * time, so the 2D and 3D grids never draw together and the pad/keys drive the
@@ -372,8 +378,8 @@ export class DebugController {
     this.events = createEmitter<DebugEvents>()
 
     this.#hudVisibleStore.set(opts.showHud ?? false)
-    this.#_outlinesVisible = opts.showOutlines ?? false
-    this.#_gridVisible = opts.showGrid ?? false
+    this.#flags.outlines = opts.showOutlines ?? false
+    this.#flags.grid = opts.showGrid ?? false
 
     const onKeyDown = (e: KeyboardEvent): void => this.#onKeyDown(e)
     const onKeyUp = (e: KeyboardEvent): void => this.#onKeyUp(e)
@@ -536,23 +542,23 @@ export class DebugController {
   }
   /** Whether node bounds are outlined. */
   get outlinesVisible(): boolean {
-    return this.#_outlinesVisible
+    return this.#flags.outlines
   }
   /** Whether layout boxes are outlined. */
   get layoutOutlinesVisible(): boolean {
-    return this.#_layoutOutlinesVisible
+    return this.#flags.layoutOutlines
   }
   /** Whether the debug camera follows the game camera. */
   get followGameCamera(): boolean {
-    return this.#_followGameCamera
+    return this.#flags.follow
   }
   /** Whether the world grid is drawn. */
   get gridVisible(): boolean {
-    return this.#_gridVisible
+    return this.#flags.grid
   }
   /** Whether active pointers are drawn on the canvas. */
   get pointerOverlayVisible(): boolean {
-    return this.#_pointerOverlayVisible
+    return this.#flags.pointerOverlay
   }
   /** Whether the engine is paused. */
   get paused(): boolean {
@@ -807,33 +813,40 @@ export class DebugController {
    */
   padKey(code: string, pressed: boolean): void {
     if (pressed && !this.#_cameraActive) this.toggleCamera()
-    if (this.#_debugSpace === '2d') this.camera.setKey(code, pressed)
-    else this.#debugCamera3d?.setKey(code, pressed)
+    this.#routeCameraKey(code, pressed)
+  }
+
+  /** Feed a key to the current-space debug camera. Returns whether it took it. */
+  #routeCameraKey(code: string, pressed: boolean): boolean {
+    if (this.#_debugSpace === '2d') {
+      if (!DebugCamera.isControlKey(code)) return false
+      this.camera.setKey(code, pressed)
+      return true
+    }
+    if (!this.#debugCamera3d || !DebugCamera3D.isControlKey(code)) return false
+    this.#debugCamera3d.setKey(code, pressed)
+    return true
   }
 
   /** Turn the node bounds outlines on or off. */
   toggleOutlines(): void {
-    this.#_outlinesVisible = !this.#_outlinesVisible
-    this.#emitToggle()
+    this.#toggleFlag('outlines')
   }
 
   /** Turn the layout box outlines on or off. */
   toggleLayoutOutlines(): void {
-    this.#_layoutOutlinesVisible = !this.#_layoutOutlinesVisible
-    this.#emitToggle()
+    this.#toggleFlag('layoutOutlines')
   }
 
   /** Turn following of the game camera on or off. */
   toggleFollow(): void {
-    this.#_followGameCamera = !this.#_followGameCamera
-    this.camera.setFollow(this.#_followGameCamera)
-    this.#emitToggle()
+    this.camera.setFollow(!this.#flags.follow)
+    this.#toggleFlag('follow')
   }
 
   /** Turn the world grid on or off. */
   toggleGrid(): void {
-    this.#_gridVisible = !this.#_gridVisible
-    this.#emitToggle()
+    this.#toggleFlag('grid')
   }
 
   /** Pause the engine, or resume it when it is paused. */
@@ -844,8 +857,7 @@ export class DebugController {
 
   /** Turn the active pointer overlay on or off. */
   togglePointerOverlay(): void {
-    this.#_pointerOverlayVisible = !this.#_pointerOverlayVisible
-    this.#emitToggle()
+    this.#toggleFlag('pointerOverlay')
   }
 
   /** Current physics overlay flags (read-only). */
@@ -1024,7 +1036,7 @@ export class DebugController {
       backend: active.backend,
       renderFailures: active.failures.list,
       cameraMode: this.#_cameraActive ? 'debug' : 'game',
-      cameraFollowing: this.#_followGameCamera,
+      cameraFollowing: this.#flags.follow,
       viewport: cam ? { ...cam.viewport } : { x: 0, y: 0, width: 0, height: 0 },
       screenPxPerWorldUnit: cam?.screenPxPerWorldUnit() ?? 0,
       pointerScreen: ps ? { ...ps } : null,
@@ -1197,15 +1209,15 @@ export class DebugController {
 
     // The 2D screen grid draws only in 2D mode. 3D mode uses the ground grid in
     // `drawOverlay3D`, so the two never overlap.
-    if (this.#_gridVisible && this.#_debugSpace === '2d') {
+    if (this.#flags.grid && this.#_debugSpace === '2d') {
       drawGrid(gfx, activeCamera, renderer.cssSize.w, renderer.cssSize.h)
     }
 
-    if (this.#_outlinesVisible) {
+    if (this.#flags.outlines) {
       drawNodeOutlines(gfx, stage, activeCamera)
     }
 
-    if (this.#_layoutOutlinesVisible) {
+    if (this.#flags.layoutOutlines) {
       drawLayoutOutlines(gfx, stage, activeCamera)
     }
 
@@ -1259,12 +1271,12 @@ export class DebugController {
     // screen grid (which the 2D overlay draws in 2D mode). It follows the camera
     // (snapped to the grid) so it reads as infinite, and the three world axes
     // span far in both directions through the origin.
-    if (this.#_gridVisible && this.#_debugSpace === '3d') {
+    if (this.#flags.grid && this.#_debugSpace === '3d') {
       const eye = cam3d.eyePosition()
       lines.groundGrid(eye.x, eye.z, 1, 40, [1, 1, 1, 0.12])
       lines.originAxes(1000)
     }
-    if (this.#_outlinesVisible) {
+    if (this.#flags.outlines) {
       walkTree(stage.tree.root, (n) => {
         if (n instanceof MeshNode) {
           const b = n.localBounds()
@@ -1347,7 +1359,7 @@ export class DebugController {
    * the toggle is off or the stage has no input attached.
    */
   drawInputOverlay(stage: Stage, gfx: Gfx2D): void {
-    if (!this.#_pointerOverlayVisible) return
+    if (!this.#flags.pointerOverlay) return
     const input = stage.input
     if (!input) return
     const dpr = stage.renderer.dpr
@@ -1364,6 +1376,11 @@ export class DebugController {
     this.#disposeCallbacks.length = 0
   }
 
+  #toggleFlag(flag: DebugFlag): void {
+    this.#flags[flag] = !this.#flags[flag]
+    this.#emitToggle()
+  }
+
   #emitToggle(): void {
     this.events.emit('toggle', {
       hud: this.hudVisible,
@@ -1371,12 +1388,8 @@ export class DebugController {
       space: this.#_debugSpace,
       cameraMode: this.cameraMode,
       renderMode: this.#_renderMode,
-      outlines: this.#_outlinesVisible,
-      layoutOutlines: this.#_layoutOutlinesVisible,
-      follow: this.#_followGameCamera,
-      grid: this.#_gridVisible,
+      ...this.#flags,
       paused: this.engine.paused,
-      pointerOverlay: this.#_pointerOverlayVisible,
       physics: { ...this.#_physicsFlags },
       flyPointerLocked: this.#_flyPointerLocked,
     })
@@ -1408,22 +1421,9 @@ export class DebugController {
       this.#debugCamera3d?.setSprint(true)
       return
     }
-    // Feed control keys to whichever debug camera the current space engages.
-    if (this.#_cameraActive) {
-      if (this.#_debugSpace === '2d' && DebugCamera.isControlKey(e.code)) {
-        this.camera.setKey(e.code, true)
-        e.preventDefault()
-        return
-      }
-      if (
-        this.#_debugSpace === '3d' &&
-        this.#debugCamera3d &&
-        DebugCamera3D.isControlKey(e.code)
-      ) {
-        this.#debugCamera3d.setKey(e.code, true)
-        e.preventDefault()
-        return
-      }
+    if (this.#_cameraActive && this.#routeCameraKey(e.code, true)) {
+      e.preventDefault()
+      return
     }
     switch (e.code) {
       case 'KeyV':
@@ -1486,16 +1486,7 @@ export class DebugController {
       this.#debugCamera3d?.setSprint(false)
       return
     }
-    if (!this.#_cameraActive) return
-    if (this.#_debugSpace === '2d' && DebugCamera.isControlKey(e.code)) {
-      this.camera.setKey(e.code, false)
-    } else if (
-      this.#_debugSpace === '3d' &&
-      this.#debugCamera3d &&
-      DebugCamera3D.isControlKey(e.code)
-    ) {
-      this.#debugCamera3d.setKey(e.code, false)
-    }
+    if (this.#_cameraActive) this.#routeCameraKey(e.code, false)
   }
 
   #drawGameCameraRect(

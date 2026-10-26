@@ -118,6 +118,11 @@
     return CUSTOM_TYPE_COLORS[Math.abs(h) % CUSTOM_TYPE_COLORS.length]
   }
 
+  function isCurrent(node: Node): boolean {
+    const stage = debug.activeStage
+    return stage.currentCamera2D === node || stage.currentCamera3D === node
+  }
+
   // Expanded set survives the ~1 Hz refresh. `SvelteSet` is reactive without a
   // fresh allocation per toggle.
   const treeExpanded = new SvelteSet<string>()
@@ -143,12 +148,9 @@
       const isWorldHost = n2
         ? n2.getBehavior(PhysicsWorldBehavior) !== null
         : false
-      const stage = debug.activeStage
       const isCamera =
         node instanceof CameraNode2D || node instanceof CameraNode3D
-      const isCurrentCamera =
-        (node instanceof CameraNode2D && stage.currentCamera2D === node) ||
-        (node instanceof CameraNode3D && stage.currentCamera3D === node)
+      const isCurrentCamera = isCurrent(node)
       const meta: NodeMeta = {
         node,
         type,
@@ -223,12 +225,9 @@
     const node = nodeOf(selectedId)
     if (!node) return null
     const type = node.constructor.name
-    const stage = debug.activeStage
     const isCamera =
       node instanceof CameraNode2D || node instanceof CameraNode3D
-    const isCurrentCamera =
-      (node instanceof CameraNode2D && stage.currentCamera2D === node) ||
-      (node instanceof CameraNode3D && stage.currentCamera3D === node)
+    const isCurrentCamera = isCurrent(node)
     const makeCurrent = (): void => {
       if (node instanceof CameraNode2D || node instanceof CameraNode3D) {
         node.makeCurrent()
@@ -277,30 +276,36 @@
     return { ...base, kind: 'group' as const }
   })
 
+  interface CameraItem {
+    id: string
+    current: boolean
+    intrinsic: boolean
+    make: () => void
+  }
+
+  function cameraItems(
+    list: readonly (CameraNode2D | CameraNode3D)[],
+    current: Node | null,
+  ): CameraItem[] {
+    return list.map((c) => ({
+      id: c.id,
+      current: c === current,
+      intrinsic: c.intrinsic,
+      make: () => {
+        c.makeCurrent()
+        rebuild()
+      },
+    }))
+  }
+
   // Live camera registry for the active stage (node-based camera model). Each
   // stage tracks a current 2D + 3D camera, and `make` switches it.
   const cameras = $derived.by(() => {
     void revision
     const stage = debug.activeStage
     return {
-      list2d: stage.cameras2d.map((c) => ({
-        id: c.id,
-        current: stage.currentCamera2D === c,
-        intrinsic: c.intrinsic,
-        make: () => {
-          c.makeCurrent()
-          rebuild()
-        },
-      })),
-      list3d: stage.cameras3d.map((c) => ({
-        id: c.id,
-        current: stage.currentCamera3D === c,
-        intrinsic: c.intrinsic,
-        make: () => {
-          c.makeCurrent()
-          rebuild()
-        },
-      })),
+      list2d: cameraItems(stage.cameras2d, stage.currentCamera2D),
+      list3d: cameraItems(stage.cameras3d, stage.currentCamera3D),
     }
   })
 
@@ -335,20 +340,9 @@
   })
 </script>
 
-<DebugSection title="Camera" bind:open={cameraOpen}>
-  <DebugRow
-    label="Active"
-    value={stats.cameraMode === 'debug'
-      ? stats.cameraFollowing
-        ? 'debug (follow)'
-        : 'debug'
-      : 'game'}
-    tone={stats.cameraMode === 'debug' ? 'accent' : 'default'}
-  />
-
-  <!-- Current 2D camera + the registry (click a non-current one to make it current). -->
+{#snippet cameraList(list: CameraItem[])}
   <div class="cam-list">
-    {#each cameras.list2d as c (c.id)}
+    {#each list as c (c.id)}
       <button
         type="button"
         class="cam-item"
@@ -363,6 +357,21 @@
       </button>
     {/each}
   </div>
+{/snippet}
+
+<DebugSection title="Camera" bind:open={cameraOpen}>
+  <DebugRow
+    label="Active"
+    value={stats.cameraMode === 'debug'
+      ? stats.cameraFollowing
+        ? 'debug (follow)'
+        : 'debug'
+      : 'game'}
+    tone={stats.cameraMode === 'debug' ? 'accent' : 'neutral'}
+  />
+
+  <!-- Current 2D camera + the registry (click a non-current one to make it current). -->
+  {@render cameraList(cameras.list2d)}
 
   <MetricRow
     label="Viewport"
@@ -385,24 +394,9 @@
     <DebugRow
       label="Mode"
       value={stats.world3d.cameraMode}
-      tone={stats.world3d.cameraMode === 'debug' ? 'accent' : 'default'}
+      tone={stats.world3d.cameraMode === 'debug' ? 'accent' : 'neutral'}
     />
-    <div class="cam-list">
-      {#each cameras.list3d as c (c.id)}
-        <button
-          type="button"
-          class="cam-item"
-          class:current={c.current}
-          disabled={c.current}
-          title={c.current ? 'Current camera' : `Make "${c.id}" current`}
-          onclick={c.make}
-        >
-          <span class="cam-mark">{c.current ? '●' : '○'}</span>
-          <span class="cam-name">{c.id}</span>
-          {#if c.intrinsic}<span class="chip muted">default</span>{/if}
-        </button>
-      {/each}
-    </div>
+    {@render cameraList(cameras.list3d)}
     <DebugRow
       label="Projection"
       value={fmtProjection(stats.world3d.camera.projectionness)}
@@ -516,14 +510,14 @@
       <DebugRow
         label="Position"
         value={`${fmtCoord(selected.x)}, ${fmtCoord(selected.y)}`}
-        tone={selected.x === 0 && selected.y === 0 ? 'muted' : 'default'}
+        tone={selected.x === 0 && selected.y === 0 ? 'muted' : 'neutral'}
       />
       <DebugRow
         label="Scale"
         value={`${selected.scaleX.toFixed(2)}, ${selected.scaleY.toFixed(2)}`}
         tone={selected.scaleX === 1 && selected.scaleY === 1
           ? 'muted'
-          : 'default'}
+          : 'neutral'}
       />
       <div class="info-row">
         <span class="label">Rotation:</span>
@@ -544,7 +538,7 @@
       <DebugRow
         label="Alpha"
         value={selected.alpha.toFixed(2)}
-        tone={selected.alpha === 1 ? 'muted' : 'default'}
+        tone={selected.alpha === 1 ? 'muted' : 'neutral'}
       />
       {#if selected.measured}
         <DebugRow
@@ -571,7 +565,7 @@
       <DebugRow
         label="Alpha"
         value={selected.alpha.toFixed(2)}
-        tone={selected.alpha === 1 ? 'muted' : 'default'}
+        tone={selected.alpha === 1 ? 'muted' : 'neutral'}
       />
     {/if}
 

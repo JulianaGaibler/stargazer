@@ -1,13 +1,10 @@
-import {
-  createEngineHost,
-  type EngineHostOptions,
-} from '../src/engine/EngineHost'
+import { createEngineHost } from '../src/engine/EngineHost'
 import { loadGltf } from '../src/assets/gltf'
 import { CameraNode3D } from '../src/camera/CameraNode3D'
 import { DirectionalLight3D, PointLight3D } from '../src/nodes/Light3D'
 import { MeshNode, createBoxGeometry } from '../src/nodes/MeshNode'
 import { quat, quatFromAxisAngle } from '../src/math/Quat'
-import { WebGPUDevice } from '../src/render/gfx/webgpu/WebGPUDevice'
+import { gpuDeviceFromUrl } from './gpuDevice'
 import type { DemoFn } from './types'
 
 // 3D backend test: two glTF models (a diffuse-transmission plant and a
@@ -22,16 +19,7 @@ import type { DemoFn } from './types'
 // them in by hand before running this demo.
 
 const runDemo: DemoFn = async ({ canvas, signal, attach }) => {
-  const wantsWebGPU =
-    new URLSearchParams(window.location.search).get('gfx') === 'webgpu'
-  let gpuDevice: EngineHostOptions['gpuDevice']
-  if (wantsWebGPU) {
-    try {
-      gpuDevice = await WebGPUDevice.create(canvas)
-    } catch (err) {
-      console.warn('[demo-scene3d] WebGPU unavailable, using WebGL2:', err)
-    }
-  }
+  const gpuDevice = await gpuDeviceFromUrl(canvas)
 
   const host = createEngineHost({
     canvas,

@@ -11,7 +11,7 @@ import type { CameraNode2D } from '../camera/CameraNode2D'
 import type { CameraNode3D } from '../camera/CameraNode3D'
 import type { Affine2x3, CameraView2D } from '../camera/CameraView2D'
 import type { CameraView3D } from '../camera/CameraView3D'
-import type { CameraHost } from '../camera/CameraHost'
+import { CameraRegistry, type CameraHost } from '../camera/CameraHost'
 import { MeshRenderer } from './gfx/MeshRenderer'
 import { RenderFailures } from './gfx/RenderFailures'
 import { PostProcessPipeline } from './postfx/PostProcessPipeline'
@@ -210,13 +210,10 @@ export class Stage implements CameraHost {
   /** Created lazily on first `ambientOcclusion` access. */
   #ambientOcclusion: AmbientOcclusion | null = null
 
-  // Camera registry: registration-order arrays plus the
-  // current camera per dimension. Camera nodes register/unregister through the
-  // CameraHost bridge on attach/detach.
-  readonly #cameras2d: CameraNode2D[] = []
-  readonly #cameras3d: CameraNode3D[] = []
-  #current2d: CameraNode2D | null = null
-  #current3d: CameraNode3D | null = null
+  /** @internal */
+  readonly _cameras2D = new CameraRegistry<CameraNode2D>()
+  /** @internal */
+  readonly _cameras3D = new CameraRegistry<CameraNode3D>()
 
   /**
    * Scratch device-pixel base affine (DPR · camera screen affine), reused each
@@ -335,11 +332,11 @@ export class Stage implements CameraHost {
    * {@link CameraNode2D} to the tree and call `makeCurrent()` to set it.
    */
   get currentCamera2D(): CameraNode2D | null {
-    return this.#current2d
+    return this._cameras2D.current
   }
   /** Current 3D camera, or `null` when none is current. */
   get currentCamera3D(): CameraNode3D | null {
-    return this.#current3d
+    return this._cameras3D.current
   }
 
   /**
@@ -347,89 +344,14 @@ export class Stage implements CameraHost {
    * HUD).
    */
   get cameras2d(): readonly CameraNode2D[] {
-    return this.#cameras2d
+    return this._cameras2D.cameras
   }
   /**
    * All registered 3D cameras, in attachment order (read-only, for the debug
    * HUD).
    */
   get cameras3d(): readonly CameraNode3D[] {
-    return this.#cameras3d
-  }
-
-  /** Called by a {@link CameraNode2D} when it attaches. Not for game code. */
-  registerCamera2D(cam: CameraNode2D): void {
-    if (this.#cameras2d.indexOf(cam) < 0) this.#cameras2d.push(cam)
-    // First camera attached wins, or one that asked to be current before attach.
-    if (!this.#current2d || cam.wantsCurrent) {
-      cam.consumeWantsCurrent()
-      this.#current2d = cam
-    }
-  }
-  unregisterCamera2D(cam: CameraNode2D): void {
-    const i = this.#cameras2d.indexOf(cam)
-    if (i >= 0) this.#cameras2d.splice(i, 1)
-    if (this.#current2d === cam) this.#current2d = this.#pickNext2D()
-  }
-  makeCurrent2D(cam: CameraNode2D): void {
-    cam.consumeWantsCurrent()
-    for (const c of this.#cameras2d) c.consumeWantsCurrent()
-    this.#current2d = cam
-  }
-  isCurrent2D(cam: CameraNode2D): boolean {
-    return this.#current2d === cam
-  }
-  reevaluateCurrent2D(): void {
-    if (!this.#current2d || !this.#current2d.enabled) {
-      this.#current2d = this.#pickNext2D()
-    }
-  }
-  #pickNext2D(): CameraNode2D | null {
-    let best: CameraNode2D | null = null
-    for (const c of this.#cameras2d) {
-      if (!c.enabled) continue
-      if (!best || c.priority > best.priority) best = c
-    }
-    return best
-  }
-
-  /** Called by a {@link CameraNode3D} when it attaches. Not for game code. */
-  registerCamera3D(cam: CameraNode3D): void {
-    if (this.#cameras3d.indexOf(cam) < 0) this.#cameras3d.push(cam)
-    if (!this.#current3d || cam.wantsCurrent) {
-      cam.consumeWantsCurrent()
-      this.#current3d = cam
-    }
-  }
-  /** Forget a 3D camera that left the tree. */
-  unregisterCamera3D(cam: CameraNode3D): void {
-    const i = this.#cameras3d.indexOf(cam)
-    if (i >= 0) this.#cameras3d.splice(i, 1)
-    if (this.#current3d === cam) this.#current3d = this.#pickNext3D()
-  }
-  /** Draw the 3D pass through `cam`. */
-  makeCurrent3D(cam: CameraNode3D): void {
-    cam.consumeWantsCurrent()
-    for (const c of this.#cameras3d) c.consumeWantsCurrent()
-    this.#current3d = cam
-  }
-  /** Whether `cam` is the camera the 3D pass draws through. */
-  isCurrent3D(cam: CameraNode3D): boolean {
-    return this.#current3d === cam
-  }
-  /** Pick another 3D camera when the current one is gone or disabled. */
-  reevaluateCurrent3D(): void {
-    if (!this.#current3d || !this.#current3d.enabled) {
-      this.#current3d = this.#pickNext3D()
-    }
-  }
-  #pickNext3D(): CameraNode3D | null {
-    let best: CameraNode3D | null = null
-    for (const c of this.#cameras3d) {
-      if (!c.enabled) continue
-      if (!best || c.priority > best.priority) best = c
-    }
-    return best
+    return this._cameras3D.cameras
   }
 
   /**
@@ -997,7 +919,7 @@ export class Stage implements CameraHost {
     )
     // Keep every registered 2D camera sized to the canvas, so one that later
     // becomes current already has the correct framing fit.
-    for (const c of this.#cameras2d) c.setPixelSize(cssW, cssH)
+    for (const c of this._cameras2D.cameras) c.setPixelSize(cssW, cssH)
     this.#onResize?.({
       cssSize: { ...this.renderer.cssSize },
       pixelSize: { ...this.renderer.pixelSize },

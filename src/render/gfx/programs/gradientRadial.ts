@@ -4,7 +4,6 @@
 // texture (see `TextureManager.getRampAtlasTexture`), so unlike the mask in
 // `maskedGradient`, nothing here varies the bind group per draw.
 
-import { RingStream } from '../RingStream'
 import {
   GRADIENT_BUFFER_BYTES,
   GRADIENT_INSTANCE_STRIDE,
@@ -14,97 +13,32 @@ import {
   LOC_GRAD_UNIT,
 } from '../batchLayout'
 import type { DrawRun, GpuBatchContext } from '../GpuBatchContext'
-import type { GpuProgram } from '../GpuProgram'
-import type {
-  BindGroup,
-  BindGroupLayout,
-  GfxDevice,
-  Pipeline,
-  ShaderModule,
-  Texture,
-  VertexBufferLayout,
-} from '../GfxDevice'
-import {
-  drawInstancedRun,
-  unitQuadLayout,
-  warmupBlendPipelines,
-} from './programCommon'
-import type { ShaderReflection } from '../GfxDevice'
+import { InstancedQuadProgram } from './instancedQuad'
 import gradientRadialWgsl from '../shaders/gradientRadial.gen.wgsl?raw'
 import gradientRadialVertSrc from '../shaders/gradientRadial.gen.vert.glsl?raw'
 import gradientRadialFragSrc from '../shaders/gradientRadial.gen.frag.glsl?raw'
 import gradientRadialReflect from '../shaders/gradientRadial.reflect.json'
 
-export class GradientRadialProgram implements GpuProgram {
+export class GradientRadialProgram extends InstancedQuadProgram {
   readonly kind = 'gradientRadial' as const
 
-  #shader!: ShaderModule
-  #stream!: RingStream
-  #pipelines: Map<string, Pipeline> = new Map()
-  #vertexLayout: VertexBufferLayout[] = []
-  #materialLayout!: BindGroupLayout
-  /**
-   * One bind group per atlas-texture identity (placeholder, then the real atlas
-   * once it exists).
-   */
-  #bindGroups = new WeakMap<Texture, BindGroup>()
-
-  get stream(): RingStream {
-    return this.#stream
-  }
-
-  init(device: GfxDevice, _ctx: GpuBatchContext): void {
-    this.#shader = device.createShaderModule({
-      glsl: { vertex: gradientRadialVertSrc, fragment: gradientRadialFragSrc },
-      wgsl: {
-        code: gradientRadialWgsl,
-        vertexEntry: 'vs_main',
-        fragmentEntry: 'fs_main',
-      },
-      reflection: gradientRadialReflect as ShaderReflection,
+  constructor() {
+    super({
       label: 'gradientRadial',
+      vertex: gradientRadialVertSrc,
+      fragment: gradientRadialFragSrc,
+      wgsl: gradientRadialWgsl,
+      reflection: gradientRadialReflect,
+      bufferBytes: GRADIENT_BUFFER_BYTES,
+      stride: GRADIENT_INSTANCE_STRIDE,
+      unitLocation: LOC_GRAD_UNIT,
+      attributes: [
+        { location: LOC_GRAD_CENTER, format: 'float32x2', offset: 0 },
+        { location: LOC_GRAD_RADALPHA, format: 'float32x2', offset: 8 },
+        { location: LOC_GRAD_RAMPROW, format: 'float32', offset: 16 },
+      ],
+      material: [{ binding: 0, type: 'texture-2d' }],
     })
-    this.#stream = new RingStream(
-      device,
-      GRADIENT_BUFFER_BYTES,
-      GRADIENT_INSTANCE_STRIDE,
-      'gradientRadial',
-    )
-    this.#materialLayout = device.createBindGroupLayout([
-      { binding: 0, type: 'texture-2d' },
-    ])
-    this.#bindGroups = new WeakMap()
-    this.#vertexLayout = [
-      unitQuadLayout(LOC_GRAD_UNIT),
-      {
-        arrayStride: GRADIENT_INSTANCE_STRIDE,
-        stepMode: 'instance',
-        attributes: [
-          { location: LOC_GRAD_CENTER, format: 'float32x2', offset: 0 },
-          { location: LOC_GRAD_RADALPHA, format: 'float32x2', offset: 8 },
-          { location: LOC_GRAD_RAMPROW, format: 'float32', offset: 16 },
-        ],
-      },
-    ]
-  }
-
-  async warmup(device: GfxDevice, ctx: GpuBatchContext): Promise<void> {
-    this.#pipelines = await warmupBlendPipelines(device, ctx, {
-      shader: this.#shader,
-      vertexLayout: this.#vertexLayout,
-      bindGroupLayouts: [ctx.frameBindGroupLayout, this.#materialLayout],
-    })
-  }
-
-  #bindGroupFor(ctx: GpuBatchContext, tex: Texture): BindGroup {
-    let bg = this.#bindGroups.get(tex)
-    if (!bg) {
-      bg = ctx.device.createBindGroup(this.#materialLayout, [
-        { binding: 0, resource: { texture: tex } },
-      ])
-      this.#bindGroups.set(tex, bg)
-    }
-    return bg
   }
 
   /**
@@ -115,28 +49,14 @@ export class GradientRadialProgram implements GpuProgram {
    */
   beginInstance(ctx: GpuBatchContext): number {
     ctx.beginBatch('gradientRadial')
-    return ctx.reserveInstance(this.#stream)
-  }
-
-  commitInstance(slot: number): void {
-    this.#stream.commitInstance(slot)
-  }
-
-  get floatView(): Float32Array {
-    return this.#stream.floatView
+    return ctx.reserveInstance(this.ring)
   }
 
   drawRun(ctx: GpuBatchContext, run: DrawRun): void {
+    // The placeholder stands in until the atlas exists, and each gets its own
+    // cached bind group.
     const atlas =
       ctx.textureManager.getRampAtlasTexture() ?? ctx.placeholderTexture
-    drawInstancedRun(
-      ctx,
-      this.#pipelines,
-      ctx.unitQuadBuffer,
-      this.#stream,
-      GRADIENT_INSTANCE_STRIDE,
-      run,
-      this.#bindGroupFor(ctx, atlas),
-    )
+    this.drawInstanced(ctx, run, this.textureBindGroup(ctx, atlas))
   }
 }

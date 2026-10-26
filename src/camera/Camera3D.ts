@@ -17,8 +17,8 @@ import type { Easing } from '../math/easings'
 import type { CameraView3D } from './CameraView3D'
 
 /**
- * Projection blend between orthographic (`0`) and perspective (`1`). Animate
- * it with {@link CameraNode3D.animateProjection}.
+ * Projection blend between orthographic (`0`) and perspective (`1`). Animate it
+ * with {@link CameraNode3D.animateProjection}.
  */
 export type Projectionness = number
 
@@ -76,6 +76,7 @@ export class Camera3D implements CameraView3D {
   #_projectionness: Projectionness = 1
   #_clipDepth: ClipDepth = 'neg-one-to-one'
 
+  #projVersion = 0
   #_projDirty = true
   #_viewDirty = true
   readonly #_proj: Mat4 = mat4()
@@ -182,7 +183,18 @@ export class Camera3D implements CameraView3D {
     this.#markProjDirty()
   }
 
+  /**
+   * Bumps on every projection change, so an owner that composes the projection
+   * with its own view knows when to recompose.
+   *
+   * @internal
+   */
+  get projectionVersion(): number {
+    return this.#projVersion
+  }
+
   #markProjDirty(): void {
+    this.#projVersion++
     this.#_projDirty = true
     this.#_invProjDirty = true
     this.#_viewProjDirty = true

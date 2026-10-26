@@ -133,7 +133,7 @@ This section lists every component by purpose, then describes window placement a
 
 | Component     | Use                                                                                     |
 | ------------- | --------------------------------------------------------------------------------------- |
-| `DebugRow`    | A label and a value. `tone` is `default`, `warning`, `error`, `accent` or `muted`.      |
+| `DebugRow`    | A label and a value. `tone` is a `Tone`, `accent` or `muted`.                           |
 | `MetricRow`   | A label and a value colored by a `Tone`, with an optional bar and a tooltip.            |
 | `StatCard`    | A large value with a unit, a note and an optional sparkline of recent values.           |
 | `Gauge`       | A bar with good, warning and bad zones and an optional mark for the highest value seen. |

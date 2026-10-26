@@ -12,8 +12,14 @@ function anything(): unknown {
   })
 }
 
-/** A fake GPUDevice that logs texture destroys and queue submits in order. */
-function fakeGpu(log: string[]): GPUDevice {
+/**
+ * A fake GPUDevice that logs texture destroys and queue submits in order, and
+ * keeps every texture and bind group layout descriptor it was given.
+ */
+function fakeGpu(
+  log: string[],
+  descriptors: (GPUTextureDescriptor | GPUBindGroupLayoutDescriptor)[] = [],
+): GPUDevice {
   let textures = 0
   const device = {
     limits: {
@@ -22,7 +28,12 @@ function fakeGpu(log: string[]): GPUDevice {
       maxBufferSize: 1 << 28,
     },
     lost: new Promise(() => {}),
-    createTexture: () => {
+    createBindGroupLayout: (desc: GPUBindGroupLayoutDescriptor) => {
+      descriptors.push(desc)
+      return {}
+    },
+    createTexture: (desc: GPUTextureDescriptor) => {
+      descriptors.push(desc)
       const id = ++textures
       return {
         destroy: () => log.push(`destroy ${id}`),
@@ -45,8 +56,11 @@ function fakeGpu(log: string[]): GPUDevice {
   }) as unknown as GPUDevice
 }
 
-async function makeDevice(log: string[]): Promise<WebGPUDevice> {
-  const gpu = fakeGpu(log)
+async function makeDevice(
+  log: string[],
+  descriptors?: (GPUTextureDescriptor | GPUBindGroupLayoutDescriptor)[],
+): Promise<WebGPUDevice> {
+  const gpu = fakeGpu(log, descriptors)
   vi.stubGlobal('navigator', {
     gpu: {
       requestAdapter: async () => ({
@@ -68,6 +82,10 @@ describe('WebGPUDevice', () => {
     vi.stubGlobal(
       'GPUTextureUsage',
       new Proxy({}, { get: () => 1 }) as typeof GPUTextureUsage,
+    )
+    vi.stubGlobal(
+      'GPUShaderStage',
+      new Proxy({}, { get: () => 1 }) as typeof GPUShaderStage,
     )
   })
   afterEach(() => {
@@ -97,5 +115,49 @@ describe('WebGPUDevice', () => {
     device.endFrame()
     const firstDestroy = log.findIndex((e) => e.startsWith('destroy'))
     expect(firstDestroy).toBeGreaterThan(log.indexOf('submit'))
+  })
+  it.each([
+    { samples: 1, depth: true, stencil: true },
+    { samples: 4, depth: true },
+    { samples: 4, stencil: true },
+    { samples: 1, depth: true, depthSampled: true },
+  ] as const)(
+    'gives a resized render target the textures of a new one (%o)',
+    async (opts) => {
+      const created: GPUTextureDescriptor[] = []
+      const device = await makeDevice([], created)
+      device.createRenderTarget({ width: 8, height: 8, ...opts })
+      const fresh = created.splice(0)
+      const rt = device.createRenderTarget({ width: 4, height: 4, ...opts })
+      created.length = 0
+      device.resizeRenderTarget(rt, 8, 8)
+      expect(created).toEqual(fresh)
+    },
+  )
+  it('pairs each sampled texture binding with its sampler at binding + 16', async () => {
+    const created: GPUBindGroupLayoutDescriptor[] = []
+    const device = await makeDevice([], created)
+    device.createBindGroupLayout([
+      { binding: 0, type: 'texture-2d' },
+      { binding: 1, type: 'texture-2d-depth' },
+      { binding: 2, type: 'texture-2d-array-shadow' },
+      { binding: 3, type: 'texture-cube-shadow' },
+    ])
+    const entries = [...created[0]!.entries].map(
+      ({ binding, texture, sampler }) => ({ binding, texture, sampler }),
+    )
+    expect(entries).toEqual([
+      { binding: 0, texture: { sampleType: 'float' } },
+      { binding: 16, sampler: { type: 'filtering' } },
+      { binding: 1, texture: { sampleType: 'depth' } },
+      { binding: 17, sampler: { type: 'non-filtering' } },
+      {
+        binding: 2,
+        texture: { sampleType: 'depth', viewDimension: '2d-array' },
+      },
+      { binding: 18, sampler: { type: 'comparison' } },
+      { binding: 3, texture: { sampleType: 'depth', viewDimension: 'cube' } },
+      { binding: 19, sampler: { type: 'comparison' } },
+    ])
   })
 })

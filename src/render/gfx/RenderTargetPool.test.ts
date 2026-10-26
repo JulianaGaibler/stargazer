@@ -67,13 +67,13 @@ describe('RenderTargetPool', () => {
     expect(transient).not.toBe(retained)
   })
 
-  it('deletes a retained target only once its refcount reaches zero', () => {
+  it('deletes a retained target on release and rejects a second release', () => {
     const device = new MockGfxDevice()
     const pool = new RenderTargetPool(device)
     const rt = pool.acquireRetained(64, 64)
-    // A second logical holder shares the same handle without a second create.
     pool.release(rt)
     expect(device.deletedRenderTargetHandles).toContain(rt)
+    expect(() => pool.release(rt)).toThrow()
   })
 
   it('throws on a double release of a transient target', () => {

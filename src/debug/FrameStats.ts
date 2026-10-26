@@ -1,48 +1,12 @@
-import { RingSeries, type SeriesSource } from './RingSeries'
+import { RingSeries } from './RingSeries'
 
-/**
- * Ring-buffer of recent frame `dt` samples with lazy percentile computation.
- *
- * Constructed and updated only while the debug HUD is active, the plan's
- * zero-overhead-when-off contract keeps this out of the hot path in
- * production.
- */
-export class FrameStats implements SeriesSource {
-  readonly #series: RingSeries
+/** A {@link RingSeries} of recent frame times that also reports percentiles. */
+export class FrameStats extends RingSeries {
   readonly #sortScratch: Float32Array
 
   constructor(capacity = 300) {
-    this.#series = new RingSeries(capacity)
+    super(capacity)
     this.#sortScratch = new Float32Array(capacity)
-  }
-
-  /** Samples held before the oldest is overwritten. */
-  get capacity(): number {
-    return this.#series.capacity
-  }
-
-  /** Record one frame delta, overwriting the oldest sample once full. */
-  push(dt: number): void {
-    this.#series.push(dt)
-  }
-
-  /** Drop every sample. */
-  clear(): void {
-    this.#series.clear()
-  }
-
-  /** Samples currently held, up to {@link FrameStats.capacity}. */
-  get count(): number {
-    return this.#series.count
-  }
-
-  /**
-   * Copy the currently-held samples into `out` in oldest-to-newest order.
-   * Returns the number of samples written (min of `out.length` and `count`).
-   * Zero-alloc, the graph reuses one scratch buffer.
-   */
-  readOrdered(out: Float32Array): number {
-    return this.#series.readOrdered(out)
   }
 
   /** The 50th, 95th and 99th percentile and the maximum of the held samples. */
@@ -53,12 +17,10 @@ export class FrameStats implements SeriesSource {
     max: number
     count: number
   } {
-    const n = this.#series.count
+    const n = this.count
     if (n === 0) return { p50: 0, p95: 0, p99: 0, max: 0, count: 0 }
-    // Copy into a scratch typed array and sort. For n = 300 this is trivially
-    // fast, and it allocates no per-call arrays.
-    this.#sortScratch.set(this.#series.unordered)
-    // Sort only the filled prefix.
+    // Sorting a scratch copy keeps the ring in time order and allocates nothing.
+    this.#sortScratch.set(this.unordered)
     const slice = this.#sortScratch.subarray(0, n).sort()
     const pick = (q: number): number =>
       slice[Math.min(n - 1, Math.floor(n * q))]

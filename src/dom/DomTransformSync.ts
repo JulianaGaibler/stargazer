@@ -16,7 +16,8 @@ import type { Node3D } from '../scene/Node3D'
 import { isEffectivelyVisible } from '../scene/traverse'
 import { viewFor } from '../scene/viewFor'
 import type { ScreenProjection } from '../camera/Camera3D'
-import type { Affine2x3 } from '../camera/CameraView2D'
+import type { Affine2x3 } from '../math/Affine2D'
+import { multiplyMatrix2D } from '../math/matrix'
 import type { CameraView3D } from '../camera/CameraView3D'
 import { mat4, mat4Identity, mat4Multiply, type Mat4 } from '../math/Mat4'
 import { vec3, type Vec3 } from '../math/Vec3'
@@ -81,14 +82,7 @@ function setElementScaleMatrix(out: Mat4, pxPerUnit: number): Mat4 {
  * A 2D affine as the six CSS `matrix()` components, in the same order the
  * function takes them: `cssX = a·x + c·y + e`, `cssY = b·x + d·y + f`.
  */
-export interface CssMatrix {
-  a: number
-  b: number
-  c: number
-  d: number
-  e: number
-  f: number
-}
+export type CssMatrix = Affine2x3
 
 /**
  * Compose a camera screen affine after a node's world affine into the CSS
@@ -110,13 +104,7 @@ export function projectWorldToCss(
   world: CssMatrix,
   out: CssMatrix = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
 ): CssMatrix {
-  // Full 2×3 matmul: screen · world (the camera affine may carry rotation/skew).
-  out.a = screen.a * world.a + screen.c * world.b
-  out.b = screen.b * world.a + screen.d * world.b
-  out.c = screen.a * world.c + screen.c * world.d
-  out.d = screen.b * world.c + screen.d * world.d
-  out.e = screen.a * world.e + screen.c * world.f + screen.e
-  out.f = screen.b * world.e + screen.d * world.f + screen.f
+  multiplyMatrix2D(out, screen, world)
   return out
 }
 
@@ -223,20 +211,78 @@ export interface Dom3DAttachment {
   detach(): void
 }
 
-class Attachment implements DomAttachment {
-  readonly node: Node2D
+/** What the 2D and 3D attachments share: setup, teardown and the show toggle. */
+abstract class AttachmentBase<
+  N extends Node2D | Node3D,
+  O extends { syncVisibility?: boolean },
+> {
+  readonly node: N
   readonly element: HTMLElement
-  #opts: DomAttachOptions
+  protected opts: O
   readonly #onRemove: () => void
-  readonly #last: CssMatrix = { a: NaN, b: NaN, c: NaN, d: NaN, e: NaN, f: NaN }
+  readonly #offDestroy: () => void
   // Starts hidden so the element never shows unpositioned for the frame between
   // attach and the first sync. The first sync reveals it once placed.
-  #lastVisible = false
+  #shown = false
+  #detached = false
+
+  constructor(
+    node: N,
+    element: HTMLElement,
+    opts: O,
+    onRemove: () => void,
+    transformOrigin: string,
+  ) {
+    this.node = node
+    this.element = element
+    this.opts = opts
+    this.#onRemove = onRemove
+    const s = element.style
+    s.position = 'absolute'
+    s.left = '0'
+    s.top = '0'
+    s.margin = '0'
+    s.transformOrigin = transformOrigin
+    s.display = 'none'
+    // Auto-detach if the node is destroyed while still attached.
+    this.#offDestroy = node.events.on('destroy', () => this.detach())
+  }
+
+  setOptions(opts: O): void {
+    this.opts = opts
+  }
+
+  detach(): void {
+    if (this.#detached) return
+    this.#detached = true
+    this.onDetach()
+    this.#offDestroy()
+    this.#onRemove()
+  }
+
+  protected onDetach(): void {}
+
+  /** Whether the node's visibility lets the element show. */
+  protected get nodeVisible(): boolean {
+    return this.opts.syncVisibility === false || isEffectivelyVisible(this.node)
+  }
+
+  /** Show or hide the element, touching the style only on a change. */
+  protected setShown(show: boolean): void {
+    if (show === this.#shown) return
+    this.element.style.display = show ? '' : 'none'
+    this.#shown = show
+  }
+}
+
+class Attachment
+  extends AttachmentBase<Node2D, DomAttachOptions>
+  implements DomAttachment
+{
+  readonly #last: CssMatrix = { a: NaN, b: NaN, c: NaN, d: NaN, e: NaN, f: NaN }
   #lastOpacity = NaN
   #lastWidth = NaN
   #lastHeight = NaN
-  #offDestroy: () => void
-  #detached = false
 
   constructor(
     node: Node2D,
@@ -244,36 +290,17 @@ class Attachment implements DomAttachment {
     opts: DomAttachOptions,
     onRemove: () => void,
   ) {
-    this.#onRemove = onRemove
-    this.node = node
-    this.element = element
-    this.#opts = opts
-    const s = element.style
-    s.position = 'absolute'
-    s.left = '0'
-    s.top = '0'
-    s.margin = '0'
-    s.transformOrigin = '0 0'
-    s.display = 'none'
-    this.#applySize()
-    // Auto-detach if the node is destroyed while still attached.
-    this.#offDestroy = node.events.on('destroy', () => this.detach())
-  }
-
-  setOptions(opts: DomAttachOptions): void {
-    this.#opts = opts
+    super(node, element, opts, onRemove, '0 0')
     this.#applySize()
   }
 
-  detach(): void {
-    if (this.#detached) return
-    this.#detached = true
-    this.#offDestroy()
-    this.#onRemove()
+  override setOptions(opts: DomAttachOptions): void {
+    super.setOptions(opts)
+    this.#applySize()
   }
 
   #applySize(): void {
-    const size = this.#opts.size
+    const size = this.opts.size
     const w = size ? size.width : NaN
     const h = size ? size.height : NaN
     if (w !== this.#lastWidth) {
@@ -293,13 +320,9 @@ class Attachment implements DomAttachment {
     const stage = engine.stageForScene(node.scene) ?? engine.primaryStage
     const cam = viewFor(node, stage, engine.debug)
 
-    const visible =
-      (this.#opts.syncVisibility ?? true) === false
-        ? true
-        : isEffectivelyVisible(node)
     // No current camera, or a singular affine (canvas mid-resize / degenerate
     // camera), means no valid mapping. Hide rather than place the element wrongly.
-    let show = visible && cam !== null
+    let show = this.nodeVisible && cam !== null
     if (show && cam) {
       const screen = cam.getScreenAffine()
       const det = screen.a * screen.d - screen.b * screen.c
@@ -308,14 +331,11 @@ class Attachment implements DomAttachment {
         // Project first: the cull test reads the resulting matrix.
         node.ensureWorldTransform()
         projectWorldToCss(screen, node.transform.world, scratch)
-        if (this.#opts.cull && this.#offCanvas(stage)) show = false
+        if (this.opts.cull && this.#offCanvas(stage)) show = false
       }
     }
 
-    if (show !== this.#lastVisible) {
-      this.element.style.display = show ? '' : 'none'
-      this.#lastVisible = show
-    }
+    this.setShown(show)
     if (!show) return
 
     if (!matrixClose(scratch, this.#last)) {
@@ -323,7 +343,7 @@ class Attachment implements DomAttachment {
       this.element.style.transform = `matrix(${scratch.a}, ${scratch.b}, ${scratch.c}, ${scratch.d}, ${scratch.e}, ${scratch.f})`
     }
 
-    if (this.#opts.syncOpacity) {
+    if (this.opts.syncOpacity) {
       const alpha = effectiveAlpha(node)
       if (opacityNeedsWrite(alpha, this.#lastOpacity)) {
         this.element.style.opacity = String(alpha)
@@ -341,7 +361,7 @@ class Attachment implements DomAttachment {
     const ch = stage.renderer.cssSize.h
     if (cw <= 0 || ch <= 0) return false
     const m = scratch
-    const size = this.#opts.size
+    const size = this.opts.size
     if (!size) {
       return m.e < 0 || m.e > cw || m.f < 0 || m.f > ch
     }
@@ -372,18 +392,14 @@ class Attachment implements DomAttachment {
  * doesn't inherit 3D rotation. Uses the primary stage's canvas size for the
  * NDC->CSS mapping.
  */
-class Attachment3D implements Dom3DAttachment {
-  readonly node: Node3D
-  readonly element: HTMLElement
+class Attachment3D
+  extends AttachmentBase<Node3D, Dom3DAttachOptions>
+  implements Dom3DAttachment
+{
   readonly #camera: CameraView3D
-  #opts: Dom3DAttachOptions
-  readonly #onRemove: () => void
-  #lastVisible = false
   #lastX = NaN
   #lastY = NaN
   #lastScale = NaN
-  #offDestroy: () => void
-  #detached = false
   // Orient-mode reparent bookkeeping, so `detach` can put the element back.
   #origParent: HTMLElement | null = null
   #origNext: ChildNode | null = null
@@ -397,37 +413,18 @@ class Attachment3D implements Dom3DAttachment {
     opts: Dom3DAttachOptions,
     onRemove: () => void,
   ) {
-    this.node = node
-    this.element = element
-    this.#camera = camera
-    this.#opts = opts
-    this.#onRemove = onRemove
-    const s = element.style
-    s.position = 'absolute'
-    s.left = '0'
-    s.top = '0'
-    s.margin = '0'
     // Center on the projected point (unlike the 2D top-left anchor).
-    s.transformOrigin = '50% 50%'
-    s.display = 'none'
-    this.#offDestroy = node.events.on('destroy', () => this.detach())
+    super(node, element, opts, onRemove, '50% 50%')
+    this.#camera = camera
   }
 
   /** Whether this anchor glues the element to the node's surface via matrix3d. */
   get oriented(): boolean {
-    return this.#opts.orient === true
+    return this.opts.orient === true
   }
 
-  setOptions(opts: Dom3DAttachOptions): void {
-    this.#opts = opts
-  }
-
-  detach(): void {
-    if (this.#detached) return
-    this.#detached = true
+  protected override onDetach(): void {
     this.#restoreParent()
-    this.#offDestroy()
-    this.#onRemove()
   }
 
   #restoreParent(): void {
@@ -471,29 +468,22 @@ class Attachment3D implements Dom3DAttachment {
 
     // No current 3D camera means nothing to project against. Hide the element.
     if (!cam) {
-      if (this.#lastVisible !== false) {
-        this.element.style.display = 'none'
-        this.#lastVisible = false
-      }
+      this.setShown(false)
       return
     }
 
-    const visible =
-      (this.#opts.syncVisibility ?? true) === false
-        ? true
-        : isEffectivelyVisible(node)
     node.ensureWorldTransform()
     const w = node.transform.world
     // Behind test: camera-space z of the node origin (camera looks down -z).
     const view = cam.view
     const zCam = view[2] * w[12] + view[6] * w[13] + view[10] * w[14] + view[14]
-    let show = visible && zCam < 0 && cssW > 0 && cssH > 0
+    let show = this.nodeVisible && zCam < 0 && cssW > 0 && cssH > 0
     // Backface: hide when the element's front (+z of its plane) faces away.
     // "Toward the camera" is the eye point in perspective but the parallel view
     // axis in orthographic, so blend the two by `projectionness` (they share a
     // sign, so the lerp never flips mid-blend). Without this the off-axis eye
     // direction wrongly culls faces the orthographic meshes still show.
-    if (show && this.#opts.backfaceCull !== false) {
+    if (show && this.opts.backfaceCull !== false) {
       const t = cam.projectionness
       // Ortho: camera view axis in world (= view matrix rows 2, unit length).
       const ax = view[2]
@@ -512,10 +502,7 @@ class Attachment3D implements Dom3DAttachment {
       if (facing <= 0) show = false
     }
 
-    if (show !== this.#lastVisible) {
-      this.element.style.display = show ? '' : 'none'
-      this.#lastVisible = show
-    }
+    this.setShown(show)
     if (!show) return
 
     // T = viewport · viewProjection · world · scale(1/pxPerUnit): element-local
@@ -523,7 +510,7 @@ class Attachment3D implements Dom3DAttachment {
     const vp = setViewportMatrix(scratchViewport, cssW, cssH)
     const scale = setElementScaleMatrix(
       scratchScale,
-      this.#opts.pxPerUnit ?? 200,
+      this.opts.pxPerUnit ?? 200,
     )
     mat4Multiply(scratchVpM, cam.viewProjection, w)
     mat4Multiply(scratchVpMS, scratchVpM, scale)
@@ -553,11 +540,7 @@ class Attachment3D implements Dom3DAttachment {
     const cssW = stage.renderer.cssSize.w
     const cssH = stage.renderer.cssSize.h
     const node = this.node
-    const visible =
-      (this.#opts.syncVisibility ?? true) === false
-        ? true
-        : isEffectivelyVisible(node)
-    let show = visible && cssW > 0 && cssH > 0
+    let show = this.nodeVisible && cssW > 0 && cssH > 0
     let x = 0
     let y = 0
     let scale = 1
@@ -578,7 +561,7 @@ class Attachment3D implements Dom3DAttachment {
       } else {
         x = proj.x
         y = proj.y
-        if (this.#opts.scaleWithDistance) {
+        if (this.opts.scaleWithDistance) {
           const eye = this.#camera.eyePosition()
           const dist = Math.hypot(w[12] - eye.x, w[13] - eye.y, w[14] - eye.z)
           scale = dist > 1e-4 ? this.#camera.focalDistance / dist : 1
@@ -586,10 +569,7 @@ class Attachment3D implements Dom3DAttachment {
       }
     }
 
-    if (show !== this.#lastVisible) {
-      this.element.style.display = show ? '' : 'none'
-      this.#lastVisible = show
-    }
+    this.setShown(show)
     if (!show) return
 
     // Write when any value moved. Phrased as `!(within epsilon)` so the
@@ -602,7 +582,7 @@ class Attachment3D implements Dom3DAttachment {
       this.#lastX = x
       this.#lastY = y
       this.#lastScale = scale
-      const scalePart = this.#opts.scaleWithDistance ? ` scale(${scale})` : ''
+      const scalePart = this.opts.scaleWithDistance ? ` scale(${scale})` : ''
       this.element.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)${scalePart}`
     }
   }

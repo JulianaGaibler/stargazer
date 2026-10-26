@@ -24,6 +24,24 @@ describe('RingSeries', () => {
     expect(s.peak).toBe(0)
     expect(s.readOrdered(new Float32Array(3))).toBe(0)
   })
+
+  it('reads no more than the output buffer holds', () => {
+    const s = new RingSeries(10)
+    for (let i = 1; i <= 6; i++) s.push(i)
+    const out = new Float32Array(3)
+    expect(s.readOrdered(out)).toBe(3)
+    expect([...out]).toEqual([1, 2, 3])
+  })
+
+  it('drops every sample on clear', () => {
+    const s = new RingSeries(3)
+    s.push(1)
+    s.push(2)
+    s.clear()
+    expect(s.count).toBe(0)
+    expect(s.last).toBe(0)
+    expect(s.readOrdered(new Float32Array(3))).toBe(0)
+  })
 })
 
 describe('foldWorst', () => {

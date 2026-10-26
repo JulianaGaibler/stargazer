@@ -146,7 +146,6 @@ export class MockGfxDevice implements GfxDevice {
   readonly deletedRenderTargetHandles: RenderTarget[] = []
   readonly shadowArrays: ShadowArray[] = []
   readonly shadowCubes: ShadowCube[] = []
-  readonly boundTargets: RenderTarget[] = []
   readonly presents: {
     source: RenderTarget
     dstWidth: number
@@ -365,14 +364,12 @@ export class MockGfxDevice implements GfxDevice {
 
   // --- data tables ----------------------------------------------------------
 
-  readonly dataTables: DataTable[] = []
   /** Every `updateDataTable` call, with the data copied. */
   readonly dataTableUploads: Array<{
     table: DataTable
     firstVec4: number
     data: Float32Array
   }> = []
-  deletedDataTables = 0
   createDataTable(vec4Count: number): DataTable {
     if (vec4Count > this.limits.maxDataTableVec4) {
       throw new StargazerError(
@@ -380,9 +377,7 @@ export class MockGfxDevice implements GfxDevice {
         'MockGfxDevice.createDataTable: over the limit',
       )
     }
-    const t = { __gfxDataTable: undefined as never, capacity: vec4Count }
-    this.dataTables.push(t)
-    return t
+    return { __gfxDataTable: undefined as never, capacity: vec4Count }
   }
   updateDataTable(
     table: DataTable,
@@ -396,7 +391,7 @@ export class MockGfxDevice implements GfxDevice {
     })
   }
   deleteDataTable(_t: DataTable): void {
-    this.deletedDataTables++
+    /* noop */
   }
 
   // --- index buffers --------------------------------------------------------
@@ -795,13 +790,11 @@ export class MockGfxDevice implements GfxDevice {
     this.indexUploads.length = 0
     this.subImageUploads.length = 0
     this.textureUploads.length = 0
-    this.boundTargets.length = 0
     this.presents.length = 0
     this.deletedRenderTargets = 0
     this.deletedShaderModules = 0
     this.deletedUniformBuffers = 0
     this.dataTableUploads.length = 0
-    this.deletedDataTables = 0
     this.shadowLayerBegins.length = 0
     this.shadowCubeFaceBegins.length = 0
     this.shadowPassEnds = 0

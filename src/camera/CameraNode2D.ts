@@ -5,7 +5,7 @@ import type { Rect } from '../math/Rect'
 import type { Vec2 } from '../math/Vec2'
 import { Camera, type CameraAnimateOptions } from './Camera'
 import type { Affine2x3, CameraView2D } from './CameraView2D'
-import type { CameraHost } from './CameraHost'
+import { CameraSlot } from './CameraHost'
 import { rejectDetached } from '../anim/abortSignal'
 import { StargazerError } from '../diagnostics/StargazerError'
 
@@ -44,14 +44,9 @@ export class CameraNode2D extends Node2D implements CameraView2D {
   readonly #fit = new Camera(DEFAULT_CAMERA_VIEWPORT)
   #framingEnabled = true
 
-  #enabled = true
   /** Tiebreak for auto pick-next when the current camera detaches, higher wins. */
   priority = 0
-  /** `makeCurrent()` called before attach, consumed on first register. */
-  #wantsCurrent = false
-  // Host captured at attach so detach can unregister. onDetachedFromScene
-  // nulls the owner before _onDetach runs, so `this.scene` is gone by then.
-  #registeredHost: CameraHost | null = null
+  readonly #slot = new CameraSlot<CameraNode2D>(this)
 
   // Bumps whenever this node's world transform changes, so the composed affine
   // cache (which the fit helper's frameNum alone can't detect) re-derives.
@@ -67,21 +62,19 @@ export class CameraNode2D extends Node2D implements CameraView2D {
   // --- current-camera machinery ---------------------------------------------
 
   /**
-   * Whether this camera can be rendered / picked as current. Disabling the
-   * current promotes the next.
+   * Whether this camera can be rendered or picked as current. Disabling the
+   * current one promotes the next.
    */
   get enabled(): boolean {
-    return this.#enabled
+    return this.#slot.enabled
   }
   set enabled(v: boolean) {
-    if (this.#enabled === v) return
-    this.#enabled = v
-    if (!v) this.#host()?.reevaluateCurrent2D()
+    this.#slot.setEnabled(v)
   }
 
   /** Whether this is the stage's current 2D camera. */
   get isCurrent(): boolean {
-    return this.#host()?.isCurrent2D(this) ?? false
+    return this.#slot.isCurrent
   }
 
   /**
@@ -89,29 +82,29 @@ export class CameraNode2D extends Node2D implements CameraView2D {
    * consumed on register.
    */
   makeCurrent(): void {
-    const host = this.#host()
-    if (host) host.makeCurrent2D(this)
-    else this.#wantsCurrent = true
+    this.#slot.makeCurrent()
   }
 
   /** Stop being current. By default the next enabled camera is promoted. */
   clearCurrent(enableNext = true): void {
-    this.#wantsCurrent = false
-    const host = this.#host()
-    if (host && host.isCurrent2D(this) && enableNext) host.reevaluateCurrent2D()
+    this.#slot.clearCurrent(enableNext)
   }
 
-  /** @internal Read by the Stage registry when deciding first-wins. */
+  /**
+   * Whether the camera asked to become current before the stage picked one.
+   *
+   * @internal
+   */
   get wantsCurrent(): boolean {
-    return this.#wantsCurrent
+    return this.#slot.wantsCurrent
   }
-  /** @internal Cleared by the Stage registry once consumed. */
+  /**
+   * Clear the request set by {@link CameraNode2D.wantsCurrent}.
+   *
+   * @internal
+   */
   consumeWantsCurrent(): void {
-    this.#wantsCurrent = false
-  }
-
-  #host(): CameraHost | null {
-    return (this.scene as SceneTree | null)?.stage ?? null
+    this.#slot.wantsCurrent = false
   }
 
   // --- framing ---------------------------------------------------------------
@@ -381,22 +374,14 @@ export class CameraNode2D extends Node2D implements CameraView2D {
   protected override _onAttach(): void {
     super._onAttach()
     this.#fit.engine = this.engine
-    const host = this.#host()
-    if (!host) {
-      throw new StargazerError(
-        'SG5007',
-
-        `CameraNode2D '${this.id}' was attached to a tree with no camera host ` +
-          `(SceneTree.stage is null). Camera nodes must live under a Stage's tree.`,
-      )
-    }
-    this.#registeredHost = host
-    host.registerCamera2D(this)
+    this.#slot.attach(
+      (this.scene as SceneTree | null)?.stage?._cameras2D,
+      `CameraNode2D '${this.id}'`,
+    )
   }
 
   protected override _onDetach(): void {
-    this.#registeredHost?.unregisterCamera2D(this)
-    this.#registeredHost = null
+    this.#slot.detach()
     super._onDetach()
   }
 

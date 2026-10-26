@@ -42,6 +42,13 @@ const DEFAULT_TOUCH_SLOP_SCREEN_PX = 30
 
 const LOCAL_SCRATCH: Vec2 = { x: 0, y: 0 }
 
+const NODE_HOOKS = {
+  down: 'onPointerDown',
+  move: 'onPointerMove',
+  up: 'onPointerUp',
+  cancel: 'onPointerCancel',
+} as const
+
 /**
  * Multi-touch input for one interactive `Stage`, reached as `stage.input` (or
  * `engine.input` for the primary stage). Wire pointer handling on a node
@@ -389,13 +396,7 @@ export class InputSystem {
       record.destroyUnsub = hit.events.on('destroy', () => {
         this.#dispatchCancel(record.id, 'synthetic')
       })
-      try {
-        hit.onPointerDown?.(
-          this.#makeEvent(record, 0, 0, 'down', 'native', true),
-        )
-      } catch (error) {
-        reportThrown('SG4004', 'onPointerDown', error, hit.id)
-      }
+      this.#notifyNode(record, 'down', 0, 0, 'native')
     }
     this.#emitStage(
       'pointerDown',
@@ -436,15 +437,7 @@ export class InputSystem {
     toStage: boolean,
     toNode: boolean,
   ): void {
-    if (toNode && record.capturedBy && !record.capturedBy.isDestroyed) {
-      try {
-        record.capturedBy.onPointerMove?.(
-          this.#makeEvent(record, moved.ndx, moved.ndy, 'move', source, true),
-        )
-      } catch (error) {
-        reportThrown('SG4004', 'onPointerMove', error, record.capturedBy.id)
-      }
-    }
+    if (toNode) this.#notifyNode(record, 'move', moved.ndx, moved.ndy, source)
     if (toStage) {
       this.#emitStage(
         'pointerMove',
@@ -462,15 +455,7 @@ export class InputSystem {
     record.screen.y = screen.y
     const moved = this.#project(record)
 
-    if (record.capturedBy && !record.capturedBy.isDestroyed) {
-      try {
-        record.capturedBy.onPointerUp?.(
-          this.#makeEvent(record, moved.ndx, moved.ndy, 'up', 'native', true),
-        )
-      } catch (error) {
-        reportThrown('SG4004', 'onPointerUp', error, record.capturedBy.id)
-      }
-    }
+    this.#notifyNode(record, 'up', moved.ndx, moved.ndy, 'native')
     this.#emitStage(
       'pointerUp',
       this.#makeEvent(record, moved.dx, moved.dy, 'up', 'native', false),
@@ -494,20 +479,36 @@ export class InputSystem {
   #dispatchCancel(pointerId: number, source: 'native' | 'synthetic'): void {
     const record = this.#recordsMap.get(pointerId)
     if (!record) return
-    if (record.capturedBy && !record.capturedBy.isDestroyed) {
-      try {
-        record.capturedBy.onPointerCancel?.(
-          this.#makeEvent(record, 0, 0, 'cancel', source, true),
-        )
-      } catch (error) {
-        reportThrown('SG4004', 'onPointerCancel', error, record.capturedBy.id)
-      }
-    }
+    this.#notifyNode(record, 'cancel', 0, 0, source)
     this.#emitStage(
       'pointerCancel',
       this.#makeEvent(record, 0, 0, 'cancel', source, false),
     )
     this.#cleanupRecord(pointerId)
+  }
+
+  /**
+   * Call the captured node's hook for `phase`, reporting a throw instead of
+   * letting it break the dispatch.
+   */
+  #notifyNode(
+    record: PointerRecord,
+    phase: PointerPhase,
+    dx: number,
+    dy: number,
+    source: 'native' | 'synthetic',
+  ): void {
+    const node = record.capturedBy
+    if (!node || node.isDestroyed) return
+    const hook = NODE_HOOKS[phase]
+    // Skip building the event when the node has no hook for it.
+    const fn = node[hook]
+    if (!fn) return
+    try {
+      fn.call(node, this.#makeEvent(record, dx, dy, phase, source, true))
+    } catch (error) {
+      reportThrown('SG4004', hook, error, node.id)
+    }
   }
 
   #cleanupRecord(pointerId: number): void {

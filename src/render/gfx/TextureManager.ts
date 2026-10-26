@@ -503,30 +503,22 @@ export class TextureManager implements TextureInspector {
    * file can't be fetched, as in a test environment, the field stays `null`.
    */
   loadSquircleField(): Promise<void> {
-    this.#squircleFieldLoad ??= this.#fetchSquircleField()
+    // Through `then` so a loader that throws is reported like one that rejects.
+    this.#squircleFieldLoad ??= Promise.resolve()
+      .then(loadField)
+      .then((field) => {
+        if (!field) return
+        this.#squircleFieldData = field
+        this.#uploadSquircleField()
+      })
+      .catch((err: unknown) => {
+        diagnostics.report(
+          'SG2015',
+          'smooth corners unavailable, drawing circular corners:',
+          { cause: err },
+        )
+      })
     return this.#squircleFieldLoad
-  }
-
-  async #fetchSquircleField(): Promise<void> {
-    try {
-      const field = await loadField()
-      if (field) this.setSquircleField(field)
-    } catch (err) {
-      diagnostics.report(
-        'SG2015',
-        'smooth corners unavailable, drawing circular corners:',
-        { cause: err },
-      )
-    }
-  }
-
-  /**
-   * Upload `data` as the smooth-corner field, in the layout `squircleField.ts`
-   * describes. {@link loadSquircleField} calls this with the shipped field.
-   */
-  setSquircleField(data: Uint16Array): void {
-    this.#squircleFieldData = data
-    this.#uploadSquircleField()
   }
 
   #uploadSquircleField(): void {

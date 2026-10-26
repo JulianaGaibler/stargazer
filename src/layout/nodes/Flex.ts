@@ -69,9 +69,7 @@ export class Flexible extends LayoutNode {
   }
 
   arrange(x: number, y: number, w: number, h: number): void {
-    this.transform.x = x
-    this.transform.y = y
-    this.boundsOverride = { x: 0, y: 0, width: w, height: h }
+    this.place(x, y, w, h)
     this.#child.arrange(0, 0, w, h)
   }
 }
@@ -95,9 +93,7 @@ class EmptyBox extends LayoutNode {
     return this.measuredSize
   }
   arrange(x: number, y: number, w: number, h: number): void {
-    this.transform.x = x
-    this.transform.y = y
-    this.boundsOverride = { x: 0, y: 0, width: w, height: h }
+    this.place(x, y, w, h)
   }
 }
 
@@ -253,9 +249,7 @@ export class Flex extends LayoutNode {
   }
 
   arrange(x: number, y: number, w: number, h: number): void {
-    this.transform.x = x
-    this.transform.y = y
-    this.boundsOverride = { x: 0, y: 0, width: w, height: h }
+    this.place(x, y, w, h)
 
     const isRow = this.direction === 'row'
     const items = this.#items

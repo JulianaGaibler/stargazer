@@ -49,37 +49,4 @@ describe('FrameStats', () => {
     expect(p.p99).toBeCloseTo(0.0166, 6)
     expect(p.max).toBeCloseTo(0.0166, 6)
   })
-
-  it('readOrdered returns samples oldest-to-newest before wrap', () => {
-    const s = new FrameStats(10)
-    for (let i = 1; i <= 5; i++) s.push(i)
-    const out = new Float32Array(10)
-    const n = s.readOrdered(out)
-    expect(n).toBe(5)
-    expect(Array.from(out.subarray(0, 5))).toEqual([1, 2, 3, 4, 5])
-  })
-
-  it('readOrdered returns samples oldest-to-newest after wrap', () => {
-    const s = new FrameStats(4)
-    for (let i = 1; i <= 7; i++) s.push(i) // last 4 are [4, 5, 6, 7]
-    const out = new Float32Array(4)
-    const n = s.readOrdered(out)
-    expect(n).toBe(4)
-    expect(Array.from(out)).toEqual([4, 5, 6, 7])
-  })
-
-  it('readOrdered clamps to the shorter of buffer length and count', () => {
-    const s = new FrameStats(10)
-    for (let i = 1; i <= 6; i++) s.push(i)
-    const out = new Float32Array(3)
-    const n = s.readOrdered(out)
-    expect(n).toBe(3)
-    expect(Array.from(out)).toEqual([1, 2, 3])
-  })
-
-  it('readOrdered returns 0 when empty', () => {
-    const s = new FrameStats(10)
-    const out = new Float32Array(5)
-    expect(s.readOrdered(out)).toBe(0)
-  })
 })

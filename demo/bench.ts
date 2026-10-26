@@ -1,5 +1,5 @@
 import { createEngineHost, type EngineHost } from '../src/engine/EngineHost'
-import { WebGPUDevice } from '../src/render/gfx/webgpu/WebGPUDevice'
+import { gpuDeviceFromUrl } from './gpuDevice'
 import {
   addBenchCamera,
   benchScenes,
@@ -107,8 +107,6 @@ const suites: Record<string, BenchCase[]> = {
     { scene: 'boxes3d', n: 6 },
     { scene: 'boxes3d', n: 12 },
   ],
-  // The scene's default is MSAA 4, AO medium at full resolution, 9-tap
-  // shadows at 2048 and render scale 1. Each case lowers one of them.
   // Recording a picture against drawing straight into the renderer, on the same
   // cards: drawn directly, recorded once and replayed, and recorded every frame.
   paint: [
@@ -130,6 +128,8 @@ const suites: Record<string, BenchCase[]> = {
     { scene: 'layer-blur', n: 500 },
     { scene: 'layer-blur-cached', n: 500 },
   ],
+  // The scene's default is MSAA 4, AO medium at full resolution, 9-tap
+  // shadows at 2048 and render scale 1. Each case lowers one of them.
   costs3d: [
     boxes(4),
     boxes(2),
@@ -246,17 +246,10 @@ async function createHost(
   msaa: number | undefined,
   marks: boolean,
 ): Promise<{ host: EngineHost; fallback: string | null }> {
-  const wantsWebGPU =
-    new URLSearchParams(window.location.search).get('gfx') === 'webgpu'
-  let gpuDevice: WebGPUDevice | undefined
   let fallback: string | null = null
-  if (wantsWebGPU) {
-    try {
-      gpuDevice = await WebGPUDevice.create(canvas)
-    } catch (err) {
-      fallback = err instanceof Error ? err.message : String(err)
-    }
-  }
+  const gpuDevice = await gpuDeviceFromUrl(canvas, (err) => {
+    fallback = err instanceof Error ? err.message : String(err)
+  })
   const host = createEngineHost({
     qualityProfile: false,
     canvas,

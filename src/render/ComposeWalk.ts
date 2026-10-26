@@ -8,6 +8,7 @@ import { diagnostics } from '../diagnostics/Diagnostics'
 import { DEV } from 'esm-env'
 import type { Affine2x3, CameraView2D } from '../camera/CameraView2D'
 import type { Vec2 } from '../math/Vec2'
+import { multiplyMatrix2D } from '../math/matrix'
 import type { SceneTree } from '../scene/SceneTree'
 import type { Node } from '../scene/Node'
 import type { Node2D } from '../scene/Node2D'
@@ -22,8 +23,8 @@ import { GfxPath } from './gfx/GfxPath'
 import type { Rect } from '../math/Rect'
 import { InsetCameraView, InsetViewNode } from '../nodes/InsetViewNode'
 import { Canvas } from './picture/Canvas'
-import { Op, Picture } from './picture/Picture'
-import { beginPaint, endPaint } from './picture/paintState'
+import { opName, Picture } from './picture/Picture'
+import { recordPaint } from './picture/paintState'
 
 /**
  * World-unit slack on viewport cull, on top of stroke half-width. Covers AA
@@ -33,11 +34,6 @@ const CULL_AA_PAD_WORLD = 2
 
 /** A device scale this close to last frame's counts as at rest. */
 const AT_REST_EPSILON = 1e-3
-
-/** The op names, for a staleness report. */
-const OP_NAMES = Object.fromEntries(
-  Object.entries(Op).map(([name, code]) => [code, name]),
-)
 
 /** The analytic clip a rectangle clip owner sets, in the owner's local space. */
 interface RectClip {
@@ -460,7 +456,8 @@ export class ComposeWalk {
     if (layer) {
       layer._fx.effects = this.#effectsOf(layer)
       layer._fx.dt = f.dt
-      layer._fx.units = this.#unitsOf(layer, f)
+      layer._fx.units ??= { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }
+      multiplyMatrix2D(layer._fx.units, f.render, layer.transform.world)
       if (layer.cache === 'raster') {
         this.#signLayer(layer, f, view)
         layer._fx.cache = layer._cacheState
@@ -488,20 +485,6 @@ export class ComposeWalk {
     if (bounds) Object.assign(entry.bounds, bounds)
     this.#reapplyClip(f)
     return true
-  }
-
-  /** `layer`'s local space in device pixels, in a record the layer keeps. */
-  #unitsOf(layer: Layer, f: WalkFrame): NonNullable<Layer['_fx']['units']> {
-    const world = layer.transform.world
-    const render = f.render
-    const out = (layer._fx.units ??= { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 })
-    out.a = render.a * world.a + render.c * world.b
-    out.b = render.b * world.a + render.d * world.b
-    out.c = render.a * world.c + render.c * world.d
-    out.d = render.b * world.c + render.d * world.d
-    out.e = render.a * world.e + render.c * world.f + render.e
-    out.f = render.b * world.e + render.d * world.f + render.f
-    return out
   }
 
   /** What each cached layer's output depends on, rebuilt every frame. */
@@ -981,14 +964,7 @@ export class ComposeWalk {
   /** Record the node's picture. */
   #paint(node: Node2D, scale: number, view: CameraView2D): Picture {
     const pic = (node._picture ??= new Picture())
-    beginPaint(node)
-    this.#canvas.begin(pic, scale, view)
-    try {
-      node.paint!(this.#canvas)
-    } finally {
-      this.#canvas.end()
-      endPaint()
-    }
+    recordPaint(node, this.#canvas, pic, scale, view)
     pic.paintedScale = scale
     pic.generation++
     node._paintDirty = false
@@ -1011,19 +987,12 @@ export class ComposeWalk {
       const c = this.#clean[this.#sample++ % n]
       const kept = c.node._picture
       if (!kept || c.node.isDestroyed || this.#warned.has(c.node)) continue
-      beginPaint(c.node)
-      this.#canvas.begin(this.#scratch, c.scale, c.view)
-      try {
-        c.node.paint!(this.#canvas)
-      } finally {
-        this.#canvas.end()
-        endPaint()
-      }
+      recordPaint(c.node, this.#canvas, this.#scratch, c.scale, c.view)
       const at = kept.firstDifference(this.#scratch)
       if (at >= 0) {
         this.#warned.add(c.node)
         this.totals.stale++
-        const op = OP_NAMES[this.#scratch.ops[at] ?? kept.ops[at]] ?? 'end'
+        const op = opName(this.#scratch.ops[at] ?? kept.ops[at]) ?? 'end'
         diagnostics.report(
           'SG2022',
           `stale picture: ${c.node.id} paints differently now than when it last painted (first difference at call ${at}, ${op}). It changed without a paint property, a versioned resource or markNeedsPaint().`,

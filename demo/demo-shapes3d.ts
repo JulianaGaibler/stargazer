@@ -1,7 +1,4 @@
-import {
-  createEngineHost,
-  type EngineHostOptions,
-} from '../src/engine/EngineHost'
+import { createEngineHost } from '../src/engine/EngineHost'
 import { CameraNode2D } from '../src/camera/CameraNode2D'
 import { CameraNode3D } from '../src/camera/CameraNode3D'
 import { DirectionalLight3D } from '../src/nodes/Light3D'
@@ -17,7 +14,7 @@ import type { Canvas } from '../src/render/picture/Canvas'
 import { createTexture } from '../src/assets/createTexture'
 import { rasterizeSvg } from '../src/assets/rasterizeSvg'
 import { quat, quatFromAxisAngle } from '../src/math/Quat'
-import { WebGPUDevice } from '../src/render/gfx/webgpu/WebGPUDevice'
+import { gpuDeviceFromUrl } from './gpuDevice'
 import type { Node } from '../src/scene/Node'
 import type { DemoFn } from './types'
 
@@ -73,16 +70,7 @@ class StrokeOverlayNode extends Node2D {
 }
 
 const runDemo: DemoFn = async ({ canvas, signal, attach }) => {
-  const wantsWebGPU =
-    new URLSearchParams(window.location.search).get('gfx') === 'webgpu'
-  let gpuDevice: EngineHostOptions['gpuDevice']
-  if (wantsWebGPU) {
-    try {
-      gpuDevice = await WebGPUDevice.create(canvas)
-    } catch (err) {
-      console.warn('[demo-shapes3d] WebGPU unavailable, using WebGL2:', err)
-    }
-  }
+  const gpuDevice = await gpuDeviceFromUrl(canvas)
 
   const host = createEngineHost({
     canvas,

@@ -5,65 +5,6 @@ const DELTA_SMOOTHING = 0.15
 /** Relative jump beyond which delta smoothing snaps (a real hitch, not jitter). */
 const DELTA_SNAP_RATIO = 0.5
 
-/**
- * Drives the frame loop off `requestAnimationFrame`. Runs a variable-rate
- * render step and a fixed-rate step from an accumulator. Build one with
- * {@link createTicker}.
- */
-export interface Ticker {
-  /** Total seconds since `start()`. Excludes time while stopped. */
-  readonly time: number
-  /** Seconds elapsed in the last render frame, clamped to `maxDt`. */
-  readonly dt: number
-  /**
-   * Wall-clock seconds between this processed frame and the previous one,
-   * unsmoothed and unclamped, unlike {@link dt}. This is the true post-cap frame
-   * interval (only processed frames advance it, so it already reflects the FPS
-   * cap). Measure actual FPS as `1 / rawDt`. `dt` is smoothed and clamped for
-   * stable simulation stepping and must NOT be used for a frame-rate readout,
-   * its `maxDt` clamp would floor the reported rate at `1 / maxDt`.
-   */
-  readonly rawDt: number
-  /** Monotonic render-frame counter. Increments before frame callbacks fire. */
-  readonly frameNum: number
-  /** Remaining fraction of an unconsumed fixed step: `accumulator / fixedDt`. */
-  readonly fixedAlpha: number
-  /** Nominal fixed-step duration in seconds. */
-  readonly fixedDt: number
-  /** Render frame-rate cap in Hz, or 0 when uncapped (runs at display rate). */
-  readonly maxFps: number
-  /** Whether per-frame `dt` is smoothed to filter timer-precision jitter. */
-  readonly smoothTimestep: boolean
-
-  /** Register a render-frame callback. Returns an unsubscribe function. */
-  onFrame(cb: (dt: number) => void): () => void
-  /** Register a fixed-step callback. Returns an unsubscribe function. */
-  onFixedStep(cb: (fixedDt: number) => void): () => void
-
-  /**
-   * Enable or disable render `dt` smoothing. On (the default) it low-pass
-   * filters the frame delta so coarse timer precision (notably Firefox's ~1ms
-   * `performance.now()` rounding) doesn't jitter the interpolation between
-   * fixed steps. It snaps immediately on a real frame-time change, so genuine
-   * hitches still register.
-   */
-  setSmoothTimestep(enabled: boolean): void
-
-  /**
-   * Cap the render frame rate to `fps` Hz. Pass `0` (or a non-positive value)
-   * to remove the cap and render at the display rate. The fixed step is
-   * unaffected: physics still advances by real elapsed time, so a lower render
-   * cap just means fewer interpolated frames, not slower simulation.
-   */
-  setMaxFps(fps: number): void
-
-  /** Start the frame loop. */
-  start(): void
-  /** Stop the frame loop. */
-  stop(): void
-  readonly running: boolean
-}
-
 /** Construction options for {@link createTicker}. */
 export interface TickerOptions {
   /** Hz for the deterministic inner step. Default 120. */
@@ -76,15 +17,21 @@ export interface TickerOptions {
   smoothTimestep?: boolean
 }
 
-class TickerImpl implements Ticker {
-  time = 0
-  dt = 0
-  rawDt = 0
-  frameNum = 0
-  fixedAlpha = 0
+/**
+ * Drives the frame loop off `requestAnimationFrame`. Runs a variable-rate
+ * render step and a fixed-rate step from an accumulator. Build one with
+ * {@link createTicker}.
+ */
+export class Ticker {
+  /** Nominal fixed-step duration in seconds. */
   readonly fixedDt: number
-  running = false
 
+  #time = 0
+  #dt = 0
+  #rawDt = 0
+  #frameNum = 0
+  #fixedAlpha = 0
+  #running = false
   readonly #maxDt: number
   #accumulator = 0
   #lastMs = 0
@@ -109,19 +56,71 @@ class TickerImpl implements Ticker {
     this.setMaxFps(opts.maxFps ?? 0)
   }
 
+  /** Total seconds since `start()`. Excludes time while stopped. */
+  get time(): number {
+    return this.#time
+  }
+
+  /** Seconds elapsed in the last render frame, clamped to `maxDt`. */
+  get dt(): number {
+    return this.#dt
+  }
+
+  /**
+   * Wall-clock seconds between this processed frame and the previous one,
+   * unsmoothed and unclamped, unlike {@link dt}. This is the true post-cap frame
+   * interval (only processed frames advance it, so it already reflects the FPS
+   * cap). Measure actual FPS as `1 / rawDt`. `dt` is smoothed and clamped for
+   * stable simulation stepping. Do not use it for a frame-rate readout, because
+   * its `maxDt` clamp would floor the reported rate at `1 / maxDt`.
+   */
+  get rawDt(): number {
+    return this.#rawDt
+  }
+
+  /** Monotonic render-frame counter. Increments before frame callbacks fire. */
+  get frameNum(): number {
+    return this.#frameNum
+  }
+
+  /** Remaining fraction of an unconsumed fixed step: `accumulator / fixedDt`. */
+  get fixedAlpha(): number {
+    return this.#fixedAlpha
+  }
+
+  /** Whether the frame loop is running. */
+  get running(): boolean {
+    return this.#running
+  }
+
+  /** Whether per-frame `dt` is smoothed to filter timer-precision jitter. */
   get smoothTimestep(): boolean {
     return this.#_smoothTimestep
   }
 
+  /**
+   * Enable or disable render `dt` smoothing. On (the default) it low-pass
+   * filters the frame delta so coarse timer precision (notably Firefox's ~1ms
+   * `performance.now()` rounding) doesn't jitter the interpolation between
+   * fixed steps. It snaps immediately on a real frame-time change, so genuine
+   * hitches still register.
+   */
   setSmoothTimestep(enabled: boolean): void {
     this.#_smoothTimestep = enabled
     this.#smoothedDt = 0 // re-seed on next frame
   }
 
+  /** Render frame-rate cap in Hz, or 0 when uncapped (runs at display rate). */
   get maxFps(): number {
     return this.#_maxFps
   }
 
+  /**
+   * Cap the render frame rate to `fps` Hz. Pass `0` (or a non-positive value)
+   * to remove the cap and render at the display rate. The fixed step is
+   * unaffected: physics still advances by real elapsed time, so a lower render
+   * cap just means fewer interpolated frames, not slower simulation.
+   */
   setMaxFps(fps: number): void {
     this.#_maxFps = fps > 0 ? fps : 0
     this.#minFrameMs = this.#_maxFps > 0 ? 1000 / this.#_maxFps : 0
@@ -129,6 +128,7 @@ class TickerImpl implements Ticker {
     this.#nextFrameMs = 0
   }
 
+  /** Register a render-frame callback. Returns an unsubscribe function. */
   onFrame(cb: (dt: number) => void): () => void {
     this.#frameCallbacks.add(cb)
     return () => {
@@ -136,6 +136,7 @@ class TickerImpl implements Ticker {
     }
   }
 
+  /** Register a fixed-step callback. Returns an unsubscribe function. */
   onFixedStep(cb: (fixedDt: number) => void): () => void {
     this.#fixedCallbacks.add(cb)
     return () => {
@@ -143,9 +144,10 @@ class TickerImpl implements Ticker {
     }
   }
 
+  /** Start the frame loop. */
   start(): void {
-    if (this.running) return
-    this.running = true
+    if (this.#running) return
+    this.#running = true
     this.#lastMs = performance.now()
     this.#accumulator = 0
     this.#nextFrameMs = 0
@@ -153,14 +155,15 @@ class TickerImpl implements Ticker {
     this.#rafId = requestAnimationFrame(this.#loop)
   }
 
+  /** Stop the frame loop. */
   stop(): void {
-    if (!this.running) return
-    this.running = false
+    if (!this.#running) return
+    this.#running = false
     cancelAnimationFrame(this.#rafId)
   }
 
   #loop = (nowMs: number): void => {
-    if (!this.running) return
+    if (!this.#running) return
     // Always poll at the display rate so the cap can land on the nearest rAF.
     this.#rafId = requestAnimationFrame(this.#loop)
 
@@ -177,7 +180,7 @@ class TickerImpl implements Ticker {
     const rawDt = (nowMs - this.#lastMs) / 1000
     this.#lastMs = nowMs
     // True frame interval (post-cap, unsmoothed, unclamped) for FPS readouts.
-    this.rawDt = Math.max(0, rawDt)
+    this.#rawDt = Math.max(0, rawDt)
     let dt = Math.max(0, Math.min(rawDt, this.#maxDt))
     // Delta smoothing: EMA-filter the frame time so coarse timer precision
     // (Firefox rounds performance.now() to ~1ms) doesn't jitter interpolation.
@@ -195,11 +198,11 @@ class TickerImpl implements Ticker {
       }
       dt = this.#smoothedDt
     }
-    this.dt = dt
-    this.time += this.dt
-    this.frameNum++
+    this.#dt = dt
+    this.#time += dt
+    this.#frameNum++
 
-    this.#accumulator += this.dt
+    this.#accumulator += dt
     const fixedDt = this.fixedDt
     // Cap fixed-step iterations per frame so a huge dt after a stall doesn't spiral.
     let steps = 0
@@ -210,13 +213,13 @@ class TickerImpl implements Ticker {
     }
     // If we hit the cap, drop the remainder, better a small time skip than a spiral.
     if (steps === 8 && this.#accumulator >= fixedDt) this.#accumulator = 0
-    this.fixedAlpha = this.#accumulator / fixedDt
+    this.#fixedAlpha = this.#accumulator / fixedDt
 
-    for (const cb of this.#frameCallbacks) cb(this.dt)
+    for (const cb of this.#frameCallbacks) cb(dt)
   }
 }
 
 /** Create a {@link Ticker}. It stays stopped until you call `start()`. */
 export function createTicker(opts?: TickerOptions): Ticker {
-  return new TickerImpl(opts)
+  return new Ticker(opts)
 }

@@ -68,6 +68,18 @@ export const Op = {
   fillAndStrokeEllipse: 37,
 } as const
 
+const OP_NAMES: string[] = []
+for (const [name, code] of Object.entries(Op)) OP_NAMES[code] = name
+
+/**
+ * The name of an {@link Op} code, or `undefined` for anything else.
+ *
+ * @internal
+ */
+export function opName(code: number | undefined): string | undefined {
+  return code === undefined ? undefined : OP_NAMES[code]
+}
+
 /**
  * One node's recorded drawing: the calls its `paint` made, in order, with their
  * arguments copied, plus what the engine needs to know about them. Replaying it

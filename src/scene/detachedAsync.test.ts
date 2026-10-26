@@ -22,7 +22,7 @@ import { CameraNode3D } from '../camera/CameraNode3D'
 import { Node2D } from './Node2D'
 import { Node3D } from './Node3D'
 import { SceneTree } from './SceneTree'
-import type { CameraHost } from '../camera/CameraHost'
+import { CameraRegistry, type CameraHost } from '../camera/CameraHost'
 import type { Engine } from '../engine/Engine'
 
 /** Enough of an engine for the attach check and the animator hand-off. */
@@ -41,15 +41,10 @@ interface Case {
 }
 
 /** A camera node refuses to attach to a tree with no host to register with. */
-const fakeStage = (): CameraHost =>
-  ({
-    registerCamera2D: () => {},
-    unregisterCamera2D: () => {},
-    setCurrentCamera2D: () => {},
-    registerCamera3D: () => {},
-    unregisterCamera3D: () => {},
-    setCurrentCamera3D: () => {},
-  }) as unknown as CameraHost
+const fakeStage = (): CameraHost => ({
+  _cameras2D: new CameraRegistry(),
+  _cameras3D: new CameraRegistry(),
+})
 
 const attach = <T extends Node2D | Node3D>(node: T): T => {
   const tree = new SceneTree()

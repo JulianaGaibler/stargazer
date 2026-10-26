@@ -26,6 +26,7 @@ import type {
   BindGroupEntry,
   BindGroupLayout,
   BindGroupLayoutEntry,
+  BindingType,
   BlitOpts,
   ColorFormat,
   Readback,
@@ -181,9 +182,9 @@ type WebGPURenderTarget = RenderTarget & {
   colorFormat: GPUTextureFormat
   depthTex?: GPUTexture
   /**
-   * The format `depthTex` was allocated with. A resize reallocates from this
-   * rather than re-deriving it, so a target keeps whichever aspects it was
-   * built with.
+   * The format `depthTex` was allocated with, present exactly when the target
+   * has depth. A resize reallocates from this rather than re-deriving it, so a
+   * target keeps whichever aspects it was built with.
    */
   depthFormat?: GPUTextureFormat
   stencilTex?: GPUTexture
@@ -192,6 +193,26 @@ type WebGPURenderTarget = RenderTarget & {
   width: number
   height: number
   samples: number
+}
+
+/** The texture and companion sampler layout of each sampled binding type. */
+const SAMPLED_LAYOUTS: Record<
+  Exclude<BindingType, 'uniform-buffer' | 'data-table' | 'storage-texture-2d'>,
+  { texture: GPUTextureBindingLayout; sampler: GPUSamplerBindingType }
+> = {
+  'texture-2d': { texture: { sampleType: 'float' }, sampler: 'filtering' },
+  'texture-2d-depth': {
+    texture: { sampleType: 'depth' },
+    sampler: 'non-filtering',
+  },
+  'texture-2d-array-shadow': {
+    texture: { sampleType: 'depth', viewDimension: '2d-array' },
+    sampler: 'comparison',
+  },
+  'texture-cube-shadow': {
+    texture: { sampleType: 'depth', viewDimension: 'cube' },
+    sampler: 'comparison',
+  },
 }
 
 // --- device -----------------------------------------------------------------
@@ -533,56 +554,16 @@ export class WebGPUDevice implements GfxDevice {
         })
         continue
       }
-      if (e.type === 'texture-2d-depth') {
-        // Sampled depth read with a non-comparison, non-filtering sampler.
-        gpuEntries.push({
-          binding: e.binding,
-          visibility: vis,
-          texture: { sampleType: 'depth' },
-        })
-        gpuEntries.push({
-          binding: e.binding + 16,
-          visibility: vis,
-          sampler: { type: 'non-filtering' },
-        })
-        continue
-      }
       // Texture and its companion sampler at binding + 16.
-      if (e.type === 'texture-2d') {
-        gpuEntries.push({
-          binding: e.binding,
-          visibility: vis,
-          texture: { sampleType: 'float' },
-        })
-        gpuEntries.push({
+      const sampled = SAMPLED_LAYOUTS[e.type]
+      gpuEntries.push(
+        { binding: e.binding, visibility: vis, texture: sampled.texture },
+        {
           binding: e.binding + 16,
           visibility: vis,
-          sampler: { type: 'filtering' },
-        })
-      } else if (e.type === 'texture-2d-array-shadow') {
-        gpuEntries.push({
-          binding: e.binding,
-          visibility: vis,
-          texture: { sampleType: 'depth', viewDimension: '2d-array' },
-        })
-        gpuEntries.push({
-          binding: e.binding + 16,
-          visibility: vis,
-          sampler: { type: 'comparison' },
-        })
-      } else {
-        // texture-cube-shadow
-        gpuEntries.push({
-          binding: e.binding,
-          visibility: vis,
-          texture: { sampleType: 'depth', viewDimension: 'cube' },
-        })
-        gpuEntries.push({
-          binding: e.binding + 16,
-          visibility: vis,
-          sampler: { type: 'comparison' },
-        })
-      }
+          sampler: { type: sampled.sampler },
+        },
+      )
     }
     const gpu = this.#device.createBindGroupLayout({ entries: gpuEntries })
     return {
@@ -1144,7 +1125,6 @@ export class WebGPUDevice implements GfxDevice {
   // --- render targets -------------------------------------------------------
 
   createRenderTarget(opts: RenderTargetOpts): RenderTarget {
-    const device = this.#device
     const samples = sampleCountToGPU(opts.samples ?? 1)
     const width = Math.max(1, opts.width)
     const height = Math.max(1, opts.height)
@@ -1175,49 +1155,15 @@ export class WebGPUDevice implements GfxDevice {
       hasStencil: hasStencilAspect(aspects),
     } as WebGPURenderTarget
 
-    if (samples > 1) {
-      // A multisample color attachment cannot be sampled. It only renders and
-      // resolves. The single-sample sampleable color lives in the resolve
-      // target the caller supplies to the pass.
-      rt.colorMs = device.createTexture({
-        size: [width, height, 1],
-        format,
-        sampleCount: samples,
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      })
-    } else {
-      rt.color = device.createTexture({
-        size: [width, height, 1],
-        format,
-        usage: this.#colorUsage(format),
-      })
-    }
-
-    // Stencil without depth is its own quarter-sized attachment. Depth, with or
-    // without stencil, is one texture in `depthTex` carrying both aspects.
-    if (aspects === 'stencil') {
-      rt.stencilTex = device.createTexture({
-        size: [width, height, 1],
-        format: 'stencil8',
-        sampleCount: samples,
-        usage: GPUTextureUsage.RENDER_ATTACHMENT,
-      })
-    } else if (hasDepthAspect(aspects)) {
+    if (hasDepthAspect(aspects)) {
       // A sampleable depth attachment (the AO G-buffer) is single-sample and
       // adds TEXTURE_BINDING so a later pass can read it as `texture_depth_2d`.
       // `depthStencilFormatFor` drops stencil in that case, so the sampled view
       // is always depth-only and needs no aspect of its own.
       rt.depthSampled = !!opts.depthSampled
       rt.depthFormat = depthStencilFormatToGPU(aspects) ?? 'depth24plus'
-      rt.depthTex = device.createTexture({
-        size: [width, height, 1],
-        format: rt.depthFormat,
-        sampleCount: rt.depthSampled ? 1 : samples,
-        usage:
-          GPUTextureUsage.RENDER_ATTACHMENT |
-          (rt.depthSampled ? GPUTextureUsage.TEXTURE_BINDING : 0),
-      })
     }
+    this.#allocateTargetTextures(rt)
     return rt
   }
 
@@ -1226,47 +1172,57 @@ export class WebGPUDevice implements GfxDevice {
     const w = Math.max(1, width)
     const h = Math.max(1, height)
     if (r.width === w && r.height === h) return
+    if (r.colorMs) this.#destroyDeferred(r.colorMs)
+    if (r.color) this.#destroyDeferred(r.color)
+    if (r.depthTex) this.#destroyDeferred(r.depthTex)
+    if (r.stencilTex) this.#destroyDeferred(r.stencilTex)
+    ;(r as { width: number }).width = w
+    ;(r as { height: number }).height = h
+    this.#allocateTargetTextures(r)
+  }
+
+  /** Allocates the textures of `r` at its current size and formats. */
+  #allocateTargetTextures(r: WebGPURenderTarget): void {
     const device = this.#device
+    const size: GPUExtent3DStrict = [r.width, r.height, 1]
     const format = r.colorFormat
-    if (r.colorMs) {
-      this.#destroyDeferred(r.colorMs)
+    if (r.samples > 1) {
+      // A multisample color attachment cannot be sampled. It only renders and
+      // resolves. The single-sample sampleable color lives in the resolve
+      // target the caller supplies to the pass.
       r.colorMs = device.createTexture({
-        size: [w, h, 1],
+        size,
         format,
         sampleCount: r.samples,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
       })
-    }
-    if (r.color) {
-      this.#destroyDeferred(r.color)
+    } else {
       r.color = device.createTexture({
-        size: [w, h, 1],
+        size,
         format,
         usage: this.#colorUsage(format),
       })
     }
-    if (r.depthTex) {
-      this.#destroyDeferred(r.depthTex)
+
+    // Stencil without depth is its own quarter-sized attachment. Depth, with or
+    // without stencil, is one texture in `depthTex` carrying both aspects.
+    if (r.depthFormat) {
       r.depthTex = device.createTexture({
-        size: [w, h, 1],
-        format: r.depthFormat ?? 'depth24plus',
+        size,
+        format: r.depthFormat,
         sampleCount: r.depthSampled ? 1 : r.samples,
         usage:
           GPUTextureUsage.RENDER_ATTACHMENT |
           (r.depthSampled ? GPUTextureUsage.TEXTURE_BINDING : 0),
       })
-    }
-    if (r.stencilTex) {
-      this.#destroyDeferred(r.stencilTex)
+    } else if (r.hasStencil) {
       r.stencilTex = device.createTexture({
-        size: [w, h, 1],
+        size,
         format: 'stencil8',
         sampleCount: r.samples,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
       })
     }
-    ;(r as { width: number }).width = w
-    ;(r as { height: number }).height = h
   }
 
   /** A color texture is sampleable, and copyable when it matches the canvas. */

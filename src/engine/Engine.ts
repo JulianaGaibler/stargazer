@@ -33,7 +33,6 @@ import { Fog, type FogOptions } from '../render/Fog'
 import type { PostProcessPipeline } from '../render/postfx/PostProcessPipeline'
 import type { AmbientOcclusion } from '../render/gfx/ao/AmbientOcclusion'
 import type { GfxDevice } from '../render/gfx/GfxDevice'
-import { EngineStageManager } from './EngineStageManager'
 import {
   SceneCapture,
   type CaptureBlobOptions,
@@ -125,6 +124,10 @@ export interface RegisterPhysicsWorldOptions {
   label?: string
 }
 
+const inputBeforeFrame = (stage: Stage): void => stage.input?.beforeFrame()
+const updateTransforms = (stage: Stage): void => stage.updateTransforms()
+const render = (stage: Stage, dt: number): void => stage.render(dt)
+
 /**
  * The core engine: a {@link Ticker}, a primary {@link Stage}, an
  * {@link InputSystem}, an {@link Animator}, and an event bus wired together. One
@@ -191,7 +194,9 @@ export class Engine {
    */
   perfMarks = false
 
-  readonly #stageManager: EngineStageManager
+  readonly #stages = new Set<Stage>()
+  // Unregisters the physics world of each secondary stage that has one.
+  readonly #stagePhysicsOff = new Map<Stage, () => void>()
   readonly #physicsWorlds = new Set<RegisteredPhysicsWorld>()
   /**
    * The registered worlds as an array, replaced on every change, so the fixed
@@ -247,18 +252,8 @@ export class Engine {
       },
     })
     this.qualityControl = new QualityControl(this)
-    this.#stageManager = new EngineStageManager(opts.canvas)
     this.animation = new Animator()
-
-    // A stage-owned world joins the same registry as behavior-owned worlds so
-    // there's one list to step and one list for the debugger to read.
-    if (this.primaryStage.physics) {
-      this.registerPhysicsWorld(this.primaryStage.physics, {
-        // The tree root is identity, so physics space is scene space (null).
-        spaceNode: null,
-        label: this.primaryStage.name ?? 'stage',
-      })
-    }
+    this.#registerStagePhysics(this.primaryStage)
 
     // Forward primary-stage pointer events onto `engine.events` so game code
     // can listen at the engine level. Secondary stages' pointer events stay
@@ -334,6 +329,19 @@ export class Engine {
       this.#physicsWorlds.delete(entry)
       this.#worldList = [...this.#physicsWorlds]
     }
+  }
+
+  /**
+   * A stage-owned world joins the same registry as behavior-owned worlds so
+   * there's one list to step and one list for the debugger to read.
+   */
+  #registerStagePhysics(stage: Stage): (() => void) | undefined {
+    if (!stage.physics) return undefined
+    return this.registerPhysicsWorld(stage.physics, {
+      // The tree root is identity, so physics space is scene space (null).
+      spaceNode: null,
+      label: stage.name ?? 'stage',
+    })
   }
 
   /** Every physics world the engine currently steps. */
@@ -470,7 +478,7 @@ export class Engine {
 
   /** Read-only view of currently-attached secondary stages. */
   get stages(): ReadonlySet<Stage> {
-    return this.#stageManager.stages
+    return this.#stages
   }
 
   /**
@@ -501,7 +509,7 @@ export class Engine {
   stageForScene(scene: SceneTree | null): Stage | null {
     if (!scene) return null
     if (this.primaryStage.tree === scene) return this.primaryStage
-    for (const s of this.#stageManager.stages) {
+    for (const s of this.#stages) {
       if (s.tree === scene) return s
     }
     return null
@@ -518,7 +526,7 @@ export class Engine {
    */
   invalidateText(): void {
     this.primaryStage.invalidateText()
-    for (const stage of this.#stageManager.stages) stage.invalidateText()
+    for (const stage of this.#stages) stage.invalidateText()
   }
 
   /**
@@ -530,17 +538,40 @@ export class Engine {
     if (this.#disposed) {
       throw new StargazerError('SG5009', 'attachStage after engine.destroy()')
     }
-    return this.#stageManager.attachStage(this, canvas, opts)
+    if (
+      canvas === this.canvas ||
+      [...this.#stages].some((s) => s.canvas === canvas)
+    ) {
+      throw new StargazerError(
+        'SG5007',
+        'attachStage called with a canvas that is already attached',
+      )
+    }
+    // Secondary stages default to transparent, because the page element that
+    // holds the canvas draws the background.
+    const stage = new Stage(canvas, this, {
+      ...opts,
+      transparent: opts.transparent ?? true,
+      msaaSamples: opts.msaaSamples ?? this.msaaSamples,
+    })
+    this.#stages.add(stage)
+    const off = this.#registerStagePhysics(stage)
+    if (off) this.#stagePhysicsOff.set(stage, off)
+    return stage
   }
 
   /**
    * Detach and dispose a secondary stage. Cascades AbortErrors through its
-   * scene.
+   * scene. No-op if `stage` is not attached.
    */
   detachStage(stage: Stage): void {
-    // Let the debug controller flip its active-stage selection back to
+    if (!this.#stages.delete(stage)) return
+    this.#stagePhysicsOff.get(stage)?.()
+    this.#stagePhysicsOff.delete(stage)
+    // Lets the debug controller flip its active-stage selection back to
     // primary if this was the inspected stage.
-    this.#stageManager.detachStage(stage, (s) => this.debug?.onStageDetached(s))
+    this.debug?.onStageDetached(stage)
+    stage.dispose()
   }
 
   /**
@@ -594,7 +625,10 @@ export class Engine {
     this.#capture.dispose()
     // Dispose secondaries first so cascade order is deterministic. Each
     // Stage.dispose() tears down its own InputSystem (if any).
-    this.#stageManager.disposeAll()
+    for (const off of this.#stagePhysicsOff.values()) off()
+    this.#stagePhysicsOff.clear()
+    for (const stage of this.#stages) stage.dispose()
+    this.#stages.clear()
     this.primaryStage.dispose()
     for (const fn of this.#disposeCallbacks) fn()
     this.#disposeCallbacks.length = 0
@@ -622,12 +656,7 @@ export class Engine {
     //    Skipped while paused, a debug freeze should not fire game-side
     //    pointerMove callbacks either. Every interactive stage runs its own
     //    beforeFrame so secondaries stay glued to fingers under camera pan.
-    if (!this.#_paused) {
-      this.primaryStage.input?.beforeFrame()
-      for (const s of this.#stageManager.stages) {
-        if (s.active) s.input?.beforeFrame()
-      }
-    }
+    if (!this.#_paused) this.#eachActiveStage(inputBeforeFrame, dt)
 
     if (!this.#_paused) {
       // 3. Advance active tweens and waits FIRST so game code in the update
@@ -637,10 +666,7 @@ export class Engine {
       // 4. Update pass, walk every stage's scene tree. Behavior hooks may
       //    read pointer state (primary input). Inactive secondary stages
       //    (e.g. a parked demo stage) are skipped entirely.
-      this.#walkUpdate(this.primaryStage, dt)
-      for (const stage of this.#stageManager.stages) {
-        if (stage.active) this.#walkUpdate(stage, dt)
-      }
+      this.#eachActiveStage(this.#walkUpdate, dt)
     }
 
     // 4.5. Layout: re-measure/arrange any dirty layout roots BEFORE transform
@@ -653,20 +679,13 @@ export class Engine {
     //    nothing changed. Needed even while paused so debug-camera pans reflect
     //    in the primary render output. Inactive stages are skipped (nothing
     //    mutated them, so their world matrices are already correct).
-    this.primaryStage.updateTransforms()
-    for (const stage of this.#stageManager.stages) {
-      if (stage.active) stage.updateTransforms()
-    }
+    this.#eachActiveStage(updateTransforms, dt)
 
     // 6. Render every stage. Each resolves its own current camera (and honors
     //    the debug-camera override internally when the HUD is driving it).
     //    Debug overlays draw INSIDE `stage.render()` so they composite
     //    through the same `Gfx2D` pipeline as game content.
-    this.primaryStage.render(dt)
-    for (const stage of this.#stageManager.stages) {
-      if (!stage.active) continue
-      stage.render(dt)
-    }
+    this.#eachActiveStage(render, dt)
 
     // Stash the actual CPU work time BEFORE emitting `frame` so any
     // listener (DebugController.frameStats.push) reads a current value.
@@ -850,9 +869,18 @@ export class Engine {
     // mini-stage's `PacketBehavior`, need this to integrate velocity /
     // steer / capture just like the primary. Onus is on the caller to keep
     // fixed-step work cheap when they attach multiple stages.
-    this.#stepScene(this.primaryStage, fdt)
-    for (const stage of this.#stageManager.stages) {
-      if (stage.active) this.#stepScene(stage, fdt)
+    this.#eachActiveStage(this.#stepScene, fdt)
+  }
+
+  /**
+   * Run `fn` on the primary stage, then on every active secondary stage.
+   * Callers pass a method or a module-level function so a frame allocates no
+   * closure.
+   */
+  #eachActiveStage(fn: (stage: Stage, dt: number) => void, dt: number): void {
+    fn.call(this, this.primaryStage, dt)
+    for (const stage of this.#stages) {
+      if (stage.active) fn.call(this, stage, dt)
     }
   }
 

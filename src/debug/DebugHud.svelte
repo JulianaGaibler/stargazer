@@ -26,6 +26,7 @@
   import { diagnostics } from '../diagnostics/Diagnostics'
   import { fmtMs, MISSING } from './panels/format'
   import { MetricHistory } from './MetricHistory'
+  import { THRESHOLDS, toneFor, type Tone } from './thresholds'
 
   interface Props {
     debug: DebugController
@@ -47,89 +48,12 @@
     velocities: false,
   }
 
-  const EMPTY_STATS: DebugStatsSnapshot = {
-    p50: 0,
-    p95: 0,
-    p99: 0,
-    max: 0,
-    count: 0,
-    fps: 0,
-    nodeCount: 0,
-    compose: { nodes: 0, paints: 0, replays: 0, culled: 0 },
-    composePainters: [],
-    streamers: [],
-    caches: [],
-    composeTotals: { frames: 0, framesPainted: 0, paints: 0, stale: 0 },
-    renderFailures: [],
-    cameraMode: 'game',
-    cameraFollowing: false,
-    viewport: { x: 0, y: 0, width: 0, height: 0 },
-    screenPxPerWorldUnit: 0,
-    pointerScreen: null,
-    pointerWorld: null,
-    canvasCss: { w: 0, h: 0 },
-    canvasDevice: { w: 0, h: 0 },
-    dpr: 1,
-    activePointers: [],
-    touchSlopScreen: 0,
-    touchSlopWorld: 0,
-    aliveParticles: 0,
-    stages: [
-      { id: 'primary', label: 'Primary', isActive: true, isPrimary: true },
-    ],
-    activeStageId: 'primary',
-    activeIsPrimary: true,
-    activeHasInput: true,
-    gpu: {
-      drawCalls: 0,
-      programSwitches: 0,
-      textureBinds: 0,
-      blendSwitches: 0,
-      uboSlices: 0,
-      runsMerged: 0,
-      primitives: 0,
-      bytesUploaded: 0,
-      streamedBytes: {},
-      passCount: 0,
-      framePasses: 0,
-      frameSubmits: 0,
-      frameBindGroupsCreated: 0,
-      frameBindGroupSwitches: 0,
-      frameUniformWrites: 0,
-      surfaces: 0,
-      offscreenBytes: 0,
-      sdfInstances: 0,
-      strokeInstances: 0,
-      roundRectInstances: 0,
-      shadowInstances: 0,
-      msaaSamples: 1,
-      outlineTessellations: 0,
-      outlineCacheHits: 0,
-      rampRowsWritten: 0,
-      labelRasters: 0,
-      labelUploadBytes: 0,
-      labelDedicated: 0,
-      labelHolds: 0,
-      labelPageWipes: 0,
-      labelEntries: 0,
-      maskBakes: 0,
-      maskBakeWork: 0,
-      maskBytes: 0,
-      poolHits: 0,
-      poolMisses: 0,
-    },
-    backend: 'webgl2',
-    physics: [],
-    world3d: null,
-    flyPointerLocked: false,
-    flySpeedMultiplier: 1,
-  }
-
   /** Recent renderer readings, for the Rendering panel's sparklines. */
   const history = new MetricHistory()
 
   let visible = $state(false)
-  let stats = $state<DebugStatsSnapshot>(EMPTY_STATS)
+  // The IIFE silences the same warning as `panels`.
+  let stats = $state<DebugStatsSnapshot>((() => debug.snapshotStats())())
   // Bumped every rAF tick so canvas children (FrameGraph, previews) and the
   // subpanels' live-state syncs redraw in step without their own loops.
   let frameRevision = $state(0)
@@ -250,7 +174,6 @@
       physics: { ...debug.physicsFlags },
       flyPointerLocked: false,
     }
-    stats = debug.snapshotStats()
 
     const off = debug.events.on('toggle', (t) => {
       visible = t.hud
@@ -288,23 +211,10 @@
 
   // --- derived --------------------------------------------------------
 
-  const fpsTone = $derived(
-    stats.fps <= 0
-      ? 'default'
-      : stats.fps < 15
-        ? 'error'
-        : stats.fps < 30
-          ? 'warning'
-          : 'default',
+  const fpsTone = $derived<Tone>(
+    stats.fps > 0 ? toneFor(THRESHOLDS.fps, stats.fps) : 'neutral',
   )
-
-  const p95Tone = $derived(
-    stats.p95 * 1000 > 33
-      ? 'error'
-      : stats.p95 * 1000 > 16.7
-        ? 'warning'
-        : 'default',
-  )
+  const p95Tone = $derived(toneFor(THRESHOLDS.frameMs, stats.p95 * 1000))
 
   function activeStageLabel(s: DebugStatsSnapshot): string {
     const found = s.stages.find((chip) => chip.isActive)
@@ -603,7 +513,7 @@
       <DebugRow
         label="Mouse look"
         value={stats.flyPointerLocked ? 'locked' : 'click to lock'}
-        tone={stats.flyPointerLocked ? 'accent' : 'default'}
+        tone={stats.flyPointerLocked ? 'accent' : 'neutral'}
       />
       <DebugRow
         label="Fly speed"

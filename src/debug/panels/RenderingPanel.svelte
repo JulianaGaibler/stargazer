@@ -289,7 +289,7 @@
     <HealthChip {issues} />
   </div>
   {#each stats.renderFailures as failure (failure.source + failure.message)}
-    <DebugRow label={failure.source} value={failure.message} tone="error" />
+    <DebugRow label={failure.source} value={failure.message} tone="bad" />
   {/each}
 
   <StatGrid>

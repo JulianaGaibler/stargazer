@@ -27,9 +27,8 @@ interface PoolEntry {
   rt: RenderTarget
   /** Transient only: claimed by an `acquireTransient` not yet released. */
   inUse: boolean
+  /** Lives until its single `release`, never reused by key. */
   retained: boolean
-  /** Retained only: alive while > 0, deleted when a release drops it to 0. */
-  refs: number
 }
 
 /**
@@ -37,9 +36,9 @@ interface PoolEntry {
  * reused across calls by (size, color space, pixel format, samples) and freed
  * automatically by {@link RenderTargetPool.endFrame} once a frame stops asking
  * for a given key, the shape `PostProcessPipeline`'s ping-pong buffers want.
- * `acquireRetained` targets are refcounted and live until explicitly
- * {@link RenderTargetPool.release}d to zero, the shape a cache (a path-shadow
- * mask) wants: `endFrame` never touches them.
+ * `acquireRetained` targets live until explicitly
+ * {@link RenderTargetPool.release}d, the shape a cache (a path-shadow mask)
+ * wants: `endFrame` never touches them.
  *
  * A double release, or a release of a target this pool didn't hand out, throws
  * rather than silently no-opping: a silent no-op would hide the exact aliasing
@@ -97,14 +96,14 @@ export class RenderTargetPool {
       colorSpace,
       pixelFormat,
     })
-    this.#entries.push({ key, rt, inUse: true, retained: false, refs: 0 })
+    this.#entries.push({ key, rt, inUse: true, retained: false })
     return rt
   }
 
   /**
    * A target with its own lifetime, independent of any frame boundary. Always
    * allocates (never reused by key, since a retained target's content is what
-   * makes it worth keeping). One reference on return; release it when done.
+   * makes it worth keeping). Release it when done.
    */
   acquireRetained(
     w: number,
@@ -121,14 +120,13 @@ export class RenderTargetPool {
       colorSpace,
       pixelFormat,
     })
-    this.#entries.push({ key, rt, inUse: true, retained: true, refs: 1 })
+    this.#entries.push({ key, rt, inUse: true, retained: true })
     return rt
   }
 
   /**
    * Release a target. A transient target returns to the pool, available to the
-   * next `acquireTransient` for the same key. A retained target drops one
-   * reference and is deleted once its count reaches zero.
+   * next `acquireTransient` for the same key. A retained target is deleted.
    */
   release(rt: RenderTarget): void {
     const i = this.#entries.findIndex((e) => e.rt === rt)
@@ -141,11 +139,8 @@ export class RenderTargetPool {
     }
     const e = this.#entries[i]
     if (e.retained) {
-      e.refs--
-      if (e.refs <= 0) {
-        this.#device.deleteRenderTarget(e.rt)
-        this.#entries.splice(i, 1)
-      }
+      this.#device.deleteRenderTarget(e.rt)
+      this.#entries.splice(i, 1)
       return
     }
     if (!e.inUse) {

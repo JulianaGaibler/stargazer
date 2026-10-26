@@ -64,6 +64,21 @@ describe('Stage camera registry (explicit cameras)', () => {
     engine.destroy()
   })
 
+  it('clearCurrent() on the current camera hands over to the next one', () => {
+    const engine = makeEngine()
+    const stage = engine.primaryStage
+    const a = new CameraNode2D()
+    const b = new CameraNode2D()
+    const c = new CameraNode3D()
+    const d = new CameraNode3D()
+    stage.tree.root.add(a, b, c, d)
+    a.clearCurrent()
+    c.clearCurrent()
+    expect(stage.currentCamera2D).toBe(b)
+    expect(stage.currentCamera3D).toBe(d)
+    engine.destroy()
+  })
+
   it('makeCurrent() before attach is honored on register (wantsCurrent)', () => {
     const engine = makeEngine()
     const stage = engine.primaryStage

@@ -57,6 +57,13 @@ export const THRESHOLDS = {
     warn: 33,
     tip: 'The slowest 5% of frames took at least this long. Above 16.7 ms a 60 Hz display misses frames, and above 33 ms the motion visibly stutters.',
   },
+  fps: {
+    label: 'Frame rate',
+    good: 30,
+    warn: 15,
+    lowIsBad: true,
+    tip: 'Frames shown per second, measured from the real frame interval. Below 30 motion looks uneven, and below 15 it is hard to follow.',
+  },
   drawCalls: {
     label: 'Draw calls per frame',
     good: 30,

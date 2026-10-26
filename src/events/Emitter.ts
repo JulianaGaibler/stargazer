@@ -55,53 +55,33 @@ class EmitterImpl<M> implements Emitter<M> {
       this.#stateByKey.set(key, state)
     }
 
-    // The outer dispatch still uses the scratch array, so a reentrant emit
-    // takes a fresh one.
-    if (state.depth > 0) {
+    // Snapshot the handlers so a handler calling on/off during dispatch only
+    // changes the next emit. The outer dispatch still reads the scratch array,
+    // so a reentrant emit takes a fresh one.
+    const reentrant = state.depth > 0
+    if (reentrant) {
       diagnostics.report(
         'SG5001',
         `Emitter.emit reentrant on key '${String(key)}' at depth ${state.depth + 1}.`,
         { key: String(key) },
       )
-      const nested: AnyHandler[] = []
-      for (const h of set) nested.push(h)
-      state.depth++
-      try {
-        for (let i = 0; i < nested.length; i++) {
-          try {
-            ;(nested[i] as EmitterHandler<M[K]>)(payload)
-          } catch (error) {
-            reportThrown('SG4003', `a '${String(key)}' handler`, error)
-          }
-        }
-      } finally {
-        state.depth--
-      }
-      return
     }
-
-    // Steady state: snapshot into the persistent scratch, dispatch, clear.
-    // Snapshotting tolerates handlers that call on/off during dispatch, since
-    // those mutations hit `handlers` but not `scratch`, so they take effect
-    // on the next emit (the documented contract).
-    const scratch = state.scratch
-    scratch.length = 0
-    for (const h of set) scratch.push(h)
+    const handlers = reentrant ? [] : state.scratch
+    for (const h of set) handlers.push(h)
     state.depth++
     try {
-      for (let i = 0; i < scratch.length; i++) {
+      for (let i = 0; i < handlers.length; i++) {
         try {
-          ;(scratch[i] as EmitterHandler<M[K]>)(payload)
+          ;(handlers[i] as EmitterHandler<M[K]>)(payload)
         } catch (error) {
           reportThrown('SG4003', `a '${String(key)}' handler`, error)
         }
       }
     } finally {
       state.depth--
-      // Drop references so garbage-collectable handlers can be reclaimed
-      // between emits, otherwise the last emit's set would pin its
-      // captured closures indefinitely.
-      scratch.length = 0
+      // Drop the references so the scratch array does not keep the handlers
+      // alive between emits.
+      handlers.length = 0
     }
   }
 }
