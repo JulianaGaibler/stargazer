@@ -93,7 +93,6 @@ export class ShaderQuadProgram implements GpuProgram {
       PARAMS_SLOTS,
       'shaderQuadParams',
       true,
-      true,
     )
     this.#gpu = new WeakMap()
     this.#uploads = new WeakMap()

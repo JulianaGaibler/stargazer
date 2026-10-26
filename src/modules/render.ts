@@ -19,6 +19,7 @@ export type {
   GfxBackend,
   ColorFormat,
   ShaderReflection,
+  TargetPixelFormat,
 } from '../render/gfx/GfxDevice'
 export { selectGfxDevice } from '../render/gfx/selectBackend'
 export type {
@@ -82,6 +83,7 @@ export { FilmGrain } from '../render/postfx/effects/FilmGrain'
 export type { FilmGrainOptions } from '../render/postfx/effects/FilmGrain'
 export { AmbientOcclusion } from '../render/gfx/ao/AmbientOcclusion'
 export type { AoPreset, AoResolution } from '../render/gfx/ao/AmbientOcclusion'
+export type { QualityTier } from '../render/AdaptiveQuality'
 export type {
   Gfx2D,
   GfxBlend,
@@ -108,12 +110,18 @@ export type { FlatPath } from '../render/gfx/GfxPath'
 export { RenderFailures } from '../render/gfx/RenderFailures'
 export type { RenderFailure } from '../render/gfx/RenderFailures'
 export type { FillRule } from '../render/gfx/stencilRecipe'
-export type { StrokeAlign } from '../render/gfx/strokeOutline'
-export { VectorQuality, SHADOW_SIGMA_BUDGETS } from '../render/VectorQuality'
+export {
+  strokeOutline,
+  StrokeOutlineBuffer,
+  DEFAULT_MITER_LIMIT,
+} from '../render/gfx/strokeOutline'
 export type {
-  VectorQualityOptions,
-  PathShadowFallback,
-} from '../render/VectorQuality'
+  StrokeAlign,
+  StrokeOutlineOptions,
+  StrokeOutlineSink,
+} from '../render/gfx/strokeOutline'
+export { VectorQuality, SHADOW_SIGMA_BUDGETS } from '../render/VectorQuality'
+export type { VectorQualityOptions } from '../render/VectorQuality'
 export { DataTexture, ShaderQuad, quadShader } from '../render/gfx/ShaderQuad'
 export type {
   DataTextureOptions,

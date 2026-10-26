@@ -3,11 +3,10 @@
 // new paths drawn from a pool so nothing allocates once the pools are warm.
 
 import type { PathData } from '../anim/props'
-import { PathPool } from './shapes'
+import { KAPPA, PathPool, reversePath } from './shapes'
 
 /** Samples per cubic when measuring arc length. */
 const LEN_STEPS = 16
-const KAPPA = 0.5522847498307936
 
 const PT = new Float64Array(2)
 
@@ -533,35 +532,11 @@ export function mergeSet(set: PathSet, mode: number): boolean {
   if (mode === 1 || mode === 2) {
     for (let i = 0; i < set.count; i++) {
       const p = set.items[i]
-      if (p.closed && signedArea(p) < 0) reverseInPlace(p)
+      if (p.closed && signedArea(p) < 0) reversePath(p)
     }
     set.rule = 'nonzero'
   } else if (mode === 5) {
     set.rule = 'evenodd'
   }
   return true
-}
-
-function reverseInPlace(p: PathData): void {
-  const n = p.count
-  if (n < 2) return
-  const { v, i, o } = p
-  for (let k = 0; k < n * 2; k++) {
-    const t = i[k]
-    i[k] = o[k]
-    o[k] = t
-  }
-  for (let a = 1, b = n - 1; a < b; a++, b--) {
-    for (let c = 0; c < 2; c++) {
-      let t = v[a * 2 + c]
-      v[a * 2 + c] = v[b * 2 + c]
-      v[b * 2 + c] = t
-      t = i[a * 2 + c]
-      i[a * 2 + c] = i[b * 2 + c]
-      i[b * 2 + c] = t
-      t = o[a * 2 + c]
-      o[a * 2 + c] = o[b * 2 + c]
-      o[b * 2 + c] = t
-    }
-  }
 }

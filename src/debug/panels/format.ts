@@ -46,12 +46,6 @@ export function countQuantity(n: number): Quantity {
   return { text: sig(n / 1_000_000), unit: 'M' }
 }
 
-/** Milliseconds, or seconds from 1000. */
-export function msQuantity(ms: number): Quantity {
-  if (Math.abs(ms) >= 1000) return { text: sig(ms / 1000), unit: 's' }
-  return { text: sig(ms), unit: 'ms' }
-}
-
 /** A ratio in `[0, 1]` as a percentage. */
 function pctQuantity(ratio: number): Quantity {
   const p = ratio * 100

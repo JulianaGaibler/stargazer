@@ -354,8 +354,6 @@ export class WebGL2Device implements GfxDevice {
   readonly maxSamples: number
   readonly #anisoExt: EXT_texture_filter_anisotropic | null
   readonly #maxAnisotropy: number
-  #warnedMaxTextureClamp = false
-  #warnedMaxSamplesClamp = false
 
   /** Pipeline memoization: descriptor key -> pipeline. */
   readonly #pipelineCache = new Map<string, WebGL2Pipeline>()
@@ -409,52 +407,23 @@ export class WebGL2Device implements GfxDevice {
   #clampSamples(samples: number): number {
     if (samples <= 1) return 1
     if (samples <= this.maxSamples) return Math.floor(samples)
-    if (!this.#warnedMaxSamplesClamp) {
-      this.#warnedMaxSamplesClamp = true
-      diagnostics.report(
-        'SG2017',
-        `requested MSAA ${samples}× exceeds driver MAX_SAMPLES ${this.maxSamples}; clamping.`,
-      )
-    }
+    diagnostics.report(
+      'SG2017',
+      `requested MSAA ${samples}× exceeds driver MAX_SAMPLES ${this.maxSamples}; clamping.`,
+      { key: 'max-samples' },
+    )
     return this.maxSamples
   }
 
   #clampTextureDim(w: number, h: number): [number, number] {
     const cap = this.maxTextureSize
     if (w <= cap && h <= cap) return [w, h]
-    if (!this.#warnedMaxTextureClamp) {
-      this.#warnedMaxTextureClamp = true
-      diagnostics.report(
-        'SG2018',
-        `requested texture ${w}×${h} exceeds MAX_TEXTURE_SIZE ${cap}; clamping. Renders continue at the clamped size with GPU upscaling on present.`,
-      )
-    }
+    diagnostics.report(
+      'SG2018',
+      `requested texture ${w}×${h} exceeds MAX_TEXTURE_SIZE ${cap}; clamping. Renders continue at the clamped size with GPU upscaling on present.`,
+      { key: 'max-texture-size' },
+    )
     return [Math.min(w, cap), Math.min(h, cap)]
-  }
-
-  /**
-   * Force a context-loss for testing + field debugging. Uses
-   * `WEBGL_lose_context` when available, falling back to synthesizing the DOM
-   * events (happy-dom tests).
-   */
-  simulateContextLoss(): void {
-    if (this.#_contextLost) return
-    const ext = this.#gl.getExtension('WEBGL_lose_context') as {
-      loseContext(): void
-      restoreContext(): void
-    } | null
-    if (ext) ext.loseContext()
-    this.#onLost(new Event('webglcontextlost'))
-  }
-
-  simulateContextRestored(): void {
-    if (!this.#_contextLost) return
-    const ext = this.#gl.getExtension('WEBGL_lose_context') as {
-      loseContext(): void
-      restoreContext(): void
-    } | null
-    if (ext) ext.restoreContext()
-    this.#onRestored()
   }
 
   // --- shaders --------------------------------------------------------------
@@ -485,13 +454,10 @@ export class WebGL2Device implements GfxDevice {
     }
     const vs = compileShader(gl, gl.VERTEX_SHADER, vertex)
     const fs = compileShader(gl, gl.FRAGMENT_SHADER, fragment)
-    const program = gl.createProgram()
-    if (!program)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createShaderModule: gl.createProgram returned null',
-      )
+    const program = must(
+      gl.createProgram(),
+      'WebGL2Device.createShaderModule: createProgram',
+    )
     gl.attachShader(program, vs)
     gl.attachShader(program, fs)
     // Force attribute locations before link so `VertexAttribute.location` values
@@ -691,13 +657,10 @@ export class WebGL2Device implements GfxDevice {
 
   createVertexBuffer(byteSize: number): VBuffer {
     const gl = this.#gl
-    const buf = gl.createBuffer()
-    if (!buf)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createVertexBuffer: createBuffer returned null',
-      )
+    const buf = must(
+      gl.createBuffer(),
+      'WebGL2Device.createVertexBuffer: createBuffer',
+    )
     this.#bindArrayBuffer(buf)
     gl.bufferData(gl.ARRAY_BUFFER, byteSize, gl.DYNAMIC_DRAW)
     return {
@@ -745,13 +708,10 @@ export class WebGL2Device implements GfxDevice {
 
   createUniformBuffer(byteSize: number): UBuffer {
     const gl = this.#gl
-    const buf = gl.createBuffer()
-    if (!buf)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createUniformBuffer: createBuffer returned null',
-      )
+    const buf = must(
+      gl.createBuffer(),
+      'WebGL2Device.createUniformBuffer: createBuffer',
+    )
     gl.bindBuffer(gl.UNIFORM_BUFFER, buf)
     gl.bufferData(gl.UNIFORM_BUFFER, byteSize, gl.DYNAMIC_DRAW)
     gl.bindBuffer(gl.UNIFORM_BUFFER, null)
@@ -790,14 +750,10 @@ export class WebGL2Device implements GfxDevice {
       )
     }
     const gl = this.#gl
-    const tex = gl.createTexture()
-    if (!tex) {
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createDataTable: createTexture returned null',
-      )
-    }
+    const tex = must(
+      gl.createTexture(),
+      'WebGL2Device.createDataTable: createTexture',
+    )
     const rows = dataTableRows(vec4Count)
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, DATA_TABLE_WIDTH, rows)
@@ -870,13 +826,10 @@ export class WebGL2Device implements GfxDevice {
 
   createIndexBuffer(byteSize: number, type: IndexType = 'u16'): IBuffer {
     const gl = this.#gl
-    const buf = gl.createBuffer()
-    if (!buf)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createIndexBuffer: createBuffer returned null',
-      )
+    const buf = must(
+      gl.createBuffer(),
+      'WebGL2Device.createIndexBuffer: createBuffer',
+    )
     this.#detachVaoForElementOp()
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf)
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, byteSize, gl.STATIC_DRAW)
@@ -918,13 +871,10 @@ export class WebGL2Device implements GfxDevice {
       )
     }
     const gl = this.#gl
-    const tex = gl.createTexture()
-    if (!tex)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createTexture2D: createTexture returned null',
-      )
+    const tex = must(
+      gl.createTexture(),
+      'WebGL2Device.createTexture2D: createTexture',
+    )
     const [clampedW, clampedH] = this.#clampTextureDim(opts.width, opts.height)
     const filter = opts.filter ?? 'linear'
     const wrap = opts.wrap ?? 'clamp'
@@ -1051,18 +1001,11 @@ export class WebGL2Device implements GfxDevice {
 
   updateTexture2D(
     tex: Texture,
-    source: TexImageSource | null,
+    source: TexImageSource,
     opts: TextureUploadOpts = {},
   ): void {
     const gl = this.#gl
     const t = tex as WebGL2Texture
-    // TODO: honour the documented reallocate contract. WebGPU implements it and
-    // this does not, so `updateTexture2D(tex, null)` silently does nothing here.
-    // Doing it properly means re-speccing the mip chain, not just level 0, and
-    // giving the bind-group caches in `programs/shape.ts` and
-    // `programs/textQuad.ts` a way to notice. See the note on
-    // `GfxDevice.updateTexture2D`.
-    if (source === null) return
     gl.bindTexture(gl.TEXTURE_2D, t.gl)
     this.#boundTexInvalidate(t.gl)
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, resolveUploadFlipY(opts) ? 1 : 0)
@@ -1125,13 +1068,10 @@ export class WebGL2Device implements GfxDevice {
         `WebGL2Device.createRenderTarget: pixelFormat '${pixelFormat}' is single-sample only (no renderable multisample R8/RG8 target)`,
       )
     }
-    const fbo = gl.createFramebuffer()
-    if (!fbo)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createRenderTarget: createFramebuffer returned null',
-      )
+    const fbo = must(
+      gl.createFramebuffer(),
+      'WebGL2Device.createRenderTarget: createFramebuffer',
+    )
     const [clampedW, clampedH] = this.#clampTextureDim(opts.width, opts.height)
 
     let rt: WebGL2RenderTarget
@@ -1419,13 +1359,10 @@ export class WebGL2Device implements GfxDevice {
    */
   #createDepthTexture(width: number, height: number): WebGL2Texture {
     const gl = this.#gl
-    const tex = gl.createTexture()
-    if (!tex)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.#createDepthTexture: createTexture returned null',
-      )
+    const tex = must(
+      gl.createTexture(),
+      'WebGL2Device.#createDepthTexture: createTexture',
+    )
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.texImage2D(
       gl.TEXTURE_2D,
@@ -1466,13 +1403,10 @@ export class WebGL2Device implements GfxDevice {
     compare: CompareFn = 'less-equal',
   ): ShadowArray {
     const gl = this.#gl
-    const tex = gl.createTexture()
-    if (!tex)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createShadowArray: createTexture returned null',
-      )
+    const tex = must(
+      gl.createTexture(),
+      'WebGL2Device.createShadowArray: createTexture',
+    )
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex)
     gl.texStorage3D(
       gl.TEXTURE_2D_ARRAY,
@@ -1498,13 +1432,10 @@ export class WebGL2Device implements GfxDevice {
     compare: CompareFn = 'less-equal',
   ): ShadowCube {
     const gl = this.#gl
-    const tex = gl.createTexture()
-    if (!tex)
-      throw new StargazerError(
-        'SG2024',
-
-        'WebGL2Device.createShadowCube: createTexture returned null',
-      )
+    const tex = must(
+      gl.createTexture(),
+      'WebGL2Device.createShadowCube: createTexture',
+    )
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, tex)
     gl.texStorage2D(gl.TEXTURE_CUBE_MAP, 1, gl.DEPTH_COMPONENT24, size, size)
     this.#setShadowSampling(gl.TEXTURE_CUBE_MAP, compare)
@@ -1538,12 +1469,10 @@ export class WebGL2Device implements GfxDevice {
 
   #ensureShadowFbo(): WebGLFramebuffer {
     if (!this.#shadowFbo) {
-      const fbo = this.#gl.createFramebuffer()
-      if (!fbo)
-        throw new StargazerError(
-          'SG2024',
-          'WebGL2Device: shadow createFramebuffer returned null',
-        )
+      const fbo = must(
+        this.#gl.createFramebuffer(),
+        'WebGL2Device: shadow createFramebuffer',
+      )
       this.#shadowFbo = fbo
     }
     return this.#shadowFbo
@@ -1904,12 +1833,10 @@ export class WebGL2Device implements GfxDevice {
 
   #createVao(p: WebGL2Pipeline, call: DrawCall): WebGL2Vao {
     const gl = this.#gl
-    const glVao = gl.createVertexArray()
-    if (!glVao)
-      throw new StargazerError(
-        'SG2024',
-        'WebGL2Device: createVertexArray returned null',
-      )
+    const glVao = must(
+      gl.createVertexArray(),
+      'WebGL2Device: createVertexArray',
+    )
     gl.bindVertexArray(glVao)
     this.#curVaoGl = glVao
     const slotOffsets: number[] = []
@@ -2487,17 +2414,21 @@ function stencilOpGl(gl: WebGL2RenderingContext, op: StencilOp): number {
   }
 }
 
+/**
+ * Throws when a `gl.createX()` call returns null, which happens on context
+ * loss.
+ */
+function must<T>(obj: T | null, call: string): T {
+  if (!obj) throw new StargazerError('SG2024', `${call} returned null`)
+  return obj
+}
+
 function compileShader(
   gl: WebGL2RenderingContext,
   kind: number,
   src: string,
 ): WebGLShader {
-  const s = gl.createShader(kind)
-  if (!s)
-    throw new StargazerError(
-      'SG2024',
-      'WebGL2Device: createShader returned null',
-    )
+  const s = must(gl.createShader(kind), 'WebGL2Device: createShader')
   gl.shaderSource(s, src)
   gl.compileShader(s)
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {

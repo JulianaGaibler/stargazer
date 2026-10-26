@@ -114,7 +114,6 @@ export class OffscreenCompositeProgram implements GpuProgram {
       256,
       'compositeParams',
       true,
-      true,
     )
     this.#bindGroups = new WeakMap()
   }
@@ -157,7 +156,7 @@ export class OffscreenCompositeProgram implements GpuProgram {
   ): void {
     ctx.beginBatch('composite', { composite: draw })
     const words = 6 * 4
-    const off = ctx.reserveVerts(this.#stream, words, 6)
+    const off = ctx.reserveVerts(this.#stream, words)
     if (off < 0) return
     const f = this.#stream.floatView
     // Two triangles: 0 1 2, 0 2 3.
@@ -169,7 +168,7 @@ export class OffscreenCompositeProgram implements GpuProgram {
       f[off + i * 4 + 2] = uv[c * 2]
       f[off + i * 4 + 3] = uv[c * 2 + 1]
     }
-    this.#stream.commit(ctx.curSlot, words, 6)
+    this.#stream.commit(ctx.curSlot, words)
   }
 
   prepareRun(_ctx: GpuBatchContext, run: DrawRun): void {

@@ -4,12 +4,12 @@
  * it.
  *
  * @remarks
- *   For engine developers: a WebGPU render pass starts with nothing bound, and
- *   what a draw sets stays set for the next one. Every encoder call crosses
- *   into the browser's GPU process, so repeating a bind that is already in
- *   place costs time and changes nothing. The owner calls
- *   {@link PassBindingState.reset} when a pass begins. Bind groups compare by
- *   object plus their dynamic offsets.
+ *   Maintainers: a WebGPU render pass starts with nothing bound, and what a draw
+ *   sets stays set for the next one. Every encoder call crosses into the
+ *   browser's GPU process, so repeating a bind that is already in place costs
+ *   time and changes nothing. The owner calls {@link PassBindingState.reset}
+ *   when a pass begins. Bind groups compare by object plus their dynamic
+ *   offsets.
  * @example
  *   if (state.vertexBufferChanged(0, buffer, offset))
  *     pass.setVertexBuffer(0, buffer, offset)

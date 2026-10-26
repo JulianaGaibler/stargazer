@@ -2,15 +2,14 @@
  * Removes the oldest entry of a `Map`, in insertion order, and returns it.
  *
  * @remarks
- *   For engine developers: caches here are a `Map` used as a FIFO, or as an LRU
- *   when a hit deletes and re-sets its key. Evicting with `map.keys().next()`
- *   leaves one unfinished iterator behind per eviction. SpiderMonkey keeps
- *   unfinished iterators attached to their map until they are garbage collected
- *   and updates every one of them on each `delete`, so a cache that evicts on
- *   every miss gets slower with each eviction. This function keeps one iterator
- *   per map and reuses it. Its next key is always the oldest live entry,
- *   because evicted entries lie behind it and re-set entries are appended after
- *   it.
+ *   Maintainers: caches here are a `Map` used as a FIFO, or as an LRU when a hit
+ *   deletes and re-sets its key. Evicting with `map.keys().next()` leaves one
+ *   unfinished iterator behind per eviction. SpiderMonkey keeps unfinished
+ *   iterators attached to their map until they are garbage collected and
+ *   updates every one of them on each `delete`, so a cache that evicts on every
+ *   miss gets slower with each eviction. This function keeps one iterator per
+ *   map and reuses it. Its next key is always the oldest live entry, because
+ *   evicted entries lie behind it and re-set entries are appended after it.
  * @example
  *   if (cache.size > MAX) {
  *     const victim = evictOldest(cache)

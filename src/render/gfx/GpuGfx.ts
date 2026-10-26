@@ -51,7 +51,6 @@ import {
   getPathContours,
   getPathTessellation,
   getRegistrationEpoch,
-  registerPathTessellation,
 } from './PathTessellationRegistry'
 import {
   strokeOutline,
@@ -187,19 +186,11 @@ function labelBaseKey(text: string, style: LabelStyle): string {
 export type { DebugRenderMode, GpuGfxStats }
 
 /**
- * Counters for `Gfx2D` calls that hit a no-op path (e.g. `strokePath2D` on a
- * Path2D without a registered tessellation). Surfaced in the HUD.
+ * Counters for `Gfx2D` calls that hit a no-op or fallback path, such as
+ * `strokePath2D` on a Path2D without a registered tessellation.
  */
 export interface UnimplementedCounts {
-  fillCircle: number
-  fillConvexPoly: number
   fillPath2D: number
-  fillCircleRadialGradient: number
-  fillPolyLinearGradient: number
-  strokeCircle: number
-  strokeLine: number
-  strokeQuadratic: number
-  strokePolyline: number
   strokePath2D: number
   shadowPath2D: number
   /**
@@ -214,8 +205,7 @@ export interface UnimplementedCounts {
   /**
    * A non-center `align` (or an outline-routed stroke's alignment) was refused
    * on an open or zero-area contour and fell back to `'center'` (see
-   * `strokeOutline.ts`'s `resolveAlign`). Ticked on every occurrence,
-   * independent of the one-time console warning.
+   * `strokeOutline.ts`'s `resolveAlign`). Ticked on every occurrence.
    */
   strokeAlignFallback: number
 }
@@ -400,7 +390,6 @@ export class GpuGfx implements Gfx2D {
   readonly #gradientRadial = new GradientRadialProgram()
   readonly #maskedGradient = new MaskedGradientProgram()
   readonly #shaderQuad = new ShaderQuadProgram()
-  #warnedQuadClipMask = false
   readonly #textQuad = new TextQuadProgram()
   readonly #shape = new ShapeProgram()
   readonly #pathShadowComposite = new PathShadowCompositeProgram()
@@ -477,15 +466,7 @@ export class GpuGfx implements Gfx2D {
   }
   /** Tripwire counters. Ticked when a Gfx2D call reaches a no-op path. */
   readonly unimplemented: UnimplementedCounts = {
-    fillCircle: 0,
-    fillConvexPoly: 0,
     fillPath2D: 0,
-    fillCircleRadialGradient: 0,
-    fillPolyLinearGradient: 0,
-    strokeCircle: 0,
-    strokeLine: 0,
-    strokeQuadratic: 0,
-    strokePolyline: 0,
     strokePath2D: 0,
     shadowPath2D: 0,
     pathShadowFallback: 0,
@@ -1519,13 +1500,10 @@ export class GpuGfx implements Gfx2D {
       matte = null
     }
     if (!COMPOSITE_BLENDS.has(blend)) {
-      if (!this.#warnedBlends.has(blend)) {
-        this.#warnedBlends.add(blend)
-        diagnostics.report(
-          'SG2001',
-          `offscreen blend '${blend}' is not supported, compositing with 'source-over'`,
-        )
-      }
+      diagnostics.report(
+        'SG2001',
+        `offscreen blend '${blend}' is not supported, compositing with 'source-over'`,
+      )
       blend = 'source-over'
     }
     const draw: CompositeDraw = {
@@ -1697,9 +1675,6 @@ export class GpuGfx implements Gfx2D {
       this.#device.resizeRenderTarget(this.#resolveTarget, pixelW, pixelH)
   }
 
-  /** No-op. `WebGL2Device.onRestored` drives reacquisition. */
-  reacquireContext(): void {}
-
   /**
    * Rebuild every GL resource after `webglcontextrestored`. Programs, buffers,
    * VAOs, FBO, atlas texture. CPU-side state (batch flags, transform/state
@@ -1773,23 +1748,17 @@ export class GpuGfx implements Gfx2D {
   clipPath(path: GfxPath, rule: FillRule = 'nonzero'): void {
     if (path.released || path.isEmpty) return
     if (!this.#stencilEnabled) {
-      if (!this.#warnedNoStencil) {
-        this.#warnedNoStencil = true
-        diagnostics.report(
-          'SG2002',
-          'this surface has no stencil buffer, so clipPath is ignored',
-        )
-      }
+      diagnostics.report(
+        'SG2002',
+        'this surface has no stencil buffer, so clipPath is ignored',
+      )
       return
     }
     if (this.#ctx.clipDepth >= MAX_CLIP_DEPTH) {
-      if (!this.#warnedClipDepth) {
-        this.#warnedClipDepth = true
-        diagnostics.report(
-          'SG2003',
-          `clip paths nest at most ${MAX_CLIP_DEPTH} deep, extra clips are ignored`,
-        )
-      }
+      diagnostics.report(
+        'SG2003',
+        `clip paths nest at most ${MAX_CLIP_DEPTH} deep, extra clips are ignored`,
+      )
       // Keep restore balanced.
       this.#clipPushes.push({
         level: this.#saveLevel,
@@ -1845,25 +1814,18 @@ export class GpuGfx implements Gfx2D {
     this.#ctx.stateStack.setAlpha(alpha)
   }
 
-  readonly #warnedBlends = new Set<string>()
   readonly #dashBuffer = new DashBuffer()
   /** Scratch for the filled form of a stroke. */
   readonly #strokeFill = new GfxPath()
   #saveLevel = 0
   readonly #clipPushes: ClipPush[] = []
-  #warnedClipDepth = false
-  #warnedWinding = false
-  #warnedNoStencil = false
 
   setBlend(mode: import('./Gfx2D').GfxBlend): void {
     if (mode !== 'source-over' && mode !== 'lighter') {
-      if (!this.#warnedBlends.has(mode)) {
-        this.#warnedBlends.add(mode)
-        diagnostics.report(
-          'SG2001',
-          `blend '${mode}' is not supported, drawing with 'source-over'`,
-        )
-      }
+      diagnostics.report(
+        'SG2001',
+        `blend '${mode}' is not supported, drawing with 'source-over'`,
+      )
       mode = 'source-over'
     }
     this.#ctx.stateStack.setBlend(mode)
@@ -2313,8 +2275,8 @@ export class GpuGfx implements Gfx2D {
     if (!geo) {
       // Direct-Path2D fallback. The triangulator needs the `d` string which
       // isn't recoverable from a Path2D at runtime, so nodes that construct
-      // Path2Ds outside `SvgPathMap` must call `registerTessellation`
-      // explicitly. Silent counter tick surfaces it in the HUD.
+      // Path2Ds outside `SvgPathMap` must call `registerPathTessellation`
+      // explicitly.
       this.unimplemented.fillPath2D++
       return
     }
@@ -2371,8 +2333,7 @@ export class GpuGfx implements Gfx2D {
       this.#fillPathWithoutStencil(flat, fill)
       return
     }
-    if (rule === 'nonzero' && flat.contourCount >= 16 && !this.#warnedWinding) {
-      this.#warnedWinding = true
+    if (rule === 'nonzero' && flat.contourCount >= 16) {
       diagnostics.report(
         'SG2004',
         'a nonzero fill with 16 or more contours can lose coverage where 16 contours wind the same way over one point',
@@ -2510,16 +2471,13 @@ export class GpuGfx implements Gfx2D {
 
   /**
    * Fill for a target without stencil bits: earcut, which fills even-odd and
-   * cannot honor the nonzero rule. Warns once.
+   * cannot honor the nonzero rule.
    */
   #fillPathWithoutStencil(flat: FlatPath, fill: GfxFill): void {
-    if (!this.#warnedNoStencil) {
-      this.#warnedNoStencil = true
-      diagnostics.report(
-        'SG2005',
-        'this surface has no stencil buffer, so fillPath fills even-odd and ignores the nonzero rule',
-      )
-    }
+    diagnostics.report(
+      'SG2005',
+      'this surface has no stencil buffer, so fillPath fills even-odd and ignores the nonzero rule',
+    )
     const contours: Float32Array[] = []
     for (let c = 0; c < flat.contourCount; c++) {
       const s0 = flat.starts[c]
@@ -2571,8 +2529,7 @@ export class GpuGfx implements Gfx2D {
     h: number,
   ): void {
     if (w <= 0 || h <= 0) return
-    if (!this.#warnedQuadClipMask && this.#ctx.stateStack.getClipMask()) {
-      this.#warnedQuadClipMask = true
+    if (this.#ctx.stateStack.getClipMask()) {
       diagnostics.report(
         'SG2006',
         'drawShaderQuad ignores setClipMask. Sample a mask inside the shader, or use setClip.',
@@ -3342,9 +3299,8 @@ export class GpuGfx implements Gfx2D {
     const contours = getPathContours(path)
     if (!contours) {
       // No cached contours for this Path2D. Callers that construct
-      // Path2Ds outside SvgPathMap must call `registerTessellation`
-      // (which also stashes contours), the counter surfaces missing
-      // registrations in the HUD.
+      // Path2Ds outside SvgPathMap must call `registerPathTessellation`,
+      // which also stashes contours.
       this.unimplemented.strokePath2D++
       return
     }
@@ -3699,23 +3655,6 @@ export class GpuGfx implements Gfx2D {
     fv[words + 9] = sr[3] // v1
     uv[words + 10] = packedTint
     this.#textQuad.commitInstance(slot)
-  }
-
-  // --- registration (called by asset loaders) -------------------------------
-
-  /**
-   * Install a tessellation for a given `Path2D` so subsequent `fillPath2D(path,
-   * …)` and `strokePath2D(path, …)` calls resolve against a cached
-   * triangulation / contour set. Delegates to the process-wide
-   * `PathTessellationRegistry`. Nodes and asset loaders can also register there
-   * directly.
-   */
-  registerTessellation(
-    path: Path2D,
-    geometry: GeometryHandle,
-    contours?: Float32Array[],
-  ): void {
-    registerPathTessellation(path, geometry, contours)
   }
 
   #updateProjection(w: number, h: number): void {

@@ -3,11 +3,11 @@
  * that binds the same buffer range as the previous draw issues no GL call.
  *
  * @remarks
- *   For engine developers: every GL call is a message to the GPU process in
- *   Firefox, and a 2D frame binds the same clip, frame and params ranges over
- *   and over. A deleted buffer needs no invalidation here, because a new buffer
- *   is a different object and so never compares equal. A lost context drops
- *   every binding, so the owner calls {@link UniformBindingCache.clear}.
+ *   Maintainers: every GL call is a message to the GPU process in Firefox, and a
+ *   2D frame binds the same clip, frame and params ranges over and over. A
+ *   deleted buffer needs no invalidation here, because a new buffer is a
+ *   different object and so never compares equal. A lost context drops every
+ *   binding, so the owner calls {@link UniformBindingCache.clear}.
  * @example
  *   if (cache.needsBind(3, ubo.gl, offset, size)) {
  *     gl.bindBufferRange(gl.UNIFORM_BUFFER, 3, ubo.gl, offset, size)

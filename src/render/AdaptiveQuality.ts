@@ -156,13 +156,13 @@ const WINDOW_CAPACITY = 512
  * decision.
  *
  * @remarks
- *   For engine developers: a pure state machine, fed one sample per frame with
- *   the settings in use. It watches the true frame interval and the CPU work
- *   per frame. When the median interval over a window is slow and the CPU work
- *   is a small part of it, the frame is waiting on the GPU. A tier that would
- *   not lower anything from the current settings is skipped, so a 2D scene
- *   walks only MSAA and the render scale, and a setting the caller lowered on
- *   its own is not lowered again.
+ *   Maintainers: a pure state machine, fed one sample per frame with the settings
+ *   in use. It watches the true frame interval and the CPU work per frame. When
+ *   the median interval over a window is slow and the CPU work is a small part
+ *   of it, the frame is waiting on the GPU. A tier that would not lower
+ *   anything from the current settings is skipped, so a 2D scene walks only
+ *   MSAA and the render scale, and a setting the caller lowered on its own is
+ *   not lowered again.
  *
  *   It only steps down and never back up, because each change rebuilds a render
  *   target and a controller that flips would stutter. Outside a benchmark there

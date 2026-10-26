@@ -114,10 +114,7 @@ export class AccessibilityTree {
    */
   attach(node: Node2D, semantics: Semantics): SemanticsHandle {
     if (this.#disposed)
-      throw new StargazerError(
-        'SG5009',
-        'stargazer: attach after a11y dispose()',
-      )
+      throw new StargazerError('SG5009', 'attach after a11y dispose()')
     const existing = this.#entries.get(node)
     if (existing) {
       existing.semantics = semantics

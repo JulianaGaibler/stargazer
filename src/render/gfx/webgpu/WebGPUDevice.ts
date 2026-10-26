@@ -65,19 +65,14 @@ import { PassBindingState } from './bindingState'
 import {
   colorFormatToGPU,
   colorTargetToGPU,
-  compareFnToGPU,
   depthStencilFormatToGPU,
   depthStencilToGPU,
-  cullModeToGPU,
-  frontFaceToGPU,
   indexTypeToGPU,
   roundUp4,
   sampleCountToGPU,
   targetPixelFormatToGPU,
   texturePixelBytes,
   texturePixelFormatToGPU,
-  topologyToGPU,
-  vertexFormatToGPU,
 } from './conv'
 import {
   depthStencilFormatFor,
@@ -216,7 +211,6 @@ export class WebGPUDevice implements GfxDevice {
   /** Latched once `copyExternalImageToTexture` throws (a browser gap). */
   #copyExternalBroken = false
   readonly #lostCbs = new Set<() => void>()
-  readonly #restoredCbs = new Set<() => void>()
 
   /** The frame's command encoder, open between `beginFrame` and `endFrame`. */
   #encoder: GPUCommandEncoder | null = null
@@ -426,7 +420,7 @@ export class WebGPUDevice implements GfxDevice {
       attributes: l.attributes.map((a) => ({
         shaderLocation: a.location,
         offset: a.offset,
-        format: vertexFormatToGPU(a.format),
+        format: a.format,
       })),
     }))
 
@@ -439,9 +433,9 @@ export class WebGPUDevice implements GfxDevice {
         buffers,
       },
       primitive: {
-        topology: topologyToGPU(desc.primitive),
-        cullMode: cullModeToGPU(desc.cull),
-        frontFace: frontFaceToGPU(desc.frontFace),
+        topology: desc.primitive,
+        cullMode: desc.cull,
+        frontFace: desc.frontFace,
       },
       multisample: { count: sampleCountToGPU(desc.samples) },
     }
@@ -743,7 +737,7 @@ export class WebGPUDevice implements GfxDevice {
     let s = this.#comparisonSamplers.get(compare)
     if (s) return s
     s = this.#device.createSampler({
-      compare: compareFnToGPU(compare),
+      compare,
       magFilter: 'linear',
       minFilter: 'linear',
       addressModeU: 'clamp-to-edge',
@@ -1016,24 +1010,10 @@ export class WebGPUDevice implements GfxDevice {
 
   updateTexture2D(
     tex: Texture,
-    source: TexImageSource | null,
+    source: TexImageSource,
     opts: TextureUploadOpts = {},
   ): void {
     const t = tex as WebGPUTexture
-    if (source === null) {
-      // Reallocate storage at the current size (drops old contents).
-      this.#destroyDeferred(t.gpu)
-      t.gpu = this.#device.createTexture({
-        size: [t.width, t.height, 1],
-        format: t.srgb ? 'rgba8unorm-srgb' : 'rgba8unorm',
-        usage:
-          GPUTextureUsage.TEXTURE_BINDING |
-          GPUTextureUsage.COPY_DST |
-          GPUTextureUsage.RENDER_ATTACHMENT,
-        mipLevelCount: t.mipmap ? mipLevels(t.width, t.height) : 1,
-      })
-      return
-    }
     const w = getSourceWidth(source)
     const h = getSourceHeight(source)
     if (w !== t.width || h !== t.height) {
@@ -1528,7 +1508,7 @@ export class WebGPUDevice implements GfxDevice {
     // and has no render target to read a format from.
     if (desc.depth && !('renderTarget' in desc.depth.target)) {
       return {
-        view: this.#depthView(desc.depth.target),
+        view: this.#shadowDepthView(desc.depth.target),
         depthLoadOp: desc.depth.loadOp,
         depthStoreOp: desc.depth.storeOp ?? 'store',
         depthClearValue: desc.depth.clearValue ?? 1.0,
@@ -1573,19 +1553,10 @@ export class WebGPUDevice implements GfxDevice {
     return attachment
   }
 
-  /** Resolve a `DepthTarget` union to the depth view a pass writes into. */
-  #depthView(target: DepthTarget): GPUTextureView {
-    if ('renderTarget' in target) {
-      const rt = target.renderTarget as WebGPURenderTarget
-      if (!rt.depthTex) {
-        throw new StargazerError(
-          'SG2024',
-
-          'WebGPUDevice.beginRenderPass: depth target has no depth attachment',
-        )
-      }
-      return rt.depthTex.createView()
-    }
+  /** The single layer or cube face a shadow pass writes depth into. */
+  #shadowDepthView(
+    target: Exclude<DepthTarget, { renderTarget: RenderTarget }>,
+  ): GPUTextureView {
     if ('shadowArray' in target) {
       const sa = target.shadowArray as WebGPUShadowArray
       return sa.gpu.createView({
@@ -1944,18 +1915,14 @@ export class WebGPUDevice implements GfxDevice {
     return () => this.#lostCbs.delete(cb)
   }
 
-  onContextRestored(cb: () => void): () => void {
-    // WebGPU has no device-restored event: a lost device is gone for good and a
-    // new one must be requested. Callbacks are stored to match the WebGL2
-    // registry shape but never fire.
-    this.#restoredCbs.add(cb)
-    return () => this.#restoredCbs.delete(cb)
+  // WebGPU cannot restore a lost device, so `cb` never fires.
+  onContextRestored(_cb: () => void): () => void {
+    return () => {}
   }
 
   destroy(): void {
     this.#destroying = true
     this.#lostCbs.clear()
-    this.#restoredCbs.clear()
     // Anything still queued dies with the device below, so drop the queue
     // rather than destroying each resource against a device going away.
     this.#pendingDestroy.length = 0

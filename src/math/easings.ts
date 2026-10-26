@@ -38,8 +38,8 @@ const BEZIER_NEWTON_MIN_SLOPE = 0.001
  * that range to overshoot.
  *
  * @remarks
- *   Engine developers: solving for `t` given `x` uses an 11-entry sample table to
- *   pick a starting guess, then up to 4 Newton iterations, and falls back to
+ *   Maintainers: solving for `t` given `x` uses an 11-entry sample table to pick
+ *   a starting guess, then up to 4 Newton iterations, and falls back to
  *   bisection where the slope is too flat for Newton. When both control points
  *   lie on the diagonal the curve is linear and the identity function is
  *   returned. The returned closure allocates nothing per call.

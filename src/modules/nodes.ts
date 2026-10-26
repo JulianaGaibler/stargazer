@@ -31,6 +31,8 @@ export { TextNode } from '../nodes/TextNode'
 export type { TextNodeOptions } from '../nodes/TextNode'
 export { ImageNode } from '../nodes/ImageNode'
 export type { ImageNodeOptions } from '../nodes/ImageNode'
+export { InsetViewNode } from '../nodes/InsetViewNode'
+export type { InsetViewOptions } from '../nodes/InsetViewNode'
 export { MeshNode, createBoxGeometry } from '../nodes/MeshNode'
 export {
   createQuadGeometry,

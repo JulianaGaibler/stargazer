@@ -40,10 +40,12 @@ export function toneFor(t: Threshold, value: number): Tone {
   return 'bad'
 }
 
-/** The worse of two tones. */
-export function worseTone(a: Tone, b: Tone): Tone {
-  const rank: Record<Tone, number> = { neutral: 0, good: 1, warn: 2, bad: 3 }
-  return rank[a] >= rank[b] ? a : b
+/** How severe each tone is, for sorting the worst first. */
+export const TONE_RANK: Record<Tone, number> = {
+  neutral: 0,
+  good: 1,
+  warn: 2,
+  bad: 3,
 }
 
 const MB = 1024 * 1024

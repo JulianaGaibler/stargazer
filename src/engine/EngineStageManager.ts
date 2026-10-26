@@ -1,12 +1,8 @@
-// Secondary-stage bookkeeping for `Engine`: the live Set, the
-// attached-canvas guard, and stage construction/teardown. Split out because
-// it's self-contained record-keeping, independent of the frame loop and
-// lifecycle methods that stay on `Engine`.
-
 import { Stage, type StageOptions } from '../render/Stage'
 import type { Engine } from './Engine'
 import { StargazerError } from '../diagnostics/StargazerError'
 
+/** Builds, tracks and disposes the secondary stages of an `Engine`. */
 export class EngineStageManager {
   readonly #_stages = new Set<Stage>()
   readonly #_attachedCanvases = new WeakSet<HTMLCanvasElement>()
@@ -35,9 +31,8 @@ export class EngineStageManager {
   ): Stage {
     if (this.#_attachedCanvases.has(canvas)) {
       throw new StargazerError(
-        'SG1009',
-
-        'stargazer: attachStage called with a canvas that is already attached',
+        'SG5007',
+        'attachStage called with a canvas that is already attached',
       )
     }
     // Secondary stages default to transparent, the parent HTML card owns
@@ -71,14 +66,8 @@ export class EngineStageManager {
     if (!this.#_stages.delete(stage)) return
     this.#physicsUnregister.get(stage)?.()
     this.#physicsUnregister.delete(stage)
-    // `WeakSet.delete` isn't on all TS lib targets, cast to any. The GC will
-    // reclaim the entry when the canvas element itself is collected either
-    // way. Explicit delete is only for the reattach-same-canvas case.
-    ;(
-      this.#_attachedCanvases as unknown as {
-        delete(v: HTMLCanvasElement): boolean
-      }
-    ).delete(stage.canvas)
+    // Lets the same canvas be attached again.
+    this.#_attachedCanvases.delete(stage.canvas)
     onDetached?.(stage)
     stage.dispose()
   }

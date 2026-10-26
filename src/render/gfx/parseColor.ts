@@ -18,8 +18,6 @@ const BLACK: RGBA = { r: 0, g: 0, b: 0, a: 1 }
 const CACHE_MAX = 1024
 const cache = new Map<string, RGBA>()
 
-const warned = new Set<string>()
-
 /**
  * Normalize a CSS color string to `{r,g,b,a}` in `0..1`. Not premultiplied.
  * Callers multiply by the current alpha stack when packing vertex/instance
@@ -95,13 +93,10 @@ export function withAlpha(color: string, alpha: number): string {
 }
 
 function warnFallback(css: string): RGBA {
-  if (!warned.has(css)) {
-    warned.add(css)
-    diagnostics.report(
-      'SG6004',
-      `parseColor: unsupported color '${css}', falling back to black`,
-    )
-  }
+  diagnostics.report(
+    'SG6004',
+    `parseColor: unsupported color '${css}', falling back to black`,
+  )
   return BLACK
 }
 
@@ -181,5 +176,4 @@ function parseRgbFn(s: string, hasAlpha: boolean): RGBA | null {
 /** Test-only reset, not exported from the module barrel. */
 export function _resetParseColorCacheForTests(): void {
   cache.clear()
-  warned.clear()
 }

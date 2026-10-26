@@ -70,6 +70,7 @@ export {
   rectContains,
   rectIntersects,
   rectUnion,
+  rectInflate,
   rectPointAt,
   rectPercentOf,
   rectMargins,

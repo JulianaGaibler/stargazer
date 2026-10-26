@@ -47,17 +47,12 @@ interface AnimationRecord {
   removeAbortListener: (() => void) | null
   cancelled: boolean
   completed: boolean
-  /**
-   * Ownership fingerprint for the dev-time overlap warning. `undefined` when no
-   * target (e.g. plain `wait`).
-   */
+  /** Ownership fingerprint for the overlap warning. Unset for a plain `wait`. */
   target?: object
   keys?: readonly string[]
   /** Replace-key from {@link TweenOptions.key}, for self-cancelling restarts. */
   key?: string
 }
-
-const DEV_WARN_OVERLAP = true
 
 /**
  * Owns the engine's active tween/wait set, ticked once per render frame in
@@ -81,7 +76,6 @@ export class Animator {
   // that synchronously triggers another `tick()` on the same animator).
   readonly #_tickScratch: AnimationRecord[] = []
   #_tickDepth = 0
-  #_reentrancyWarnings = 0
 
   /**
    * Tween the numeric properties named in `to` on `target` from their current
@@ -139,18 +133,15 @@ export class Animator {
     // tick on the same animator. Fall back to a fresh allocation so the
     // outer tick's scratch stays intact until it returns. Reentrancy is
     // legal but almost always signals a design bug (recursive game logic
-    // that will eventually stack-overflow), so warn, throttled to avoid
-    // log spam.
+    // that will eventually stack-overflow), so warn.
     if (this.#_tickDepth > 0) {
-      if (this.#_reentrancyWarnings < 3) {
-        this.#_reentrancyWarnings++
-        diagnostics.report(
-          'SG5002',
-          `Animator.tick reentrant, an onTick or promise ` +
-            `resolution triggered another tick. depth=${this.#_tickDepth + 1}. ` +
-            `Usually a bug (recursive game logic that will eventually stack-overflow).`,
-        )
-      }
+      diagnostics.report(
+        'SG5002',
+        `Animator.tick reentrant, an onTick or promise ` +
+          `resolution triggered another tick. depth=${this.#_tickDepth + 1}. ` +
+          `Usually a bug (recursive game logic that will eventually stack-overflow).`,
+        { key: 'reentrant' },
+      )
       const nested: AnimationRecord[] = []
       for (const r of this.#active) nested.push(r)
       this.#_runTick(dt, nested)
@@ -265,8 +256,8 @@ export class Animator {
         key: opts.key,
       }
 
-      // Attach abort listener. MUST remove on natural completion (see plan
-      // §"Abort listener lifetime, implementation contract").
+      // The listener must be removed on natural completion, or a long-lived
+      // signal keeps every finished record alive.
       const signal = opts.signal
       if (signal) {
         const onAbort = (): void => {
@@ -282,16 +273,10 @@ export class Animator {
         }
       }
 
-      // Dev-mode overlap warning: any prior active tween on the same target
-      // touching any of these keys will be over-written by us starting now.
-      // Skipped for keyed starts: they've already cancelled their predecessor.
-      if (
-        DEV_WARN_OVERLAP &&
-        opts.key === undefined &&
-        target &&
-        keys &&
-        keys.length > 0
-      ) {
+      // Any prior active tween on the same target touching any of these keys
+      // will be overwritten by this one. Keyed starts already cancelled their
+      // predecessor.
+      if (opts.key === undefined && target && keys && keys.length > 0) {
         outer: for (const other of this.#active) {
           if (other.target !== target || !other.keys) continue
           for (const k of other.keys) {

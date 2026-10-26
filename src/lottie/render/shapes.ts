@@ -14,7 +14,7 @@ import type {
 import type { Affine } from './affine'
 
 /** Control-point distance of a quarter circle drawn as one cubic. */
-const KAPPA = 0.5522847498307936
+export const KAPPA = 0.5522847498307936
 
 const TMP2 = new Float64Array(2)
 
@@ -77,7 +77,7 @@ function set(
  * Reverse a path in place, keeping its first vertex first. Each vertex swaps
  * its in and out tangents.
  */
-function reversePath(p: PathData): void {
+export function reversePath(p: PathData): void {
   const n = p.count
   if (n < 2) return
   const { v, i, o } = p

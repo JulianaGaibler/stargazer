@@ -206,8 +206,8 @@ export const diagnostics = new Diagnostics()
  * the same node are counted, not logged again.
  *
  * @remarks
- *   For engine developers: wrap each callback separately, so one failing callback
- *   does not skip the others in the same frame.
+ *   Maintainers: wrap each callback separately, so one failing callback does not
+ *   skip the others in the same frame.
  */
 export function reportThrown(
   code: DiagnosticCode,

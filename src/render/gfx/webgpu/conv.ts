@@ -1,49 +1,22 @@
 // Enum maps from the backend-neutral `GfxDevice` vocabulary to the WebGPU
-// enums. Kept out of `WebGPUDevice` so the device body stays about resource
-// lifecycle and pass recording rather than string tables.
+// enums. `GfxDevice` names that match WebGPU ones pass through unconverted.
 
 import type {
   ColorFormat,
   ColorState,
-  CompareFn,
-  CullMode,
   DepthStencilFormat,
-  FrontFace,
   GfxBlendMode,
   IndexType,
   PipelineDesc,
-  PrimitiveTopology,
   StencilFaceState,
-  StencilOp,
   TargetPixelFormat,
   TexturePixelFormat,
-  VertexFormat,
 } from '../GfxDevice'
 import {
   hasDepthAspect,
   hasStencilAspect,
   resolveDepthStencil,
 } from '../depthStencil'
-
-/** Vertex attribute format -> WebGPU vertex format. */
-export function vertexFormatToGPU(f: VertexFormat): GPUVertexFormat {
-  switch (f) {
-    case 'float32':
-      return 'float32'
-    case 'float32x2':
-      return 'float32x2'
-    case 'float32x3':
-      return 'float32x3'
-    case 'float32x4':
-      return 'float32x4'
-    case 'unorm8x4':
-      return 'unorm8x4'
-    case 'uint8x4':
-      return 'uint8x4'
-    case 'uint32':
-      return 'uint32'
-  }
-}
 
 /**
  * Color-target format -> WebGPU texture format. `'canvas'` is the format the
@@ -178,43 +151,13 @@ export function colorTargetToGPU(
   }
 }
 
-/**
- * Depth/stencil comparison -> WebGPU compare function. The names line up
- * one-to-one, so this is an exhaustiveness check as much as a conversion.
- */
-export function compareFnToGPU(c: CompareFn): GPUCompareFunction {
-  switch (c) {
-    case 'less-equal':
-      return 'less-equal'
-    case 'greater-equal':
-      return 'greater-equal'
-    case 'less':
-      return 'less'
-    case 'greater':
-      return 'greater'
-    case 'equal':
-      return 'equal'
-    case 'not-equal':
-      return 'not-equal'
-    case 'always':
-      return 'always'
-    case 'never':
-      return 'never'
-  }
-}
-
-/** Stencil op -> WebGPU stencil operation. The names line up one-to-one. */
-function stencilOpToGPU(op: StencilOp): GPUStencilOperation {
-  return op
-}
-
 /** One facing's stencil state -> WebGPU, filling in the pass-through defaults. */
 function stencilFaceToGPU(f: StencilFaceState): GPUStencilFaceState {
   return {
-    compare: compareFnToGPU(f.compare ?? 'always'),
-    failOp: stencilOpToGPU(f.failOp ?? 'keep'),
-    depthFailOp: stencilOpToGPU(f.depthFailOp ?? 'keep'),
-    passOp: stencilOpToGPU(f.passOp ?? 'keep'),
+    compare: f.compare ?? 'always',
+    failOp: f.failOp ?? 'keep',
+    depthFailOp: f.depthFailOp ?? 'keep',
+    passOp: f.passOp ?? 'keep',
   }
 }
 
@@ -256,7 +199,7 @@ export function depthStencilToGPU(
     state.depthWriteEnabled = d ? d.write : false
     state.depthCompare = d
       ? d.test
-        ? compareFnToGPU(d.compare ?? 'less-equal')
+        ? (d.compare ?? 'less-equal')
         : 'always'
       : 'always'
     // Bias belongs to the pipeline that asked for depth. Applying one to an
@@ -279,21 +222,6 @@ export function depthStencilToGPU(
   }
 
   return state
-}
-
-/** Cull mode -> WebGPU cull mode. */
-export function cullModeToGPU(c: CullMode): GPUCullMode {
-  return c
-}
-
-/** Front-face winding -> WebGPU front face. */
-export function frontFaceToGPU(f: FrontFace): GPUFrontFace {
-  return f
-}
-
-/** Primitive topology -> WebGPU topology. */
-export function topologyToGPU(p: PrimitiveTopology): GPUPrimitiveTopology {
-  return p === 'line-list' ? 'line-list' : 'triangle-list'
 }
 
 /** Index element width -> WebGPU index format. */

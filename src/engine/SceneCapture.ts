@@ -120,10 +120,7 @@ export class SceneCapture {
     encode: (surface: OffscreenCanvas) => T | Promise<T>,
   ): Promise<T> {
     if (this.#disposed) {
-      throw new StargazerError(
-        'SG5009',
-        'stargazer: capture after engine.destroy()',
-      )
+      throw new StargazerError('SG5009', 'capture after engine.destroy()')
     }
     this.#cancelIdleRelease()
     const stage = this.#prepare(opts)
@@ -188,10 +185,7 @@ export class SceneCapture {
     for (let warmup = 0; warmup < MAX_WARMUPS; warmup++) {
       await stage.whenReady
       if (this.#stage !== stage) {
-        throw new StargazerError(
-          'SG5009',
-          'stargazer: capture stage released mid-capture',
-        )
+        throw new StargazerError('SG5009', 'capture stage released mid-capture')
       }
       for (let i = 0; i < count; i++) {
         this.#host.runLayout(stage.tree)
@@ -199,15 +193,12 @@ export class SceneCapture {
         stage.render(0)
       }
       if (stage.faulted)
-        throw new StargazerError('SG1009', 'stargazer: capture render faulted')
+        throw new StargazerError('SG1009', 'capture render faulted')
       if (!stage.ready) continue
       if (!stage.effectsCompiling) return
       await stage.whenEffectsCompiled()
     }
-    throw new StargazerError(
-      'SG1009',
-      'stargazer: capture pipelines did not settle',
-    )
+    throw new StargazerError('SG1009', 'capture pipelines did not settle')
   }
 
   #scheduleIdleRelease(): void {

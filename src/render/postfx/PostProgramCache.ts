@@ -110,11 +110,11 @@ interface UploadedData {
  * {@link PostChain} on the device, so a pass used by two chains compiles once.
  *
  * @remarks
- *   Engine developers: programs are keyed by pass identity and hold no per-run
- *   state, which is why they can be shared. The params uniform buffer is not
- *   here, because on WebGPU only the last `writeBuffer` before a submit counts.
- *   A buffer shared by two runs of one pass in a frame would give both draws
- *   the later run's values, so each chain owns its own.
+ *   Maintainers: programs are keyed by pass identity and hold no per-run state,
+ *   which is why they can be shared. The params uniform buffer is not here,
+ *   because on WebGPU only the last `writeBuffer` before a submit counts. A
+ *   buffer shared by two runs of one pass in a frame would give both draws the
+ *   later run's values, so each chain owns its own.
  *
  *   Pipelines compile asynchronously. `pipeline` returns `null` until one is
  *   ready. A pass that no live effect has listed for `PASS_GPU_GRACE_FRAMES`

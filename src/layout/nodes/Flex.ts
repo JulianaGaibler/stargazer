@@ -226,8 +226,7 @@ export class Flex extends LayoutNode {
       if (!Number.isFinite(mainMax)) {
         throw new StargazerError(
           'SG5007',
-
-          `[stargazer] layout: ${this.direction} has flex children under an ` +
+          `layout: ${this.direction} has flex children under an ` +
             `unbounded main axis. Give it a bounded size (or remove the flex).`,
         )
       }

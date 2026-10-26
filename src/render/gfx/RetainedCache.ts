@@ -45,8 +45,8 @@ interface Slot<E extends RetainedEntry> {
  * never one used in the current frame.
  *
  * @remarks
- *   Engine developers: every cache of drawing work that lives across frames sits
- *   on this policy, so admission, eviction and the HUD readout stay the same
+ *   Maintainers: every cache of drawing work that lives across frames sits on
+ *   this policy, so admission, eviction and the HUD readout stay the same
  *   everywhere. Admit only what costs no extra draw call to keep.
  */
 export class RetainedCache<E extends RetainedEntry> {

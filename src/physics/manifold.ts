@@ -4,12 +4,13 @@
  * penetration depth, and contact points. Manifolds come from a pool so the step
  * loop stays allocation-free.
  *
- * This module handles circle and axis-aligned-box pairs. Polygon pairs (SAT)
- * are layered in by the polygon module.
+ * This module handles circle and axis-aligned-box pairs. Pairs involving a
+ * polygon go to the SAT code in `polygonCollision`.
  */
 
 import { vec2, vec2Rotate, type Vec2 } from '../math/Vec2'
 import type { Collider } from './Collider'
+import { polygonCollide } from './polygonCollision'
 import type { Contact, Manifold } from './types'
 
 function makeManifold(): Manifold {
@@ -87,19 +88,7 @@ export function collide(a: Collider, b: Collider, m: Manifold): boolean {
   if (ka === 'aabb' && kb === 'aabb') {
     return collideAABB_AABB(a, b, m)
   }
-  // Polygon pairs are handled by the polygon module, wired in by the world.
-  return polygonDispatch(a, b, m)
-}
-
-/** Overridable hook so the polygon module can extend the dispatch. */
-let polygonDispatch: (a: Collider, b: Collider, m: Manifold) => boolean = () =>
-  false
-
-/** Register the polygon narrow-phase (called once by the polygon module). */
-export function setPolygonDispatch(
-  fn: (a: Collider, b: Collider, m: Manifold) => boolean,
-): void {
-  polygonDispatch = fn
+  return polygonCollide(a, b, m)
 }
 
 function collideCircleCircle(a: Collider, b: Collider, m: Manifold): boolean {

@@ -307,7 +307,6 @@ type AnyCtx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 let sharedCanvas: AnyCanvas | null = null
 let sharedCtx: AnyCtx | null = null
 let acquireFailed = false
-let warnedNoContext = false
 
 function getSharedCtx(): { canvas: AnyCanvas; ctx: AnyCtx } | null {
   if (sharedCtx && sharedCanvas) return { canvas: sharedCanvas, ctx: sharedCtx }
@@ -393,13 +392,10 @@ export function measureText(text: string, style: LabelStyle): LabelMetrics {
   if (measurerOverride) return measurerOverride(text, style)
   const shared = getSharedCtx()
   if (!shared) {
-    if (!warnedNoContext) {
-      warnedNoContext = true
-      diagnostics.report(
-        'SG2019',
-        'no 2D context to measure text, every string will report a zero box',
-      )
-    }
+    diagnostics.report(
+      'SG2019',
+      'no 2D context to measure text, every string will report a zero box',
+    )
     return {
       localW: 0,
       localH: 0,

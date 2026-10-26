@@ -28,7 +28,6 @@ interface KeyState {
 class EmitterImpl<M> implements Emitter<M> {
   readonly #handlers = new Map<keyof M, Set<AnyHandler>>()
   readonly #stateByKey = new Map<keyof M, KeyState>()
-  #reentrancyWarnings = 0
 
   on<K extends keyof M>(key: K, handler: EmitterHandler<M[K]>): () => void {
     let set = this.#handlers.get(key)
@@ -56,19 +55,14 @@ class EmitterImpl<M> implements Emitter<M> {
       this.#stateByKey.set(key, state)
     }
 
-    // Reentrant same-key emit, outer dispatch's scratch is still in use, so
-    // fall back to a fresh allocation. Warn (throttled), reentrant emits
-    // almost always indicate a handler that emits back to itself.
+    // The outer dispatch still uses the scratch array, so a reentrant emit
+    // takes a fresh one.
     if (state.depth > 0) {
-      if (this.#reentrancyWarnings < 3) {
-        this.#reentrancyWarnings++
-        diagnostics.report(
-          'SG5001',
-          `Emitter.emit reentrant on key '${String(key)}', ` +
-            `a handler emitted the same event during dispatch. depth=${state.depth + 1}. ` +
-            `Usually a bug.`,
-        )
-      }
+      diagnostics.report(
+        'SG5001',
+        `Emitter.emit reentrant on key '${String(key)}' at depth ${state.depth + 1}.`,
+        { key: String(key) },
+      )
       const nested: AnyHandler[] = []
       for (const h of set) nested.push(h)
       state.depth++

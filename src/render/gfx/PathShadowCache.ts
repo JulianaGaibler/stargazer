@@ -37,6 +37,7 @@ import type {
 import type { GeometryHandle } from './GeometryHandle'
 import type { VectorQuality } from '../VectorQuality'
 import { RenderTargetPool } from './RenderTargetPool'
+import { scaleBucketCenter, scaleBucketIndex } from './strokeOutline'
 import { UboRing } from './programs/programCommon'
 import shadowMaskWgsl from './shaders/shadowMask.wgsl?raw'
 import shadowMaskVertSrc from './shaders/shadowMask.gen.vert.glsl?raw'
@@ -325,19 +326,6 @@ const BLUR_UBO_BYTES = 32 + 10 * 16 // axis vec4 + flags vec4 + 10 weight vec4s
  */
 const BAKES_PER_FRAME = 128
 
-/**
- * Half-octave scale bucket, matching `strokeOutline.ts`'s scheme (kept as a
- * free function here rather than imported, to avoid coupling this module's
- * public surface to the stroke outline's). Bucket 0 covers roughly `[2^-0.25,
- * 2^0.25)`.
- */
-function scaleBucketIndex(scale: number): number {
-  return Math.round(Math.log2(Math.max(scale, 1e-6)) * 2)
-}
-function scaleBucketCenter(bucket: number): number {
-  return Math.pow(2, bucket / 2)
-}
-
 export class PathShadowCache {
   readonly #device: GfxDevice
   readonly #pool: RenderTargetPool
@@ -367,7 +355,6 @@ export class PathShadowCache {
   /** Last frame `#nearestBlur` stood in, and the run length ending there. */
   #churnFrame = -1
   #churnFrames = 0
-  #warnedBlurChurn = false
 
   constructor(device: GfxDevice) {
     this.#device = device
@@ -618,17 +605,16 @@ export class PathShadowCache {
   }
 
   /**
-   * Warn once when a blur has been substituted on every one of the last
+   * Warn when a blur has been substituted on every one of the last
    * `BLUR_CHURN_WARN_FRAMES` frames, which means the caller is asking for a
    * radius the cache cannot keep up with.
    */
   #noteBlurChurn(): void {
-    if (this.#warnedBlurChurn || this.#churnFrame === this.#frame) return
+    if (this.#churnFrame === this.#frame) return
     this.#churnFrames =
       this.#churnFrame === this.#frame - 1 ? this.#churnFrames + 1 : 1
     this.#churnFrame = this.#frame
-    if (this.#churnFrames < BLUR_CHURN_WARN_FRAMES) return
-    this.#warnedBlurChurn = true
+    if (this.#churnFrames !== BLUR_CHURN_WARN_FRAMES) return
     diagnostics.report(
       'SG2014',
       'a path shadow has asked for a new blur radius on ' +

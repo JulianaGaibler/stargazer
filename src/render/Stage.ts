@@ -938,7 +938,6 @@ export class Stage implements CameraHost {
 
   /** Re-acquire the rendering context after a `webglcontextrestored` event. */
   reacquireContext(): void {
-    this.#screenGfx.reacquireContext()
     this.#screenGfx.rebuildResources()
   }
 

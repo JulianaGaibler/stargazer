@@ -405,7 +405,7 @@ export interface LottieFont {
  * a `LottiePlayer` or a `LottieNode` to play it.
  *
  * @remarks
- *   Engine developers: `layers`, `assets` and `fonts` hold the compiled model the
+ *   Maintainers: `layers`, `assets` and `fonts` hold the compiled model the
  *   renderer walks. The public surface for consumers is the timing fields,
  *   `markers`, `layerNames`, `slotIds` and `diagnostics`.
  */

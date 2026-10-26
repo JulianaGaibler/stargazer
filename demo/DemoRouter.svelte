@@ -1,9 +1,8 @@
 <script lang="ts">
   /**
-   * The demo stage: a standalone dev surface mounted directly by `main.ts` for
-   * a `?demo=…` run. It is not a kiosk display: no theme, no booth chrome, no
-   * attendant panels, just one demo on a full-bleed canvas, the debug HUD when
-   * the demo exposes one, and the nav bar to switch between demos.
+   * The demo app: one demo on a full-bleed canvas, picked by `?demo=`, with the
+   * debug HUD and a nav bar to switch between demos. Without a known demo it
+   * shows the picker.
    *
    * Switching swaps the demo in place: the running demo is aborted and cleaned
    * up, the canvas element is re-created (a lost/handed-off GPU context can't
@@ -24,9 +23,8 @@
   const demoFromUrl = (): string | null =>
     new URLSearchParams(window.location.search).get('demo')
 
-  // The stage owns the URL ↔ demo mapping: it is mounted straight from
-  // `main.ts` with no props, seeds itself from the query string, and pushes
-  // every switch back to it.
+  // The router owns the URL to demo mapping. It seeds itself from the query
+  // string and pushes every switch back to it.
   let active = $state(demoFromUrl() ?? '')
   let canvas = $state<HTMLCanvasElement | null>(null)
   let status = $state<'loading' | 'running' | 'missing' | 'error'>('loading')
@@ -71,14 +69,7 @@
   // Back/forward between demos the nav pushed.
   $effect(() => {
     const onPop = (): void => {
-      const next = demoFromUrl()
-      // Stepping back past the entry into the stage leaves the URL on a
-      // display (or the landing page), which only `main.ts` can mount.
-      if (next === null) {
-        window.location.reload()
-        return
-      }
-      active = next
+      active = demoFromUrl() ?? ''
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)

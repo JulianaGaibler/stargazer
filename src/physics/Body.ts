@@ -52,8 +52,6 @@ export interface BodyDef {
   mask?: number
   /** Shapes to attach. Mass properties are derived from them. */
   colliders?: ColliderDef[]
-  /** Per-body fat-AABB margin override (world units). */
-  aabbMargin?: number
   /** Free slot for the game's own reference. The engine never reads it. */
   userData?: unknown
 }
@@ -129,8 +127,6 @@ export class Body {
   sleeping = false
   /** Free slot for the game to hang its own reference off a body. */
   userData: unknown
-  /** How far the broad-phase AABB is inflated, to absorb small motion. */
-  aabbMargin: number
 
   /**
    * Attached shapes. Add and remove through {@link Body.addCollider} and
@@ -170,7 +166,6 @@ export class Body {
     this.fixedRotation = def.fixedRotation ?? false
     this.canSleep = def.canSleep ?? true
     this.sleepThreshold = def.sleepThreshold ?? 0
-    this.aabbMargin = def.aabbMargin ?? 0
     this.userData = def.userData
     this.invMass = 0
     this.invInertia = 0

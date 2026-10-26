@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { THRESHOLDS, toneFor, worseTone } from './thresholds'
+import { THRESHOLDS, toneFor } from './thresholds'
 
 describe('toneFor', () => {
   it('is good up to good, warn up to warn, and bad above', () => {
@@ -28,13 +28,5 @@ describe('toneFor', () => {
     for (const t of Object.values(THRESHOLDS)) {
       expect(t.tip.length).toBeGreaterThan(20)
     }
-  })
-})
-
-describe('worseTone', () => {
-  it('picks the worse of two', () => {
-    expect(worseTone('good', 'warn')).toBe('warn')
-    expect(worseTone('bad', 'warn')).toBe('bad')
-    expect(worseTone('neutral', 'good')).toBe('good')
   })
 })

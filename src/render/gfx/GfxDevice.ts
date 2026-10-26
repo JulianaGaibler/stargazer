@@ -952,24 +952,12 @@ export interface GfxDevice {
     opts?: TextureUploadOpts,
   ): void
   /**
-   * Replace a texture's contents from `source`.
-   *
-   * `source === null` is meant to reallocate storage at the texture's current
-   * size, dropping the contents. **The backends disagree**: WebGPU destroys and
-   * recreates the underlying texture, WebGL2 ignores the call entirely. Nothing
-   * passes null today, so pick a different route rather than relying on it.
-   *
-   * TODO: implement the WebGL2 side (a null `texImage2D` re-specs level 0 only,
-   * so a mipmapped texture needs its chain rebuilt), and give callers a way to
-   * drop the bind groups that reallocating invalidates. Reallocation swaps the
-   * object a bind group was built from, and both `programs/shape.ts` and
-   * `programs/textQuad.ts` cache bind groups per texture with nothing watching
-   * for it. To zero a region without that hazard, upload a transparent source
-   * over it instead: the handle survives, so cached bind groups stay valid.
+   * Replace a texture's contents from `source`. A source of a different size
+   * resizes the texture.
    */
   updateTexture2D(
     tex: Texture,
-    source: TexImageSource | null,
+    source: TexImageSource,
     opts?: TextureUploadOpts,
   ): void
   /**

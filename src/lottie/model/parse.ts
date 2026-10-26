@@ -6,6 +6,7 @@
 import {
   EasingCache,
   constantProp,
+  isObj,
   parsePathProp,
   parseProp,
   type ValueProp,
@@ -33,10 +34,6 @@ import { StargazerError } from '../../diagnostics/StargazerError'
 
 type Json = unknown
 type Obj = Record<string, Json>
-
-function isObj(v: Json): v is Obj {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
 
 function num(o: Obj, key: string, fallback: number): number {
   const v = o[key]

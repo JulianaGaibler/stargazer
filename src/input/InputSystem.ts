@@ -15,7 +15,6 @@ import { findHitNode } from './hit'
 import { raycastWorld3D } from '../scene/raycast3d'
 import type { Node2D } from '../scene/Node2D'
 import { layerOf, viewFor } from '../scene/viewFor'
-import { setWorldToLocalCheck } from '../scene/worldSpaceGuard'
 
 /** Internal mutable pointer record. Structurally satisfies PointerStateSnapshot. */
 interface PointerRecord {
@@ -41,32 +40,7 @@ interface PointerRecord {
 /** Screen-space touch slop in CSS pixels. Recomputed to world units on demand. */
 const DEFAULT_TOUCH_SLOP_SCREEN_PX = 30
 
-/**
- * The camera-space position the last stage-level pointer event carried, which
- * the development check compares against.
- */
-let lastStageWorldX = NaN
-let lastStageWorldY = NaN
-const warnedMisuse = new WeakSet<Node2D>()
 const LOCAL_SCRATCH: Vec2 = { x: 0, y: 0 }
-
-/**
- * Development check for a footgun: a stage-level event's `pointer.world` is in
- * the camera's space, so passing it to `worldToLocal` of a node under a layer
- * with a space of its own puts the node in the wrong place. Warns once per
- * node.
- */
-function warnOnCameraWorldMisuse(node: Node2D, x: number, y: number): void {
-  if (x !== lastStageWorldX || y !== lastStageWorldY) return
-  if (warnedMisuse.has(node)) return
-  const layer = layerOf(node)
-  if (!layer) return
-  warnedMisuse.add(node)
-  diagnostics.report(
-    'SG5004',
-    `A stage event's pointer.world was passed to ${node.id}.worldToLocal, but ${node.id} is placed by layer ${layer.id}, not the camera. Use event.localTo(${node.id}) to get the position in its space.`,
-  )
-}
 
 /**
  * Multi-touch input for one interactive `Stage`, reached as `stage.input` (or
@@ -75,18 +49,18 @@ function warnOnCameraWorldMisuse(node: Node2D, x: number, y: number): void {
  * through this class directly, see the input guide. `pointers` and the touch
  * slop settings are the parts most game code touches here.
  *
- * For engine developers: this owns the DOM `PointerEvent` listeners on the
- * stage's canvas (with `setPointerCapture` so a finger sliding off the physical
- * bezel keeps producing events), hit-walks this stage's scene on `down` to
- * capture the topmost `hitEnabled` node, and re-projects every active pointer's
- * `world` at the start of each frame, emitting a synthetic `pointerMove` when a
- * camera animation has drifted the world coord under a still finger. A node
- * under a layer with a space of its own is hit-tested and receives positions in
- * that layer's space, while stage-level events keep the camera's. It emits
- * `pointerDown/Move/Up/Cancel` on `stage.events`. The primary stage's events
- * are also forwarded to `engine.events` by the `Engine` constructor, but
- * secondaries stay isolated.
- *
+ * @remarks
+ *   Maintainers: this owns the DOM `PointerEvent` listeners on the stage's canvas
+ *   (with `setPointerCapture` so a finger sliding off the physical bezel keeps
+ *   producing events), hit-walks this stage's scene on `down` to capture the
+ *   topmost `hitEnabled` node, and re-projects every active pointer's `world`
+ *   at the start of each frame, emitting a synthetic `pointerMove` when a
+ *   camera animation has drifted the world coord under a still finger. A node
+ *   under a layer with a space of its own is hit-tested and receives positions
+ *   in that layer's space, while stage-level events keep the camera's. It emits
+ *   `pointerDown/Move/Up/Cancel` on `stage.events`. The primary stage's events
+ *   are also forwarded to `engine.events` by the `Engine` constructor, but
+ *   secondaries stay isolated.
  * @example
  *   for (const p of engine.input.pointers.values()) {
  *     if (p.capturedBy === shape) drawDebugDot(p.world)
@@ -103,6 +77,9 @@ export class InputSystem {
   readonly #disposeCallbacks: Array<() => void> = []
   #disposed = false
   #touchSlopScreenPx = DEFAULT_TOUCH_SLOP_SCREEN_PX
+  /** The camera-space position of the last stage-level pointer event. */
+  #lastStageWorldX = NaN
+  #lastStageWorldY = NaN
 
   constructor(stage: Stage, engine: Engine) {
     this.#stage = stage
@@ -113,7 +90,10 @@ export class InputSystem {
       PointerStateSnapshot
     >
     this.#attachListeners()
-    if (DEV) setWorldToLocalCheck(warnOnCameraWorldMisuse)
+    if (DEV) {
+      stage.tree.worldToLocalCheck = (node, x, y) =>
+        this.#checkWorldToLocal(node, x, y)
+    }
   }
 
   /** Screen-space slop in CSS px. Default 30 (roughly a fingertip). */
@@ -291,6 +271,23 @@ export class InputSystem {
     this.#recordsMap.clear()
     for (const fn of this.#disposeCallbacks) fn()
     this.#disposeCallbacks.length = 0
+    this.#stage.tree.worldToLocalCheck = null
+  }
+
+  /**
+   * A stage-level event's `pointer.world` is in the camera's space, so passing
+   * it to `worldToLocal` of a node under a layer with a space of its own puts
+   * the node in the wrong place.
+   */
+  #checkWorldToLocal(node: Node2D, x: number, y: number): void {
+    if (x !== this.#lastStageWorldX || y !== this.#lastStageWorldY) return
+    const layer = layerOf(node)
+    if (!layer) return
+    diagnostics.report(
+      'SG5004',
+      `A stage event's pointer.world was passed to ${node.id}.worldToLocal, but ${node.id} is placed by layer ${layer.id}, not the camera. Use event.localTo(${node.id}) to get the position in its space.`,
+      { key: node.id },
+    )
   }
 
   #attachListeners(): void {
@@ -411,8 +408,8 @@ export class InputSystem {
     name: 'pointerDown' | 'pointerMove' | 'pointerUp' | 'pointerCancel',
     ev: PointerEvent2D,
   ): void {
-    lastStageWorldX = ev.pointer.world.x
-    lastStageWorldY = ev.pointer.world.y
+    this.#lastStageWorldX = ev.pointer.world.x
+    this.#lastStageWorldY = ev.pointer.world.y
     this.#stage.events.emit(name, ev)
   }
 

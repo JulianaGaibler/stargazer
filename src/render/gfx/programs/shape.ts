@@ -102,8 +102,6 @@ function strokeOffsetFor(
   return Math.max(-maxOffset, Math.min(maxOffset, raw))
 }
 
-let warnedRadial = false
-
 /** The paint words of a solid fill, shared by every record. */
 const ZERO_PAINT: readonly [number, number, number, number] = [0, 0, 0, 0]
 
@@ -195,7 +193,6 @@ export class ShapeProgram implements GpuProgram {
       SHAPE_PARAMS_BYTES,
       2048,
       'shapeParams',
-      true,
       true,
     )
     this.#bindGroups = new WeakMap()
@@ -495,13 +492,10 @@ export class ShapeProgram implements GpuProgram {
     if (g.kind === 'radial') {
       // The shape shader has a linear ramp only. A radial fill draws as its
       // middle stop.
-      if (!warnedRadial) {
-        warnedRadial = true
-        diagnostics.report(
-          'SG2008',
-          'radial gradients are not supported on rects and circles, drawing a flat color',
-        )
-      }
+      diagnostics.report(
+        'SG2008',
+        'radial gradients are not supported on rects and circles, drawing a flat color',
+      )
       const mid = resolvePaint(g.stops[g.stops.length >> 1].color, alpha)
       return mid.kind === 'solid'
         ? this.#fillPaint(mid.packedColor, ZERO_PAINT)

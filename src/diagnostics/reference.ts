@@ -3,8 +3,8 @@
  * gen:diagnostics` after changing `codes.ts`.
  *
  * @remarks
- *   For engine developers: this file and `codes.ts` import nothing, so the
- *   generator script can load them with Node's type stripping.
+ *   Maintainers: this file and `codes.ts` import nothing, so the generator script
+ *   can load them with Node's type stripping.
  */
 export interface ReferenceSpec {
   area: string

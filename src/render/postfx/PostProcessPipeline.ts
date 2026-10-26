@@ -25,12 +25,11 @@ export { fullscreenTri } from './PostProgramCache'
  * unmodified for a frame or two.
  *
  * @remarks
- *   Engine developers: the pipeline holds the stage-level concerns, which are the
- *   list of effects, the choice between presenting a result and drawing the
- *   last pass into the canvas, and the readiness fallback. The passes
- *   themselves run in a `PostChain`, and the compiled shaders live in a
- *   `PostProgramCache`, which can be shared with other chains on the same
- *   device.
+ *   Maintainers: the pipeline holds the stage-level concerns, which are the list
+ *   of effects, the choice between presenting a result and drawing the last
+ *   pass into the canvas, and the readiness fallback. The passes themselves run
+ *   in a `PostChain`, and the compiled shaders live in a `PostProgramCache`,
+ *   which can be shared with other chains on the same device.
  * @example
  *   stage.postProcess.add(new Vignette({ intensity: 0.6 }))
  *   stage.postProcess.add(new ChromaticAberration({ amount: 0.01 }))
@@ -195,9 +194,7 @@ export class PostProcessPipeline {
   // --- internals -------------------------------------------------------------
 
   #onContextRestored(): void {
-    // GPU handles are dead after a loss. Drop references and let the next run
-    // rebuild the shaders, pipelines and targets lazily.
-    this.#chain.abandon()
+    // The pooled targets died with the context. The next run rebuilds them.
     this.#rtPool = new RenderTargetPool(this.#device)
     this.#chain = new PostChain(this.#device, this.#programs, this.#rtPool)
   }

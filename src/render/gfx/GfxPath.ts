@@ -56,12 +56,12 @@ export interface FlatPath {
  * no longer needed.
  *
  * @remarks
- *   Engine developers: segments are stored as a verb array plus a coordinate
- *   array, both grown in place. `version` increments on every edit so a cache
- *   can tell when its data is stale. Flattening writes into buffers owned by
- *   the path and caches the result per (version, tolerance bucket), so drawing
- *   an unchanged path at a steady scale flattens once. The tolerance is rounded
- *   to a half power of two so a slow zoom does not re-flatten every frame.
+ *   Maintainers: segments are stored as a verb array plus a coordinate array,
+ *   both grown in place. `version` increments on every edit so a cache can tell
+ *   when its data is stale. Flattening writes into buffers owned by the path
+ *   and caches the result per (version, tolerance bucket), so drawing an
+ *   unchanged path at a steady scale flattens once. The tolerance is rounded to
+ *   a half power of two so a slow zoom does not re-flatten every frame.
  *
  *   A fill needs a stencil buffer to handle self-overlap, and winding is counted
  *   modulo 16, so 16 contours wound the same way over one point cancel out.

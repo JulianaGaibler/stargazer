@@ -32,7 +32,8 @@ export interface SpatialSegment {
 
 type Json = unknown
 
-function isObj(v: Json): v is Record<string, Json> {
+/** @internal */
+export function isObj(v: Json): v is Record<string, Json> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
@@ -42,7 +43,7 @@ function toArray(v: Json): number[] {
 }
 
 function handleAt(v: Json, key: 'x' | 'y', dim: number): number {
-  if (!isObj(v)) return key === 'x' ? 0 : 0
+  if (!isObj(v)) return 0
   const h = v[key]
   if (Array.isArray(h)) {
     const e = h[Math.min(dim, h.length - 1)]
@@ -55,7 +56,7 @@ function handleAt(v: Json, key: 'x' | 'y', dim: number): number {
  * The compiled form of one animated number or vector.
  *
  * @remarks
- *   Engine developers: keyframe times, start values and end values live in
+ *   Maintainers: keyframe times, start values and end values live in
  *   `Float64Array`s. Easing closures are built at parse time and shared between
  *   keyframes with identical handles. `sample` keeps the index of the last
  *   segment and starts its search there, so playing forward is O(1).
@@ -366,19 +367,10 @@ export function parseProp(
   let prop: ValueProp
   if (!hasKeyframes(k)) {
     const v = toArray(k)
-    const starts = new Float64Array(dims)
+    const value = new Float64Array(dims)
     for (let i = 0; i < dims; i++)
-      starts[i] = v[i] ?? (dims > v.length && v.length === 1 ? v[0] : 0)
-    prop = new ValueProp(
-      dims,
-      new Float64Array([0]),
-      starts,
-      starts,
-      new Uint8Array(1),
-      [],
-      1,
-      [null],
-    )
+      value[i] = v[i] ?? (dims > v.length && v.length === 1 ? v[0] : 0)
+    prop = staticProp(value)
   } else {
     prop = compileKeyframes(k, dims, cache)
   }
@@ -475,14 +467,16 @@ function compileKeyframes(
 
 /** A static value, for properties the file leaves out. */
 export function constantProp(value: ArrayLike<number>): ValueProp {
-  const d = value.length
-  const v = new Float64Array(d)
-  for (let i = 0; i < d; i++) v[i] = value[i]
+  return staticProp(Float64Array.from(value))
+}
+
+/** A static property that takes ownership of `value`. */
+function staticProp(value: Float64Array): ValueProp {
   return new ValueProp(
-    d,
+    value.length,
     new Float64Array([0]),
-    v,
-    v,
+    value,
+    value,
     new Uint8Array(1),
     [],
     1,

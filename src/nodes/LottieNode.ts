@@ -107,12 +107,12 @@ export interface LottieNodeOptions {
  * box.
  *
  * @remarks
- *   Engine developers: the node holds the animation's layers as child nodes,
- *   built by `LottieScene`. `onUpdate` only advances the player. Evaluation
- *   (sampling properties and rebuilding paths) happens in `draw`, which the
- *   compose walk calls before the layers when the node is not culled, and only
- *   when the playback frame or the layout changed. It then moves the layer
- *   nodes and marks for repaint the ones whose content is animated.
+ *   Maintainers: the node holds the animation's layers as child nodes, built by
+ *   `LottieScene`. `onUpdate` only advances the player. Evaluation (sampling
+ *   properties and rebuilding paths) happens in `draw`, which the compose walk
+ *   calls before the layers when the node is not culled, and only when the
+ *   playback frame or the layout changed. It then moves the layer nodes and
+ *   marks for repaint the ones whose content is animated.
  * @example
  *   const anim = parseLottie(json)
  *   const spinner = new LottieNode({

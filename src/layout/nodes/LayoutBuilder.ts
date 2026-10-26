@@ -13,12 +13,6 @@ import { LayoutNode } from '../LayoutNode'
 import type { Vec2 } from '../../math/Vec2'
 import { rect, type Rect } from '../../math/Rect'
 
-/**
- * Dev-only: warn when a builder sits on an unconstrained axis and measures to
- * 0.
- */
-const DEV_WARN_UNCONSTRAINED = true
-
 /** Options for {@link LayoutBuilder}. */
 export interface LayoutBuilderOptions {
   /**
@@ -73,7 +67,6 @@ export class LayoutBuilder extends LayoutNode {
   readonly #rect: Rect = rect()
   readonly #tl: Vec2 = { x: 0, y: 0 }
   readonly #br: Vec2 = { x: 0, y: 0 }
-  #warned = false
 
   constructor(opts: LayoutBuilderOptions = {}) {
     super(opts.id)
@@ -117,17 +110,11 @@ export class LayoutBuilder extends LayoutNode {
   ): number {
     if (hint !== undefined) return Math.max(min, Math.min(hint, max))
     if (min === max) return max
-    if (
-      DEV_WARN_UNCONSTRAINED &&
-      min === 0 &&
-      max === Infinity &&
-      !this.#warned
-    ) {
-      this.#warned = true
+    if (min === 0 && max === Infinity) {
       diagnostics.report(
         'SG5006',
-        `LayoutBuilder('${this.id}') has an unconstrained ${axis} ` +
-          `and measured to 0. Wrap it in Expanded, AspectRatio, or SizedBox.`,
+        `LayoutBuilder('${this.id}') has an unconstrained ${axis} and measured to 0.`,
+        { key: this.id },
       )
     }
     return min

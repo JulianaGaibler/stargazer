@@ -54,10 +54,7 @@ import { StargazerError } from '../../../diagnostics/StargazerError'
  * it, so the mock cannot disagree with them about which texels a call wrote.
  * Null means the caller passed no source, i.e. asked to reallocate.
  */
-function sourceSize(
-  source: TexImageSource | null,
-): { w: number; h: number } | null {
-  if (source === null) return null
+function sourceSize(source: TexImageSource): { w: number; h: number } {
   return { w: getSourceWidth(source), h: getSourceHeight(source) }
 }
 
@@ -455,12 +452,11 @@ export class MockGfxDevice implements GfxDevice {
   textureUploads: Array<{
     tex: Texture
     opts: TextureUploadOpts
-    /** Source extent, or null when the caller asked to reallocate. */
-    size: { w: number; h: number } | null
+    size: { w: number; h: number }
   }> = []
   updateTexture2D(
     tex: Texture,
-    source: TexImageSource | null,
+    source: TexImageSource,
     opts: TextureUploadOpts = {},
   ): void {
     this.textureUploads.push({ tex, opts, size: sourceSize(source) })
@@ -474,7 +470,7 @@ export class MockGfxDevice implements GfxDevice {
      * Source extent. Both backends derive the written region from the source,
      * so this is the only way a test can tell which texels an upload covered.
      */
-    size: { w: number; h: number } | null
+    size: { w: number; h: number }
   }> = []
   updateTextureSubImage2D(
     tex: Texture,

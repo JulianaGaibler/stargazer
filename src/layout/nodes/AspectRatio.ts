@@ -56,8 +56,7 @@ export class AspectRatio extends LayoutNode {
     if (!c.hasBoundedW && !c.hasBoundedH) {
       throw new StargazerError(
         'SG5007',
-
-        `[stargazer] layout: AspectRatio('${this.id}') has no bounded axis to ` +
+        `layout: AspectRatio('${this.id}') has no bounded axis to ` +
           `fit its ratio into. Give it a bounded width or height.`,
       )
     }

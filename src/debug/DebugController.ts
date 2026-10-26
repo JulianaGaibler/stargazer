@@ -275,9 +275,8 @@ export interface DebugPanelSpec {
 }
 
 /**
- * Central controller for engine debug tooling. Constructed only when `?debug=1`
- * or `?debug=hud` is present in the URL, the entire object graph (hotkeys, ring
- * buffers, debug camera) is absent otherwise.
+ * Central controller for engine debug tooling. Every engine host has one, and
+ * the `debug` option or URL flag only decides whether the HUD starts open.
  *
  * The `activeStage` concept scopes stage-per-stage UI: sections (Coordinates,
  * Camera, Scene, Scene tree, Camera pad) show data for the selected stage.
@@ -286,7 +285,6 @@ export interface DebugPanelSpec {
  * the readouts. When it doesn't, the section shows a hint.
  */
 export class DebugController {
-  readonly enabled = true as const
   readonly camera: DebugCamera
   /** CPU work-time per frame (headroom). Drives the frame graph + `CPU pXX`. */
   readonly frameStats: FrameStats

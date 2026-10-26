@@ -8,6 +8,7 @@ import type { LottieAnimation } from '../model/types'
 import { parseTheme, type LottieTheme } from './theme'
 import { extractZipEntry, readZip, type ZipEntry } from './zip'
 import { StargazerError } from '../../diagnostics/StargazerError'
+import { AssetLoader } from '../../assets/AssetLoader'
 
 /** An animation listed in the manifest. */
 export interface DotLottieAnimationEntry {
@@ -208,7 +209,20 @@ export async function parseDotLottie(bytes: Uint8Array): Promise<DotLottie> {
 /** How a loader fetches bytes. Defaults to `fetch`. */
 export type LottieFetch = (url: string) => Promise<Response>
 
-const cache = new Map<string, Promise<unknown>>()
+const cache = new AssetLoader()
+
+/** Fetch `url`, throwing when the response is not ok. */
+async function fetchOk(
+  caller: string,
+  url: string,
+  fetchFn: LottieFetch = fetch,
+): Promise<Response> {
+  const r = await fetchFn(url)
+  if (!r.ok) {
+    throw new StargazerError('SG6006', `${caller}: ${url} returned ${r.status}`)
+  }
+  return r
+}
 
 /**
  * Fetch and parse Lottie JSON. Calls for the same URL share one fetch.
@@ -216,26 +230,15 @@ const cache = new Map<string, Promise<unknown>>()
  * @example
  *   const anim = await loadLottie('/spinner.json')
  */
-export function loadLottie(
+export async function loadLottie(
   url: string,
   opts: { fetch?: LottieFetch } = {},
 ): Promise<LottieAnimation> {
-  const key = `json:${url}`
-  let p = cache.get(key) as Promise<string> | undefined
-  if (!p) {
-    p = (opts.fetch ?? fetch)(url).then((r) => {
-      if (!r.ok)
-        throw new StargazerError(
-          'SG6006',
-          `loadLottie: ${url} returned ${r.status}`,
-        )
-      return r.text()
-    })
-    cache.set(key, p)
-    p.catch(() => cache.delete(key))
-  }
+  const text = await cache.load(`json:${url}`, () =>
+    fetchOk('loadLottie', url, opts.fetch).then((r) => r.text()),
+  )
   // Each caller parses its own copy, so themes and slots stay per caller.
-  return p.then((text) => parseLottie(text))
+  return parseLottie(text)
 }
 
 /** Fetch and open a `.lottie` archive. Calls for the same URL share one fetch. */
@@ -243,21 +246,8 @@ export function loadDotLottie(
   url: string,
   opts: { fetch?: LottieFetch } = {},
 ): Promise<DotLottie> {
-  const key = `zip:${url}`
-  let p = cache.get(key) as Promise<DotLottie> | undefined
-  if (!p) {
-    p = (opts.fetch ?? fetch)(url)
-      .then((r) => {
-        if (!r.ok)
-          throw new StargazerError(
-            'SG6006',
-            `loadDotLottie: ${url} returned ${r.status}`,
-          )
-        return r.arrayBuffer()
-      })
-      .then((buf) => parseDotLottie(new Uint8Array(buf)))
-    cache.set(key, p)
-    p.catch(() => cache.delete(key))
-  }
-  return p
+  return cache.load(`zip:${url}`, async () => {
+    const r = await fetchOk('loadDotLottie', url, opts.fetch)
+    return parseDotLottie(new Uint8Array(await r.arrayBuffer()))
+  })
 }

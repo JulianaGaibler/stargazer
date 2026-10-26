@@ -14,10 +14,7 @@ export function copyCanvas(
   const surface = new OffscreenCanvas(width, height)
   const ctx = surface.getContext('2d')
   if (!ctx)
-    throw new StargazerError(
-      'SG1009',
-      'stargazer: capture could not get a 2D context',
-    )
+    throw new StargazerError('SG1009', 'capture could not get a 2D context')
   ctx.drawImage(source, 0, 0, width, height)
   return surface
 }

@@ -40,6 +40,15 @@ export class SceneTree implements NodeOwner {
    */
   stage: CameraHost | null = null
 
+  /**
+   * A development check that {@link Node2D.worldToLocal} runs on nodes in this
+   * tree. The stage's input system sets it.
+   *
+   * @internal
+   */
+  worldToLocalCheck: ((node: Node2D, x: number, y: number) => void) | null =
+    null
+
   /** Cached DFS pre-order (painter order) of the {@link Node2D}s in the tree. */
   #_painterOrder: Node2D[] | null = null
   /** Nodes with update work, in pre-order, or `null` when stale. */

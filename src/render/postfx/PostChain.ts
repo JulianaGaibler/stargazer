@@ -1,5 +1,6 @@
 import { diagnostics } from '../../diagnostics/Diagnostics'
 import type {
+  BindGroupEntry,
   ColorFormat,
   GfxDevice,
   Readback,
@@ -81,12 +82,12 @@ function hashBytes(bytes: Uint8Array, seed = 0x811c9dc5): number {
  * the result goes.
  *
  * @remarks
- *   Engine developers: a chain is the per-owner half of post-processing. The
- *   stage's pipeline owns one and every layer with effects owns one. The
- *   shaders and pipelines come from the shared {@link PostProgramCache}. The
- *   chain keeps what must not be shared: the params uniform buffers (one per
- *   pass, so the same effect instance running in two chains in one frame writes
- *   two buffers), the accumulated `time`, and the change detection state.
+ *   Maintainers: a chain is the per-owner half of post-processing. The stage's
+ *   pipeline owns one and every layer with effects owns one. The shaders and
+ *   pipelines come from the shared {@link PostProgramCache}. The chain keeps
+ *   what must not be shared: the params uniform buffers (one per pass, so the
+ *   same effect instance running in two chains in one frame writes two
+ *   buffers), the accumulated `time`, and the change detection state.
  *
  *   `ctx.width` and `ctx.height`, and each pass's `scale`, derive from the source
  *   size given to `run`, so the same effect sizes itself to whatever it runs
@@ -102,7 +103,6 @@ export class PostChain {
   readonly #pool: RenderTargetPool
   readonly #params = new Map<PostStep, PassParams>()
   readonly #data = new Map<PostDataPass, DataState>()
-  readonly #warned = new Set<PostDataPass>()
   #generation: number
   #time = 0
   #dt = 0
@@ -173,7 +173,7 @@ export class PostChain {
    */
   prepare(effects: readonly PostEffect[], cs: ColorFormat): boolean {
     this.#programs.vbo()
-    this.#plan(this.#sourceInfo({ width: 1, height: 1 }), effects)
+    this.#plan(null, effects)
     let ready = true
     for (const effect of effects) {
       if (!effect.enabled) continue
@@ -257,7 +257,7 @@ export class PostChain {
         pass.writeParams(ctx, params.staging)
         device.updateUniformBuffer(params.ubo, params.staging)
       }
-      const entries = [
+      const entries: BindGroupEntry[] = [
         {
           binding: POST_U_TEX,
           resource: {
@@ -281,7 +281,7 @@ export class PostChain {
       if (params) {
         entries.push({
           binding: POST_PARAMS_UBO_BINDING,
-          resource: { uniformBuffer: params.ubo } as never,
+          resource: { uniformBuffer: params.ubo },
         })
       }
       const bindGroup = device.createBindGroup(
@@ -406,16 +406,6 @@ export class PostChain {
     }
   }
 
-  /**
-   * Forget every handle without freeing it, for the owner to call after a
-   * context restore, when the handles are already dead.
-   */
-  abandon(): void {
-    this.#params.clear()
-    this.#data.clear()
-    this.#generation = this.#programs.generation
-  }
-
   destroy(): void {
     for (const params of this.#params.values()) {
       this.#device.deleteUniformBuffer(params.ubo)
@@ -472,9 +462,13 @@ export class PostChain {
    * Flatten the enabled steps and work out, for each, its target size, what it
    * reads and when each output is last read. Throws when a step reads one that
    * does not run before it, and when the last step is a data pass, which has no
-   * target to hand back.
+   * target to hand back. Without a `source` it only checks, and skips the
+   * sizes.
    */
-  #plan(source: PostSourceInfo, effects: readonly PostEffect[]): PostStep[] {
+  #plan(
+    source: PostSourceInfo | null,
+    effects: readonly PostEffect[],
+  ): PostStep[] {
     const flat = this.#flat
     flat.length = 0
     for (const effect of effects) {
@@ -492,19 +486,21 @@ export class PostChain {
     this.#extras.length = flat.length * MAX_POST_TEXTURES
     for (let i = 0; i < flat.length; i++) {
       const step = flat[i]
-      let width: number
-      let height: number
-      if (isDataPass(step) || step.size) {
-        const size = step.size!(source)
-        width = size.width
-        height = size.height
-      } else {
-        const scale = step.scale ?? 1
-        width = source.width * scale
-        height = source.height * scale
+      if (source) {
+        let width: number
+        let height: number
+        if (isDataPass(step) || step.size) {
+          const size = step.size!(source)
+          width = size.width
+          height = size.height
+        } else {
+          const scale = step.scale ?? 1
+          width = source.width * scale
+          height = source.height * scale
+        }
+        this.#widths[i] = Math.max(1, Math.floor(width))
+        this.#heights[i] = Math.max(1, Math.floor(height))
       }
-      this.#widths[i] = Math.max(1, Math.floor(width))
-      this.#heights[i] = Math.max(1, Math.floor(height))
       this.#lastUse[i] = i
       const input = step.input
       const from =
@@ -583,14 +579,14 @@ export class PostChain {
     if (computes) {
       const pipeline = this.#programs.computePipeline(pass)
       if (!pipeline) return state.texture
-      const entries = [
+      const entries: BindGroupEntry[] = [
         { binding: POST_U_TEX, resource: { texture: input } },
         { binding: POST_DATA_OUTPUT, resource: { texture: state.texture } },
       ]
       if (params) {
         entries.push({
           binding: POST_PARAMS_UBO_BINDING,
-          resource: { uniformBuffer: params.ubo } as never,
+          resource: { uniformBuffer: params.ubo },
         })
       }
       const [x, y, z] = pass.compute!.workgroups(ctx)
@@ -614,8 +610,8 @@ export class PostChain {
       return state.texture
     }
     if (!pass.cpu || !device.supportsReadback || !inputTarget) {
-      this.#warnOnce(
-        pass,
+      diagnostics.report(
+        'SG2023',
         'A data pass has no way to run here: it needs a compute shader on a device with compute, or a cpu function and a drawing pass as its input on one without',
       )
       return state.texture
@@ -701,12 +697,6 @@ export class PostChain {
     this.#data.delete(pass)
   }
 
-  #warnOnce(pass: PostDataPass, message: string): void {
-    if (this.#warned.has(pass)) return
-    this.#warned.add(pass)
-    diagnostics.report('SG2023', message)
-  }
-
   #paramsFor(pass: PostStep): PassParams | null {
     if (pass.paramsBytes <= 0) return null
     let params = this.#params.get(pass)
@@ -721,6 +711,10 @@ export class PostChain {
     return params
   }
 
+  /**
+   * Forget every handle without freeing it, after a context restore killed
+   * them.
+   */
   #dropParams(): void {
     this.#params.clear()
     this.#data.clear()

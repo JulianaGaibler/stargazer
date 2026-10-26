@@ -12,9 +12,10 @@ const out = fileURLToPath(
   new URL('../src/render/gfx/squircleField.bin', import.meta.url),
 )
 
-// Vite loads the TypeScript module with the project's aliases and resolution.
+// Vite compiles the TypeScript module. It needs no project config.
 const server = await createServer({
-  configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
+  root: fileURLToPath(new URL('..', import.meta.url)),
+  configFile: false,
   server: { middlewareMode: true, hmr: false },
   // Only one module is loaded, so there is nothing to pre-bundle.
   optimizeDeps: { noDiscovery: true, entries: [] },
@@ -22,9 +23,7 @@ const server = await createServer({
   logLevel: 'error',
 })
 try {
-  const field = await server.ssrLoadModule(
-    '/src/render/gfx/squircleField.ts',
-  )
+  const field = await server.ssrLoadModule('/src/render/gfx/squircleField.ts')
   const started = performance.now()
   const data = field.buildField()
   writeFileSync(

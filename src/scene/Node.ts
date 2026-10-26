@@ -282,7 +282,7 @@ export abstract class Node {
 
   #addOne(child: Node): void {
     if (child === this)
-      throw new StargazerError('SG5009', 'Cannot add a node to itself')
+      throw new StargazerError('SG5007', 'Cannot add a node to itself')
     if (child.#_destroyed)
       throw new StargazerError('SG5009', 'Cannot add a destroyed node')
     if (child.parent) child.parent.remove(child)
@@ -715,7 +715,7 @@ export abstract class Node {
 
   /**
    * Destroy this node when `p` settles. `AbortError` is silent (the destroy is
-   * the cleanup), other rejections log via `console.warn` then still destroy.
+   * the cleanup). Other rejections are reported, then the node is destroyed.
    */
   autoDestroy(p: Promise<void>): Promise<void> {
     return p
@@ -738,7 +738,8 @@ export abstract class Node {
    * errors log and terminate the loop. `body` receives `{node, signal,
    * iteration, nextFrame()}`, and `nextFrame()` resolves after the current
    * frame renders. Fire-and-forget: the first invocation defers a microtask so
-   * callers inside `Behavior.onAttach` can rely on attachment.
+   * callers inside `Behavior.onAttach` can rely on attachment. Pass
+   * `deferAttach: false` to start at once.
    */
   loop(
     body: (ctx: {

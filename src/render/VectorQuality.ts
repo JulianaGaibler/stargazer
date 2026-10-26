@@ -1,12 +1,3 @@
-/**
- * Fallback a path's drop shadow draws while its blurred mask is cold, starved,
- * or disabled: the path's own triangles, translated and tinted, with no blur.
- * `'hard'` is the only value. A `'none'` option was considered and rejected: it
- * makes a slow machine the one that shows missing shadows, which is worse than
- * a shadow that is merely sharper than it should be.
- */
-export type PathShadowFallback = 'hard'
-
 /** Snapped targets for {@link VectorQuality.shadowSigmaBudget}. */
 export const SHADOW_SIGMA_BUDGETS = [4, 8, 12] as const
 
@@ -42,8 +33,6 @@ export interface VectorQualityOptions {
 export class VectorQuality {
   /** Master switch for path drop shadows (the cached-mask kind). Default `true`. */
   pathShadowsEnabled: boolean
-  /** @see PathShadowFallback */
-  readonly pathShadowFallback: PathShadowFallback = 'hard'
   #shadowSigmaBudget = 8
   /**
    * How far a path shadow's mask extends past its silhouette, in multiples of

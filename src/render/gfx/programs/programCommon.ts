@@ -30,18 +30,19 @@ import { CLIP_DEPTH_SHIFT, STENCIL_ROWS } from '../stencilRecipe'
  * `dynamicOffsets`.
  *
  * @remarks
- *   Engine developers: a fixed ring returns `-1` from `push` when full and the
- *   caller drops that draw's per-run data. A growable ring (the 2D programs)
- *   never fails. When its buffer is full it switches to a new buffer of twice
- *   the capacity and restarts the cursor. Draws already recorded keep naming
- *   the old buffer, which is deleted at the start of the next frame, after the
- *   frame that used it has been submitted. `generation` increments on every
- *   switch, so a bind group that captured `buffer` must be rebuilt when it
- *   changes (see {@link UboRing.generation}).
+ *   Maintainers: a fixed ring writes each slice straight to the GPU and returns
+ *   `-1` from `push` when full, and the caller drops that draw's per-run data.
+ *   A staged ring never fails. It copies slices to the CPU and `flush` uploads
+ *   them in one write, switching to a buffer of twice the capacity when they
+ *   outgrew it. Draws already recorded keep naming the old buffer, which is
+ *   deleted at the start of the next frame, after the frame that used it has
+ *   been submitted. `generation` increments on every switch, so a bind group
+ *   that captured `buffer` must be rebuilt when it changes (see
+ *   {@link UboRing.generation}).
  *
- *   The capacity follows demand. It doubles on overflow and halves after
- *   {@link UBO_RING_DECAY_FRAMES} consecutive frames that used under a quarter
- *   of it, so one spike does not hold its peak forever.
+ *   A staged ring's capacity follows demand. It doubles on overflow and halves
+ *   after {@link UBO_RING_DECAY_FRAMES} consecutive frames that used under a
+ *   quarter of it, so one spike does not hold its peak forever.
  */
 export class UboRing {
   #buffer: UBuffer
@@ -55,8 +56,9 @@ export class UboRing {
   /** Replaced buffers that recorded draws of the open frame may still name. */
   readonly #retired: UBuffer[] = []
   #pushes = 0
+  // Every push past a full fixed ring fails, so report once per frame rather
+  // than once per dropped draw.
   #warned = false
-  readonly #growable: boolean
   readonly #staged: boolean
   /** CPU copy of a staged ring's slices, uploaded once by `flush`. */
   #staging = new Uint8Array(0)
@@ -67,12 +69,10 @@ export class UboRing {
     dataBytes: number,
     slots: number,
     label = 'ubo-ring',
-    growable = false,
     staged = false,
   ) {
     this.#label = label
     this.#staged = staged
-    this.#growable = growable || staged
     const align = device.limits.minUniformBufferOffsetAlignment
     this.#sliceBytes = Math.ceil(dataBytes / align) * align
     this.#minSlots = slots
@@ -93,19 +93,9 @@ export class UboRing {
     return this.#generation
   }
 
-  /** Fixed per-slice byte length, the `size` for a dynamic bind-group entry. */
-  get sliceBytes(): number {
-    return this.#sliceBytes
-  }
-
   /** Slices pushed since the last `reset`. */
   get pushes(): number {
     return this.#pushes
-  }
-
-  /** Current capacity in slices. */
-  get capacity(): number {
-    return this.#slots
   }
 
   /** Start a new frame. Applies the shrink policy. */
@@ -115,7 +105,7 @@ export class UboRing {
       for (const b of this.#retired) device.deleteUniformBuffer(b)
       this.#retired.length = 0
     }
-    if (!this.#growable || !device) {
+    if (!this.#staged || !device) {
       this.#cursor = 0
       return
     }
@@ -140,17 +130,14 @@ export class UboRing {
   push(device: GfxDevice, data: ArrayBufferView): number {
     if (this.#staged) return this.#stage(data)
     if (this.#cursor + this.#sliceBytes > this.#slots * this.#sliceBytes) {
-      if (!this.#growable) {
-        if (!this.#warned) {
-          this.#warned = true
-          diagnostics.report(
-            'SG2013',
-            `'${this.#label}' uniform ring overflow, dropping per-draw uniforms for the remainder of this frame`,
-          )
-        }
-        return -1
+      if (!this.#warned) {
+        this.#warned = true
+        diagnostics.report(
+          'SG2013',
+          `'${this.#label}' uniform ring overflow, dropping per-draw uniforms for the remainder of this frame`,
+        )
       }
-      this.#replace(device, this.#slots * 2)
+      return -1
     }
     const offset = this.#cursor
     device.updateUniformBuffer(this.#buffer, data, offset)
@@ -211,8 +198,6 @@ export class UboRing {
     this.#retired.push(this.#buffer)
     this.#slots = slots
     this.#buffer = device.createUniformBuffer(this.#sliceBytes * slots)
-    // A staged ring keeps its slices, which `flush` writes into the new buffer.
-    if (!this.#staged) this.#cursor = 0
     this.#generation++
   }
 }

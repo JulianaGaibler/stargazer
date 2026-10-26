@@ -385,7 +385,6 @@ export class TextureManager implements TextureInspector {
   #atlasNextY = ATLAS_TILE_PADDING
   #atlasBindings = new Map<CanvasImageSource, AtlasEntry>()
   #atlasFull = false
-  #warnedAtlasFull = false
 
   // Per-source (fallback) ----------------------------------------------
   #textureBySource = new Map<CanvasImageSource, Texture>()
@@ -415,7 +414,6 @@ export class TextureManager implements TextureInspector {
   // called once that replay has happened, which is also the point it becomes
   // safe to recycle a pinned row (see `#evictRampRow`).
   #rampPinnedRows = new Set<number>()
-  #rampExhaustedWarned = false
   /** 256x1 scratch canvas, reused across `ensureStopsRow` calls. */
   #rampRowCanvas: HTMLCanvasElement | OffscreenCanvas | null = null
   #rampRowCtx: CanvasRenderingContext2D | null = null
@@ -700,13 +698,10 @@ export class TextureManager implements TextureInspector {
     }
     if (this.#atlasNextY + ATLAS_TILE_SIZE > ATLAS_HEIGHT) {
       this.#atlasFull = true
-      if (!this.#warnedAtlasFull) {
-        this.#warnedAtlasFull = true
-        diagnostics.report(
-          'SG2011',
-          `particle atlas full (${ATLAS_WIDTH}×${ATLAS_HEIGHT}, ${Math.floor(ATLAS_WIDTH / ATLAS_TILE_SIZE) ** 2} tiles); further sprites use per-source textures.`,
-        )
-      }
+      diagnostics.report(
+        'SG2011',
+        `particle atlas full (${ATLAS_WIDTH}×${ATLAS_HEIGHT}, ${Math.floor(ATLAS_WIDTH / ATLAS_TILE_SIZE) ** 2} tiles); further sprites use per-source textures.`,
+      )
       return null
     }
     const tileX = this.#atlasNextX
@@ -835,13 +830,10 @@ export class TextureManager implements TextureInspector {
     }
     const row = this.#allocRampRow()
     if (row < 0) {
-      if (!this.#rampExhaustedWarned) {
-        this.#rampExhaustedWarned = true
-        diagnostics.report(
-          'SG2010',
-          `more than ${ATLAS_ROWS} distinct gradients in one frame, extra gradients draw as a solid color`,
-        )
-      }
+      diagnostics.report(
+        'SG2010',
+        `more than ${ATLAS_ROWS} distinct gradients in one frame, extra gradients draw as a solid color`,
+      )
       return -1
     }
     if (!this.#paintRampRow(row, stops)) return -1

@@ -27,11 +27,9 @@ const POINTS: ViewPoint[] = []
  * slop is in CSS pixels and becomes world units per view. 3D nodes are skipped
  * (they pick via a ray, not bounds).
  *
- * When `root` is a scene tree's root, the flattened painter-order list is
- * pulled from {@link SceneTree.getPainterOrder}, a cached array rebuilt only on
- * tree mutation, so hit tests during a drag storm allocate nothing. For a
- * synthetic subtree (e.g. tests), it falls back to a fresh `walkTree`
- * allocation.
+ * When `root` is a scene tree's root, the walk reads the tree's cached
+ * {@link SceneTree.getPainterOrder}, so hit tests during a drag allocate
+ * nothing. Any other subtree is walked afresh.
  *
  * @example
  *   const hit = findHitNode(
@@ -51,11 +49,7 @@ export function findHitNode(
 ): Node2D | null {
   const owner = root.owner as SceneTree | null
   let painterOrder: readonly Node2D[]
-  if (
-    owner &&
-    owner.root === root &&
-    typeof owner.getPainterOrder === 'function'
-  ) {
+  if (owner?.root === root) {
     painterOrder = owner.getPainterOrder()
   } else {
     const scratch: Node2D[] = []

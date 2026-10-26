@@ -11,7 +11,6 @@ import type { GfxPath } from '../render/gfx/GfxPath'
 import type { Canvas } from '../render/picture/Canvas'
 import type { Picture } from '../render/picture/Picture'
 import { paintingNode } from '../render/picture/paintState'
-import { checkWorldToLocal } from './worldSpaceGuard'
 import type { TweenOptions } from '../anim/Animator'
 import { ignoreAbort } from '../anim/abortSignal'
 import type { Semantics, SemanticsHandle } from '../a11y/types'
@@ -163,10 +162,10 @@ export class Node2D extends Node {
    * other, up to 7 deep.
    *
    * @remarks
-   *   Engine developers: the compose walk pushes the stencil clip on entering the
-   *   node and pops it on leaving its subtree, so everything under it pays for
-   *   the clip once. A clip costs two stencil draws plus one to undo it, and a
-   *   rect is built into a cached path.
+   *   Maintainers: the compose walk pushes the stencil clip on entering the node
+   *   and pops it on leaving its subtree, so everything under it pays for the
+   *   clip once. A clip costs two stencil draws plus one to undo it, and a rect
+   *   is built into a cached path.
    * @example
    *   // A scroll panel: content below this node never paints outside it.
    *   panel.clip = { x: 0, y: 0, width: 320, height: 200 }
@@ -275,7 +274,12 @@ export class Node2D extends Node {
    * mutations. Returns `{x, y}` unchanged if the matrix is degenerate.
    */
   worldToLocal(worldX: number, worldY: number, out?: Vec2): Vec2 {
-    if (DEV) checkWorldToLocal(this, worldX, worldY)
+    if (DEV)
+      (this.owner as SceneTree | null)?.worldToLocalCheck?.(
+        this,
+        worldX,
+        worldY,
+      )
     this.ensureWorldTransform()
     const w = this.transform.world
     const det = w.a * w.d - w.b * w.c

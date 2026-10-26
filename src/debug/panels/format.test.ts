@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bytesQuantity, fmtBytes, fmtCount, fmtPct, msQuantity } from './format'
+import { bytesQuantity, fmtBytes, fmtCount, fmtPct } from './format'
 
 describe('bytesQuantity', () => {
   it('stays in bytes below a kilobyte', () => {
@@ -28,12 +28,7 @@ describe('countQuantity', () => {
   })
 })
 
-describe('msQuantity and fmtPct', () => {
-  it('moves to seconds at a thousand milliseconds', () => {
-    expect(msQuantity(16.7)).toEqual({ text: '16.7', unit: 'ms' })
-    expect(msQuantity(2500)).toEqual({ text: '2.50', unit: 's' })
-  })
-
+describe('fmtPct', () => {
   it('writes a ratio as a percentage', () => {
     expect(fmtPct(0.5)).toBe('50.0 %')
     expect(fmtPct(1)).toBe('100 %')

@@ -749,7 +749,7 @@ export class LottieRenderer {
     }
     switch (m.type) {
       case 'shape':
-        layer.root = this.#compileGroup(m.shapes, null, m.name)
+        layer.root = this.#compileGroup(m.shapes, m.name)
         layer.styleCount = countStyles(layer.root)
         break
       case 'solid':
@@ -783,7 +783,7 @@ export class LottieRenderer {
           glyphs.set(`${g.family}|${g.style}|${g.char}`, {
             // Outlines carry no fill. The document's color is the fill of
             // everything above this item.
-            group: this.#compileGroup([...g.shapes, GLYPH_FILL], null, m.name),
+            group: this.#compileGroup([...g.shapes, GLYPH_FILL], m.name),
             size: g.size || 100,
             width: g.width,
           })
@@ -809,11 +809,7 @@ export class LottieRenderer {
     }
   }
 
-  #compileGroup(
-    items: readonly LottieShapeItem[],
-    _parent: CGroup | null,
-    layerName: string,
-  ): CGroup {
+  #compileGroup(items: readonly LottieShapeItem[], layerName: string): CGroup {
     const group: CGroup = {
       transform: null,
       mat: identity(),
@@ -854,7 +850,7 @@ export class LottieRenderer {
           })
           break
         case 'group': {
-          const child = this.#compileGroup(item.items, group, layerName)
+          const child = this.#compileGroup(item.items, layerName)
           group.ops.push({ k: 'group', group: child, index })
           group.elements.push({ group: child })
           break
@@ -1446,7 +1442,7 @@ export class LottieRenderer {
         if (layer.root) this.#drawGroup(layer.root, canvas, 1)
         break
       case 'text':
-        if (layer.text) this.#drawText(layer.text, canvas, 1, layer.alpha)
+        if (layer.text) this.#drawText(layer.text, canvas, layer.alpha)
         break
       case 'image':
         if (layer.image) {
@@ -1462,22 +1458,17 @@ export class LottieRenderer {
     }
   }
 
-  #drawText(
-    text: CText,
-    gfx: PaintTarget,
-    alpha: number,
-    layerAlpha: number,
-  ): void {
+  #drawText(text: CText, gfx: PaintTarget, layerAlpha: number): void {
     for (let i = 0; i < text.placedCount; i++) {
       const p = text.placed[i]
       gfx.save()
       gfx.translate(p.x, p.y)
       gfx.scale(p.scale, p.scale)
-      this.#drawGroup(p.glyph.group, gfx, alpha)
+      this.#drawGroup(p.glyph.group, gfx, 1)
       gfx.restore()
     }
     if (text.lines.length > 0) {
-      gfx.setAlpha(alpha * layerAlpha)
+      gfx.setAlpha(layerAlpha)
       for (const line of text.lines) {
         gfx.fillText(line.text, line.x, line.y, {
           font: text.font,

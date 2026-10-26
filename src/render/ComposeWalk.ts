@@ -514,6 +514,8 @@ export class ComposeWalk {
     return layer._hasEffects() ? layer.effects : this.#copy
   }
 
+  // Per-layer sets rather than diagnostics dedupe, because the walk runs every
+  // frame and would build each message again.
   /** Layers already warned that they cannot be cached. */
   readonly #warnedUncached = new WeakSet<Layer>()
 
@@ -598,18 +600,18 @@ export class ComposeWalk {
         sig.push(clip.height)
       }
       if (n2.matte !== null || n2._matteOf !== null) {
-        this.#uncacheable(sig, root, 'holds a matte')
+        this.#uncacheable(root, 'holds a matte')
       }
       if (!n2.intrinsic) {
         if (n2.paint) {
           sig.push(this.#ensurePainted(n2, f, view).generation)
         } else if (n2.draw) {
-          this.#uncacheable(sig, root, 'holds a node that draws immediately')
+          this.#uncacheable(root, 'holds a node that draws immediately')
         }
       }
       if (!isRoot && n2 instanceof Layer) {
         if (n2._hasEffects()) {
-          this.#uncacheable(sig, root, 'holds a layer with effects')
+          this.#uncacheable(root, 'holds a layer with effects')
         }
         if (n2.view !== null) nested = n2
       }
@@ -625,12 +627,9 @@ export class ComposeWalk {
     if (nested) this.#leaveSpace(f)
   }
 
-  /**
-   * Make a signature that never repeats, so the layer renders every frame, and
-   * say so once in development.
-   */
-  #uncacheable(sig: LayerSignature, layer: Layer, why: string): void {
-    sig.push(this.totals.frames + 0.5)
+  /** Make the layer render this frame, and say why once in development. */
+  #uncacheable(layer: Layer, why: string): void {
+    layer._cacheState.invalidated = true
     if (!DEV || this.#warnedUncached.has(layer)) return
     this.#warnedUncached.add(layer)
     diagnostics.report(

@@ -40,6 +40,7 @@ export interface AnimationClip {
   duration: number
 }
 
+// Sampling runs every frame, so report once and skip the call afterward.
 let warnedCubic = false
 const scratchA = new Float64Array(4)
 const scratchB = new Float64Array(4)

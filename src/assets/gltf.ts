@@ -184,7 +184,6 @@ interface GltfContext {
   images: (TextureImage | null)[]
   /** Built node per glTF node index, so animation channels can bind targets. */
   nodeByIndex: (Node3D | null)[]
-  warned: Set<string>
 }
 
 /** GlTF sampler filter enums whose min-filter implies a mip chain. */
@@ -263,13 +262,12 @@ function textureSlot(
 }
 
 /**
- * Warn once per unsupported glTF extension. Never throws, the model still
- * loads, degraded.
+ * Report each unsupported glTF extension. It never throws, and the model loads
+ * without the extension.
  */
 function warnUnsupportedExtensions(ctx: GltfContext): void {
   for (const ext of ctx.doc.extensionsUsed ?? []) {
-    if (SUPPORTED_EXTENSIONS.has(ext) || ctx.warned.has(ext)) continue
-    ctx.warned.add(ext)
+    if (SUPPORTED_EXTENSIONS.has(ext)) continue
     const required = ctx.doc.extensionsRequired?.includes(ext)
       ? ' (required)'
       : ''
@@ -382,11 +380,7 @@ function geometryFor(
   if (prim.attributes.TANGENT !== undefined) {
     geom.tangents = readFloats(doc, buffers, prim.attributes.TANGENT)
   }
-  if (
-    prim.attributes.TEXCOORD_1 !== undefined &&
-    !ctx.warned.has('texcoord1')
-  ) {
-    ctx.warned.add('texcoord1')
+  if (prim.attributes.TEXCOORD_1 !== undefined) {
     diagnostics.report(
       'SG6002',
       'loadGltf: TEXCOORD_1 present but only TEXCOORD_0 is read; secondary UV set ignored.',
@@ -573,7 +567,6 @@ export function parseGltf(doc: GltfDoc, buffers: ArrayBuffer[]): Node3D {
     buffers,
     images: new Array<TextureImage | null>(doc.images?.length ?? 0).fill(null),
     nodeByIndex: new Array<Node3D | null>(doc.nodes?.length ?? 0).fill(null),
-    warned: new Set(),
   }
   warnUnsupportedExtensions(ctx)
   const root = new Node3D('gltf-root')

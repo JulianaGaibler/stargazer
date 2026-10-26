@@ -3,7 +3,6 @@ import { PhysicsWorld } from './PhysicsWorld'
 import { BodyType } from './types'
 import { circleShape, aabbShape, polygonShape } from './Collider'
 import { collide } from './manifold'
-import './polygonCollision'
 import { Body } from './Body'
 import { vec2 } from '../math/Vec2'
 

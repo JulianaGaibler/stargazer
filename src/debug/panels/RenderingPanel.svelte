@@ -22,7 +22,13 @@
   import type { MetricHistory } from '../MetricHistory'
   import type { FrameStats } from '../FrameStats'
   import { LABEL_CACHE_MAX } from '../../render/gfx/TextureManager'
-  import { THRESHOLDS, toneFor, type MetricId, type Tone } from '../thresholds'
+  import {
+    THRESHOLDS,
+    TONE_RANK,
+    toneFor,
+    type MetricId,
+    type Tone,
+  } from '../thresholds'
   import { thresholdTip } from '../tips'
   import {
     bytesQuantity,
@@ -248,12 +254,6 @@
     },
   ])
 
-  const TONE_RANK: Record<Tone, number> = {
-    neutral: 0,
-    good: 1,
-    warn: 2,
-    bad: 3,
-  }
   const issues = $derived(
     readings
       .map((r) => ({

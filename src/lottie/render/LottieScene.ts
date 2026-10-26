@@ -81,13 +81,9 @@ export class LottieScene {
   readonly root: Node2D
   readonly #renderer: LottieRenderer
   readonly #comp: SceneComp
-  readonly #width: number
-  readonly #height: number
 
   constructor(renderer: LottieRenderer, width: number, height: number) {
     this.#renderer = renderer
-    this.#width = width
-    this.#height = height
     this.#comp = this.#build(renderer.comp, width, height, 'lottie')
     this.root = this.#comp.node
   }
@@ -291,10 +287,6 @@ export class LottieScene {
       }
       if (ln.inner) this.#applyComp(ln.inner, ln.layer.innerFrame)
     }
-  }
-
-  get size(): { width: number; height: number } {
-    return { width: this.#width, height: this.#height }
   }
 }
 

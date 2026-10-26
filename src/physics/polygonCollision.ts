@@ -2,8 +2,7 @@
  * Polygon narrow-phase via the separating-axis theorem (SAT). Handles
  * polygon/polygon and polygon/AABB (an AABB is a box polygon) with
  * reference/incident-face clipping for up to two contact points, plus
- * circle/polygon as a closest-feature test. Registers itself with the manifold
- * dispatch on import.
+ * circle/polygon as a closest-feature test.
  *
  * Frame-to-frame coherency is exploited with separating-axis caching: the axis
  * that separated a pair last step is tested first, giving an O(1) early-out
@@ -18,7 +17,6 @@ import {
   type CircleShape,
   type PolygonShape,
 } from './Collider'
-import { setPolygonDispatch } from './manifold'
 import type { Manifold } from './types'
 
 /** A convex polygon expanded into world space. */
@@ -335,7 +333,7 @@ function collideCirclePolyWorld(
 }
 
 /** Dispatch for any pair involving at least one polygon. */
-function polygonCollide(a: Collider, b: Collider, m: Manifold): boolean {
+export function polygonCollide(a: Collider, b: Collider, m: Manifold): boolean {
   const ka = a.shape.kind
   const kb = b.shape.kind
   if (ka === 'circle') {
@@ -365,11 +363,4 @@ function worldCircleCenter(c: Collider): Vec2 {
   CENTER.x = c.body.position.x + (c.offset.x * cos - c.offset.y * sin)
   CENTER.y = c.body.position.y + (c.offset.x * sin + c.offset.y * cos)
   return CENTER
-}
-
-setPolygonDispatch(polygonCollide)
-
-/** Idempotent import hook so bundlers keep this module (registers the dispatch). */
-export function registerPolygonCollision(): void {
-  setPolygonDispatch(polygonCollide)
 }

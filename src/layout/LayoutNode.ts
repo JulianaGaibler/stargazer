@@ -145,8 +145,7 @@ export function assertFiniteSize(node: Node2D, size: Size): void {
   if (!Number.isFinite(size.w) || !Number.isFinite(size.h)) {
     throw new StargazerError(
       'SG5007',
-
-      `[stargazer] layout: ${node.constructor.name}('${node.id}') produced a ` +
+      `layout: ${node.constructor.name}('${node.id}') produced a ` +
         `non-finite size { w: ${size.w}, h: ${size.h} }. A node measured on an ` +
         `unbounded axis must size to its content, not to maxW/maxH.`,
     )

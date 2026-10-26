@@ -159,11 +159,9 @@ function signedArea(x: number[], y: number[], count: number): number {
   return a * 0.5
 }
 
-let warnedNonCenterAlign = false
-
 /**
  * Resolve `align` against the input, falling back to `'center'` (with a
- * one-time dev warning) when the fallback alone keeps the border from
+ * diagnostic) when the fallback alone keeps the border from
  * vanishing. An open contour has no inside: `'inside'`/`'outside'` are
  * meaningless on it. A closed contour with zero signed area (a bowtie) has `w *
  * sign(area)` equal to zero too, and "undefined, which side" is not a defense
@@ -176,13 +174,10 @@ function resolveAlign(
 ): StrokeAlign {
   if (align === 'center') return align
   if (closed && Math.abs(area) > EPS) return align
-  if (!warnedNonCenterAlign) {
-    warnedNonCenterAlign = true
-    diagnostics.report(
-      'SG2009',
-      `strokeOutline: '${align}' alignment needs a closed contour with a well-defined winding; falling back to 'center'`,
-    )
-  }
+  diagnostics.report(
+    'SG2009',
+    `strokeOutline: '${align}' alignment needs a closed contour with a well-defined winding; falling back to 'center'`,
+  )
   return 'center'
 }
 
@@ -190,7 +185,7 @@ function resolveAlign(
  * Whether `align` would fall back to `'center'` for this input, the same test
  * {@link resolveAlign} runs, without tessellating or warning. `GpuGfx` calls
  * this to tick the HUD's `strokeAlignFallback` counter on every occurrence,
- * independent of the one-time console warning the real tessellation gives.
+ * independent of the deduplicated diagnostic the real tessellation gives.
  */
 export function wouldFallBackToCenter(
   pts: ArrayLike<number>,

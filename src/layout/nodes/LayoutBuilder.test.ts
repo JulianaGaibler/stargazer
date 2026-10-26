@@ -25,7 +25,8 @@ describe('LayoutBuilder', () => {
     const lb = new LayoutBuilder({ id: 'field' })
     // Default constraints: min 0, max Infinity on both axes.
     expect(lb.measure(new BoxConstraints())).toEqual({ w: 0, h: 0 })
-    expect(warn).toHaveBeenCalledTimes(1) // guarded so it warns once, not every pass
+    lb.measure(new BoxConstraints())
+    expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
   })
 

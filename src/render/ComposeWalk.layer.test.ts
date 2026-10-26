@@ -584,9 +584,11 @@ describe('ComposeWalk with a cached Layer', () => {
     })
     layer.add(new Probe('live-node', f.seen, f.rec))
     f.scene.root.add(layer)
-    f.render()
-    f.render()
-    expect(f.signatures[0]).not.toEqual(f.signatures[1])
+    for (let i = 0; i < 2; i++) {
+      layer._cacheState.invalidated = false
+      f.render()
+      expect(layer._cacheState.invalidated).toBe(true)
+    }
     expect(warn).toHaveBeenCalledTimes(1)
     expect(String(warn.mock.calls[0][0])).toContain('live')
     warn.mockRestore()

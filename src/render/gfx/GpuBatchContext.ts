@@ -619,7 +619,6 @@ export class GpuBatchContext {
       2048,
       'clip',
       true,
-      true,
     )
     // Group 0 carries the per-frame Frame block plus a per-run dynamic clip UBO,
     // so every 2D pipeline reaches the analytic clip through the shared group it
@@ -1154,12 +1153,12 @@ export class GpuBatchContext {
   }
 
   /**
-   * Reserve `words`/`verts` for a vertex batch. Returns the word offset, or
-   * `-1` if the stream is at its size limit.
+   * Reserve `words` for a vertex batch. Returns the word offset, or `-1` if the
+   * stream is at its size limit.
    */
-  reserveVerts(stream: RingStream, words: number, verts: number): number {
+  reserveVerts(stream: RingStream, words: number): number {
     this.stats.primitives++
-    return stream.reserve(this.curSlot, words, verts)
+    return stream.reserve(this.curSlot, words)
   }
 
   /** Instanced counterpart to {@link GpuBatchContext.reserveVerts}. */

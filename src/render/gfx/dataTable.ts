@@ -2,12 +2,12 @@
  * Geometry of a {@link DataTable} on a backend that stores it as a texture.
  *
  * @remarks
- *   For engine developers: a data table is an array of `vec4<f32>` that a vertex
- *   shader reads by index. WebGPU keeps it in a read-only storage buffer.
- *   WebGL2 has no storage buffers, so it keeps the same array in an `RGBA32F`
- *   texture, {@link DATA_TABLE_WIDTH} texels wide, and the shader fetches
- *   element `i` at texel `(i % WIDTH, i / WIDTH)`. Both backends share this
- *   layout so the generated GLSL and the WGSL read the same indices.
+ *   Maintainers: a data table is an array of `vec4<f32>` that a vertex shader
+ *   reads by index. WebGPU keeps it in a read-only storage buffer. WebGL2 has
+ *   no storage buffers, so it keeps the same array in an `RGBA32F` texture,
+ *   {@link DATA_TABLE_WIDTH} texels wide, and the shader fetches element `i` at
+ *   texel `(i % WIDTH, i / WIDTH)`. Both backends share this layout so the
+ *   generated GLSL and the WGSL read the same indices.
  */
 export const DATA_TABLE_WIDTH = 1024
 

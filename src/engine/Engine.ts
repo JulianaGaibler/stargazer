@@ -528,10 +528,7 @@ export class Engine {
    */
   attachStage(canvas: HTMLCanvasElement, opts: StageOptions = {}): Stage {
     if (this.#disposed) {
-      throw new StargazerError(
-        'SG5009',
-        'stargazer: attachStage after engine.destroy()',
-      )
+      throw new StargazerError('SG5009', 'attachStage after engine.destroy()')
     }
     return this.#stageManager.attachStage(this, canvas, opts)
   }

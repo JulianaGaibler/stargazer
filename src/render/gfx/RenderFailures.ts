@@ -13,11 +13,10 @@ export interface RenderFailure {
  * not fail silently.
  *
  * @remarks
- *   For engine developers: pipelines compile asynchronously and a compile error
- *   surfaces as a rejected promise. The owner of the pipelines catches it,
- *   reports it here and keeps going, so draws that do not need the failed
- *   pipeline still render. The same source and message are stored and logged
- *   once.
+ *   Maintainers: pipelines compile asynchronously and a compile error surfaces as
+ *   a rejected promise. The owner of the pipelines catches it, reports it here
+ *   and keeps going, so draws that do not need the failed pipeline still
+ *   render. The same source and message are stored and logged once.
  */
 export class RenderFailures {
   readonly #list: RenderFailure[] = []

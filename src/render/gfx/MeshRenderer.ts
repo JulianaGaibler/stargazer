@@ -85,19 +85,13 @@ import gbufferReflect from './shaders/gbuffer.reflect.json'
 /**
  * The 3D pass's fallback lighting: a single directional light used when the
  * scene has no {@link Light3D} nodes, plus the ambient term applied in every
- * case. Mutate {@link MeshRenderer.light} to retune it.
+ * case.
  */
-export interface FallbackLight {
-  direction: [number, number, number]
-  color: [number, number, number]
-  ambient: [number, number, number]
-}
-
-const DEFAULT_LIGHT: FallbackLight = {
+const FALLBACK_LIGHT = {
   direction: [-0.4, -1, -0.6],
   color: [1, 1, 1],
   ambient: [0.25, 0.25, 0.3],
-}
+} as const
 
 interface GpuMesh {
   posBuf: VBuffer
@@ -409,8 +403,6 @@ export class MeshRenderer {
   readonly #fog: Fog
   #shadowResolution = 0
 
-  light: FallbackLight = { ...DEFAULT_LIGHT }
-  punctualScale = 1
   readonly stats = {
     draws: 0,
     visible: 0,
@@ -603,7 +595,6 @@ export class MeshRenderer {
       8,
       'shadowCam',
       true,
-      true,
     )
     this.#shadowCamBinding = new RingBinding(
       this.#shadowCamRing,
@@ -616,7 +607,6 @@ export class MeshRenderer {
       CUBE_CAM_BYTES,
       8,
       'cubeCam',
-      true,
       true,
     )
     this.#cubeCamBinding = new RingBinding(
@@ -633,7 +623,6 @@ export class MeshRenderer {
       256,
       'flatObj',
       true,
-      true,
     )
     this.#pbrObjectRing = new UboRing(
       device,
@@ -641,14 +630,12 @@ export class MeshRenderer {
       256,
       'pbrObj',
       true,
-      true,
     )
     this.#shadowObjectRing = new UboRing(
       device,
       SHADOW_OBJECT_BYTES,
       256,
       'shadowObj',
-      true,
       true,
     )
     this.#shadowObjectBinding = new RingBinding(
@@ -674,7 +661,6 @@ export class MeshRenderer {
       GBUFFER_OBJECT_BYTES,
       256,
       'gbufObj',
-      true,
       true,
     )
     this.#gbufferObjectBinding = new RingBinding(
@@ -1517,7 +1503,7 @@ export class MeshRenderer {
     s[16] = eye.x
     s[17] = eye.y
     s[18] = eye.z // u_eyePos @16
-    const l = this.light
+    const l = FALLBACK_LIGHT
     s[20] = l.ambient[0]
     s[21] = l.ambient[1]
     s[22] = l.ambient[2] // u_ambient @20
@@ -1562,7 +1548,7 @@ export class MeshRenderer {
     f[16] = eye.x
     f[17] = eye.y
     f[18] = eye.z
-    const amb = this.light.ambient
+    const amb = FALLBACK_LIGHT.ambient
     f[20] = amb[0]
     f[21] = amb[1]
     f[22] = amb[2]
@@ -1648,7 +1634,7 @@ export class MeshRenderer {
     const SHADOW = CONE + MAX_LIGHTS * 4
     F.fill(0)
     if (lights.length === 0) {
-      const l = this.light
+      const l = FALLBACK_LIGHT
       I[0] = 1
       // pos[0] = (0,0,0, type 0), dir[0] = direction, color[0] = color.
       F[DIR + 0] = l.direction[0]
@@ -1666,17 +1652,14 @@ export class MeshRenderer {
       const w = light.worldMatrix
       let type = 0
       let range = 0
-      let gain = 1
       let cosInner = 0
       let cosOuter = 0
       if (light instanceof PointLight3D) {
         type = 1
         range = light.range
-        gain = this.punctualScale
       } else if (light instanceof SpotLight3D) {
         type = 2
         range = light.range
-        gain = this.punctualScale
         cosInner = Math.cos(light.innerConeAngle)
         cosOuter = Math.cos(light.outerConeAngle)
       }
@@ -1688,7 +1671,7 @@ export class MeshRenderer {
       dy /= len
       dz /= len
       const c = light.color
-      const s = light.intensity * gain
+      const s = light.intensity
       const sh = this.#shadowByLight.get(light)
       const opacity = sh ? light.shadowOpacity : 0
       const p = i * 4

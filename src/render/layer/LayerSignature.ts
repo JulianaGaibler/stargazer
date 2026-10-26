@@ -4,10 +4,10 @@
  * pixels, so a layer that kept its last render can use it again.
  *
  * @remarks
- *   Engine developers: the compose walk fills one per cached layer, in tree
- *   order, with everything the subtree's output depends on. It is a flat
- *   `Float64Array` that grows by doubling and is reused every frame, so
- *   building one allocates nothing at rest.
+ *   Maintainers: the compose walk fills one per cached layer, in tree order, with
+ *   everything the subtree's output depends on. It is a flat `Float64Array`
+ *   that grows by doubling and is reused every frame, so building one allocates
+ *   nothing at rest.
  */
 export class LayerSignature {
   /** The pushed values, valid up to `length`. */

@@ -58,12 +58,12 @@ export interface GfxOffscreenHandle {
  * still stands.
  *
  * @remarks
- *   Engine developers: the caller builds `signature` each frame, a list of every
- *   value the subtree's output depends on. The renderer keeps the last render
- *   and the signature it was made from. When the next frame's signature is
- *   equal, the region is the same, and the effects write the same parameters,
- *   it composites the kept render and sets `hit`, and the caller skips drawing
- *   the subtree.
+ *   Maintainers: the caller builds `signature` each frame, a list of every value
+ *   the subtree's output depends on. The renderer keeps the last render and the
+ *   signature it was made from. When the next frame's signature is equal, the
+ *   region is the same, and the effects write the same parameters, it
+ *   composites the kept render and sets `hit`, and the caller skips drawing the
+ *   subtree.
  */
 export interface GfxSurfaceCache {
   /** The values describing what the subtree would draw. */
@@ -84,10 +84,10 @@ export interface GfxSurfaceCache {
  * composited, and where to report whether they ran.
  *
  * @remarks
- *   Engine developers: `owner` keys the state that has to outlive a frame (the
- *   effects' params buffers and accumulated time), so pass the same object
- *   every frame. `effects` is read each frame, so the list and the effects can
- *   change freely. The renderer sets `applied` when it opens the surface.
+ *   Maintainers: `owner` keys the state that has to outlive a frame (the effects'
+ *   params buffers and accumulated time), so pass the same object every frame.
+ *   `effects` is read each frame, so the list and the effects can change
+ *   freely. The renderer sets `applied` when it opens the surface.
  */
 export interface GfxSurfaceEffects {
   /** What the per-owner state is kept under. */
@@ -198,10 +198,10 @@ export interface GfxLinearGradient {
  * toward it. A focal point on or outside the circle is pulled just inside.
  *
  * @remarks
- *   Engine developers: the shader solves for the circle through the point whose
- *   center slides from the focal point to `(cx, cy)` while its radius grows
- *   from 0 to `r`. It assumes the transform scales both axes alike, and a
- *   skewed or non-uniformly scaled transform distorts the rings.
+ *   Maintainers: the shader solves for the circle through the point whose center
+ *   slides from the focal point to `(cx, cy)` while its radius grows from 0 to
+ *   `r`. It assumes the transform scales both axes alike, and a skewed or
+ *   non-uniformly scaled transform distorts the rings.
  * @example
  *   gfx.fillCircle(100, 100, 80, {
  *     kind: 'radial',
@@ -679,10 +679,9 @@ export interface Gfx2D {
    *   The surface has the main target's format and starts from a clean state:
    *   alpha 1, normal blend, no clip. Clips set inside do not leak out.
    *
-   *   Engine developers: surfaces are pooled and claimed for one frame. Every
-   *   surface renders in a pass of its own before the main pass, nested
-   *   surfaces before the surface that contains them, and composites replay in
-   *   painter order.
+   *   Maintainers: surfaces are pooled and claimed for one frame. Every surface
+   *   renders in a pass of its own before the main pass, nested surfaces before
+   *   the surface that contains them, and composites replay in painter order.
    */
   beginOffscreen(opts?: GfxOffscreenOptions): boolean
   /**

@@ -286,7 +286,6 @@ export class ColoredTriProgram implements GpuProgram {
       2048,
       'drawParams',
       true,
-      true,
     )
     this.#clipBindGroups = new WeakMap()
 
@@ -327,7 +326,6 @@ export class ColoredTriProgram implements GpuProgram {
       MODELCOLOR_BYTES,
       2048,
       'modelColor',
-      true,
       true,
     )
     this.#retainedBindGroups = new WeakMap()
@@ -435,24 +433,16 @@ export class ColoredTriProgram implements GpuProgram {
   }
 
   /**
-   * Begin (or continue) the `coloredTri` batch for the current clip mask and
-   * `paint`. `paint` defaults to `null` (a solid fill): passing it explicitly
-   * even when `null` is what makes a solid fill right after a gradient fill
-   * break the batch rather than merge into the gradient's run and draw with its
-   * `DrawParams` slice.
-   */
-  /**
    * Reserve vertex words in the stream and note the clip record the vertices
    * written next should carry.
    */
   #reserveVerts(
     ctx: GpuBatchContext,
     words: number,
-    verts: number,
     stream: RingStream = this.#stream,
   ): number {
     coloredVertexParam.index = ctx.curClipIndex
-    return ctx.reserveVerts(stream, words, verts)
+    return ctx.reserveVerts(stream, words)
   }
 
   #beginFan(ctx: GpuBatchContext, rule: FillRule): void {
@@ -463,6 +453,13 @@ export class ColoredTriProgram implements GpuProgram {
     })
   }
 
+  /**
+   * Begin (or continue) the `coloredTri` batch for the current clip mask and
+   * `paint`. `paint` defaults to `null` (a solid fill): passing it explicitly
+   * even when `null` is what makes a solid fill right after a gradient fill
+   * break the batch rather than merge into the gradient's run and draw with its
+   * `DrawParams` slice.
+   */
   begin(
     ctx: GpuBatchContext,
     paint: ResolvedRunPaint | null = null,
@@ -530,14 +527,6 @@ export class ColoredTriProgram implements GpuProgram {
         opacity: ctx.stateStack.getAlpha(),
       },
     }
-  }
-
-  reserve(slot: number, wordsNeeded: number, vertCount: number): number {
-    return this.#stream.reserve(slot, wordsNeeded, vertCount)
-  }
-
-  commit(slot: number, wordsAdded: number, vertCount: number): void {
-    this.#stream.commit(slot, wordsAdded, vertCount)
   }
 
   get floatView(): Float32Array {
@@ -618,7 +607,7 @@ export class ColoredTriProgram implements GpuProgram {
     const slot = ctx.curSlot
     // 6 verts × 5 words each.
     const wordsNeeded = 6 * COLORED_TRI_WORDS
-    const off = this.#reserveVerts(ctx, wordsNeeded, 6)
+    const off = this.#reserveVerts(ctx, wordsNeeded)
     if (off < 0) return
     // Four local corners of the rect.
     const x0 = x
@@ -706,7 +695,7 @@ export class ColoredTriProgram implements GpuProgram {
       uD,
       vD,
     )
-    this.#stream.commit(slot, wordsNeeded, 6)
+    this.#stream.commit(slot, wordsNeeded)
   }
 
   /** `Gfx2D.fillConvexPoly`. */
@@ -726,7 +715,7 @@ export class ColoredTriProgram implements GpuProgram {
     const slot = ctx.curSlot
     const vertCount = (count - 2) * 3
     const wordsNeeded = vertCount * COLORED_TRI_WORDS
-    const off = this.#reserveVerts(ctx, wordsNeeded, vertCount)
+    const off = this.#reserveVerts(ctx, wordsNeeded)
     if (off < 0) return
     const mask = ctx.curClipMask
     const mrx = mask ? mask.worldRect.x : 0
@@ -778,7 +767,7 @@ export class ColoredTriProgram implements GpuProgram {
       )
       cursor += 3 * COLORED_TRI_WORDS
     }
-    this.#stream.commit(slot, wordsNeeded, vertCount)
+    this.#stream.commit(slot, wordsNeeded)
   }
 
   /** `Gfx2D.fillPath2D`'s emission tail, once a tessellation is resolved. */
@@ -797,7 +786,7 @@ export class ColoredTriProgram implements GpuProgram {
     const triCount = geo.indices.length / 3
     const vertCount = geo.indices.length
     const wordsNeeded = vertCount * COLORED_TRI_WORDS
-    const off = this.#reserveVerts(ctx, wordsNeeded, vertCount)
+    const off = this.#reserveVerts(ctx, wordsNeeded)
     if (off < 0) return
     const mask = ctx.curClipMask
     const mrx = mask ? mask.worldRect.x : 0
@@ -857,7 +846,7 @@ export class ColoredTriProgram implements GpuProgram {
       )
       cursor += 3 * COLORED_TRI_WORDS
     }
-    this.#stream.commit(slot, wordsNeeded, vertCount)
+    this.#stream.commit(slot, wordsNeeded)
   }
 
   /**
@@ -883,7 +872,7 @@ export class ColoredTriProgram implements GpuProgram {
     const triCount = geo.indices.length / 3
     const vertCount = geo.indices.length
     const wordsNeeded = vertCount * COLORED_TRI_WORDS
-    const off = this.#reserveVerts(ctx, wordsNeeded, vertCount)
+    const off = this.#reserveVerts(ctx, wordsNeeded)
     if (off < 0) return
     const clipMask = ctx.curClipMask
     const mrx = clipMask ? clipMask.worldRect.x : 0
@@ -943,7 +932,7 @@ export class ColoredTriProgram implements GpuProgram {
       )
       cursor += 3 * COLORED_TRI_WORDS
     }
-    this.#stream.commit(slot, wordsNeeded, vertCount)
+    this.#stream.commit(slot, wordsNeeded)
   }
 
   /**
@@ -980,7 +969,7 @@ export class ColoredTriProgram implements GpuProgram {
     const slot = ctx.curSlot
     const vertCount = outline.indices.length
     const wordsNeeded = vertCount * COLORED_TRI_WORDS
-    const off = this.#reserveVerts(ctx, wordsNeeded, vertCount)
+    const off = this.#reserveVerts(ctx, wordsNeeded)
     if (off < 0) return
     const mask = ctx.curClipMask
     const mrx = mask ? mask.worldRect.x : 0
@@ -1010,7 +999,7 @@ export class ColoredTriProgram implements GpuProgram {
       writeColoredVert(f, u, cursor, dx, dy, packedColor, mu, mv)
       cursor += COLORED_TRI_WORDS
     }
-    this.#stream.commit(slot, wordsNeeded, vertCount)
+    this.#stream.commit(slot, wordsNeeded)
   }
 
   /**
@@ -1104,7 +1093,7 @@ export class ColoredTriProgram implements GpuProgram {
     const slot = ctx.curSlot
     const vertCount = triCount * 3
     const wordsNeeded = vertCount * COLORED_TRI_WORDS
-    const off = this.#reserveVerts(ctx, wordsNeeded, vertCount)
+    const off = this.#reserveVerts(ctx, wordsNeeded)
     if (off < 0) return
     const cStart = parseColor(colorStart)
     const cEnd = parseColor(colorEnd)
@@ -1180,7 +1169,7 @@ export class ColoredTriProgram implements GpuProgram {
       )
       cursor += 3 * COLORED_TRI_WORDS
     }
-    this.#stream.commit(slot, wordsNeeded, vertCount)
+    this.#stream.commit(slot, wordsNeeded)
   }
 
   /**
@@ -1247,7 +1236,7 @@ export class ColoredTriProgram implements GpuProgram {
 
     this.#beginFan(ctx, rule)
     const fanStream = this.fan.stream
-    const fanOff = this.#reserveVerts(ctx, fanWords, triCount * 3, fanStream)
+    const fanOff = this.#reserveVerts(ctx, fanWords, fanStream)
     if (fanOff < 0) return false
     const ff = fanStream.floatView
     const fu = fanStream.uintView
@@ -1284,10 +1273,10 @@ export class ColoredTriProgram implements GpuProgram {
         cursor += 3 * COLORED_TRI_WORDS
       }
     }
-    fanStream.commit(slot, fanWords, triCount * 3)
+    fanStream.commit(slot, fanWords)
 
     this.begin(ctx, resolved.paint, coverRow(rule))
-    const coverOff = this.#reserveVerts(ctx, coverWords, 6)
+    const coverOff = this.#reserveVerts(ctx, coverWords)
     if (coverOff < 0) return false
     const f = this.#stream.floatView
     const u = this.#stream.uintView
@@ -1317,7 +1306,7 @@ export class ColoredTriProgram implements GpuProgram {
       writeColoredVert(f, u, cursor, px, py, color, uv[0], uv[1])
       cursor += COLORED_TRI_WORDS
     }
-    this.#stream.commit(slot, coverWords, 6)
+    this.#stream.commit(slot, coverWords)
     return true
   }
 
@@ -1377,7 +1366,7 @@ export class ColoredTriProgram implements GpuProgram {
     const quadWords = 6 * COLORED_TRI_WORDS
     const slot = ctx.curSlot
     this.begin(ctx, null, fanRow(rule))
-    const off = this.#reserveVerts(ctx, fanWords + quadWords, triCount * 3 + 6)
+    const off = this.#reserveVerts(ctx, fanWords + quadWords)
     if (off < 0) return null
     const f = this.#stream.floatView
     const u = this.#stream.uintView
@@ -1414,14 +1403,14 @@ export class ColoredTriProgram implements GpuProgram {
         cursor += 3 * COLORED_TRI_WORDS
       }
     }
-    this.#stream.commit(slot, fanWords, triCount * 3)
+    this.#stream.commit(slot, fanWords)
     this.begin(
       ctx,
       null,
       rule === 'nonzero' ? 'clipApplyNonzero' : 'clipApplyEvenOdd',
     )
     this.#writeQuad(f, u, cursor, bounds)
-    this.#stream.commit(slot, quadWords, 6)
+    this.#stream.commit(slot, quadWords)
     return bounds
   }
 
@@ -1432,10 +1421,10 @@ export class ColoredTriProgram implements GpuProgram {
   clipPop(ctx: GpuBatchContext, bounds: ClipBounds): void {
     const quadWords = 6 * COLORED_TRI_WORDS
     this.begin(ctx, null, 'clipPop')
-    const off = this.#reserveVerts(ctx, quadWords, 6)
+    const off = this.#reserveVerts(ctx, quadWords)
     if (off < 0) return
     this.#writeQuad(this.#stream.floatView, this.#stream.uintView, off, bounds)
-    this.#stream.commit(ctx.curSlot, quadWords, 6)
+    this.#stream.commit(ctx.curSlot, quadWords)
   }
 
   #writeQuad(f: Float32Array, u: Uint32Array, at: number, b: ClipBounds): void {

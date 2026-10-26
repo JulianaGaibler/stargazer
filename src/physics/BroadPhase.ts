@@ -14,6 +14,11 @@ export type PairCallback = (a: Body, b: Body) => void
 
 /** Broad-phase index over the world's bodies. */
 export interface BroadPhase {
+  /**
+   * Fat-AABB margin. When defined, the world overwrites it with its
+   * `aabbMargin`.
+   */
+  margin?: number
   /** Start tracking `body`. */
   insert(body: Body): void
   /** Stop tracking `body`. */

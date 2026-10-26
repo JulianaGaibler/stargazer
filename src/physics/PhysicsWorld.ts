@@ -24,7 +24,6 @@ import { rayVsCollider } from './raycast'
 import { LAYER_ALL } from './layers'
 import type { KinematicHit, RaycastHit } from './types'
 import { vec2, type Vec2 } from '../math/Vec2'
-import { registerPolygonCollision } from './polygonCollision'
 
 /**
  * Tuning for a {@link PhysicsWorld}. Every field has a default. Pass only what
@@ -157,28 +156,7 @@ export class PhysicsWorld {
 
   #settleResolvers: Array<() => void> = []
 
-  // Pooled event payloads.
-  readonly #evCollisionEnter = {
-    a: null as unknown as Body,
-    b: null as unknown as Body,
-    manifold: null as unknown as Manifold,
-  }
-  readonly #evCollisionExit = {
-    a: null as unknown as Body,
-    b: null as unknown as Body,
-  }
-  readonly #evTriggerEnter = {
-    sensor: null as unknown as Collider,
-    other: null as unknown as Collider,
-    sensorBody: null as unknown as Body,
-    otherBody: null as unknown as Body,
-  }
-  readonly #evTriggerExit = {
-    sensor: null as unknown as Collider,
-    other: null as unknown as Collider,
-    sensorBody: null as unknown as Body,
-    otherBody: null as unknown as Body,
-  }
+  // Pooled event payloads. Overlap events emit their records directly.
   readonly #evSleep = { body: null as unknown as Body }
   readonly #evWake = { body: null as unknown as Body }
 
@@ -205,13 +183,11 @@ export class PhysicsWorld {
     this.#broadPhaseCellSize = config.broadPhaseCellSize
     this.#broadPhase = config.broadPhase ?? new BruteForceBroadPhase()
     this.#setBroadPhaseMargin()
-    // Ensure the polygon narrow-phase is registered with the manifold dispatch.
-    registerPolygonCollision()
   }
 
   #setBroadPhaseMargin(): void {
-    if ('margin' in this.#broadPhase) {
-      ;(this.#broadPhase as { margin: number }).margin = this.config.aabbMargin
+    if (this.#broadPhase.margin !== undefined) {
+      this.#broadPhase.margin = this.config.aabbMargin
     }
   }
 
@@ -377,7 +353,6 @@ export class PhysicsWorld {
       if (moved === 0) break
     }
 
-    this.#updateSleep(dt)
     this.#diffAndEmit()
 
     if (this.isAtRest()) this.#flushSettle()
@@ -541,30 +516,19 @@ export class PhysicsWorld {
     return rvx * m.normal.x + rvy * m.normal.y
   }
 
-  #updateSleep(_dt: number): void {
-    // Sleep timing is handled inside integrate. Nothing else needed here yet.
-  }
-
   #diffAndEmit(): void {
     // Solid enter/exit.
     for (const key of this.#curSolid) {
       if (!this.#prevSolid.has(key)) {
         const rec = this.#solidRecords.get(key)
-        if (rec) {
-          this.#evCollisionEnter.a = rec.a
-          this.#evCollisionEnter.b = rec.b
-          this.#evCollisionEnter.manifold = rec.manifold
-          this.events.emit('collisionEnter', this.#evCollisionEnter)
-        }
+        if (rec) this.events.emit('collisionEnter', rec)
       }
     }
     for (const key of this.#prevSolid) {
       if (!this.#curSolid.has(key)) {
         const rec = this.#solidRecords.get(key)
         if (rec) {
-          this.#evCollisionExit.a = rec.a
-          this.#evCollisionExit.b = rec.b
-          this.events.emit('collisionExit', this.#evCollisionExit)
+          this.events.emit('collisionExit', rec)
           this.#solidRecords.delete(key)
         }
       }
@@ -573,24 +537,14 @@ export class PhysicsWorld {
     for (const key of this.#curSensor) {
       if (!this.#prevSensor.has(key)) {
         const rec = this.#sensorRecords.get(key)
-        if (rec) {
-          this.#evTriggerEnter.sensor = rec.sensor
-          this.#evTriggerEnter.other = rec.other
-          this.#evTriggerEnter.sensorBody = rec.sensorBody
-          this.#evTriggerEnter.otherBody = rec.otherBody
-          this.events.emit('triggerEnter', this.#evTriggerEnter)
-        }
+        if (rec) this.events.emit('triggerEnter', rec)
       }
     }
     for (const key of this.#prevSensor) {
       if (!this.#curSensor.has(key)) {
         const rec = this.#sensorRecords.get(key)
         if (rec) {
-          this.#evTriggerExit.sensor = rec.sensor
-          this.#evTriggerExit.other = rec.other
-          this.#evTriggerExit.sensorBody = rec.sensorBody
-          this.#evTriggerExit.otherBody = rec.otherBody
-          this.events.emit('triggerExit', this.#evTriggerExit)
+          this.events.emit('triggerExit', rec)
           this.#sensorRecords.delete(key)
         }
       }
@@ -608,9 +562,7 @@ export class PhysicsWorld {
   #purgeOverlaps(body: Body): void {
     for (const [key, rec] of this.#solidRecords) {
       if (rec.a === body || rec.b === body) {
-        this.#evCollisionExit.a = rec.a
-        this.#evCollisionExit.b = rec.b
-        this.events.emit('collisionExit', this.#evCollisionExit)
+        this.events.emit('collisionExit', rec)
         this.#solidRecords.delete(key)
         this.#prevSolid.delete(key)
         this.#curSolid.delete(key)
@@ -618,11 +570,7 @@ export class PhysicsWorld {
     }
     for (const [key, rec] of this.#sensorRecords) {
       if (rec.sensorBody === body || rec.otherBody === body) {
-        this.#evTriggerExit.sensor = rec.sensor
-        this.#evTriggerExit.other = rec.other
-        this.#evTriggerExit.sensorBody = rec.sensorBody
-        this.#evTriggerExit.otherBody = rec.otherBody
-        this.events.emit('triggerExit', this.#evTriggerExit)
+        this.events.emit('triggerExit', rec)
         this.#sensorRecords.delete(key)
         this.#prevSensor.delete(key)
         this.#curSensor.delete(key)
