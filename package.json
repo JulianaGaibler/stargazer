@@ -2,7 +2,7 @@
   "name": "@julianagaibler/stargazer",
   "version": "0.1.0",
   "type": "module",
-  "description": "A TypeScript 2D rendering engine for the browser, with WebGPU and WebGL2 backends and an optional 3D pass.",
+  "description": "A rendering engine written in TypeScript.",
   "license": "MPL-2.0",
   "author": "Juliana Gaibler",
   "repository": {
