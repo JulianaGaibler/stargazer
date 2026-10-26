@@ -257,6 +257,17 @@ export interface GfxTextStyle {
   baseline?: CanvasTextBaseline
   /** CSS color, baked into the bitmap. Default `'#000'`. */
   color?: string
+  /**
+   * Draw `color` as a tint over a white bitmap instead of baking it in. Text in
+   * every color then shares one bitmap per string, font and size, so many
+   * colors of the same text cost one raster. Default `false`.
+   *
+   * @remarks
+   *   The bitmap is multiplied by the color, so a multi-color glyph such as an
+   *   emoji comes out in the one color. Changing a tinted `color` draws from
+   *   the same bitmap, so unlike baked text it can be animated.
+   */
+  tint?: boolean
 }
 
 /**
@@ -345,8 +356,9 @@ export type SolidStrokeStyle = GfxStrokeStyle & { color: string }
 /**
  * A CSS `box-shadow`-like drop shadow. A rect, rounded rect, or circle (via
  * `ShapeNode`) draws this analytically, no render target. An arbitrary path
- * (via `Path2DNode`) draws it from a cached blurred-coverage mask instead: see
- * the path-shadows guide for what that costs and what is free to animate.
+ * (via `Path2DNode`) draws it from a cached blurred-coverage mask instead. The
+ * mask is baked once and reused, so animating the offset is free, while an
+ * animated blur or spread bakes it again.
  *
  * @example
  *   gfx.shadowRoundRect(0, 0, 240, 140, 16, {

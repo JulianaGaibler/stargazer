@@ -732,6 +732,30 @@ export class Canvas {
   }
 
   /**
+   * Rasterizes `text` at the scale in force now without drawing it, so it is
+   * ready when the text is drawn at that scale. The picture records the call
+   * and the work is done at replay, at the scale the node is drawn at then.
+   *
+   * @remarks
+   *   Under a {@link Canvas.scale} that takes the text to the size an animation
+   *   ends at, it gives a zoom a sharp raster from its first frame. While text
+   *   grows or shrinks, the renderer draws it from the smallest raster at least
+   *   as large, so a growing text drawn from the warmed raster is sharp all the
+   *   way and does not pop when it lands. A raster that is there already costs
+   *   a cache lookup.
+   * @example
+   *   // A zoom from `scale` to `to`: warm the size it ends at.
+   *   canvas.save()
+   *   canvas.scale(to / scale, to / scale)
+   *   canvas.warmText(line, { font })
+   *   canvas.restore()
+   *   canvas.fillText(line, 0, 0, { font })
+   */
+  warmText(text: string, style: GfxTextStyle = {}): void {
+    this.#rec(Op.warmText, text, { ...style })
+  }
+
+  /**
    * Text is drawn at the scale the node is drawn at, so the picture records the
    * call and the label is rasterized at replay. The picture is marked scale
    * dependent only for its bounds, which come from the string's measure.

@@ -142,6 +142,41 @@ describe('GpuGfx.fillText', () => {
     expect(uv[22]).toBe(0x80808080)
   })
 
+  it('draws a tinted label from a white bitmap, in its color times the alpha', async () => {
+    const { gfx, device } = makeGpuGfx()
+    await beginFrame(gfx, device)
+    gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
+    gfx.setAlpha(0.5)
+    gfx.fillText('hi', 0, 0, { font: '10px x', color: '#ff0000', tint: true })
+    gfx.endFrame()
+    const uv = new Uint32Array(device.draws[0].bufferSnapshot as ArrayBuffer)
+    // Premultiplied, byte 0 = R: red 128, green 0, blue 0, alpha 128.
+    expect(uv[22]).toBe(0x80000080)
+  })
+
+  it('shares one bitmap between every color of tinted text', async () => {
+    const { gfx, device } = makeGpuGfx()
+    await beginFrame(gfx, device)
+    gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
+    gfx.setAlpha(1)
+    for (const color of ['#f00', '#0f0', '#00f', 'rgb(10, 20, 30)']) {
+      gfx.fillText('hi', 0, 0, { font: '10px x', color, tint: true })
+    }
+    gfx.endFrame()
+    expect(device.subImageUploads.length).toBe(1)
+    expect(device.draws[0].instanceCount).toBe(4)
+  })
+
+  it('keeps baked and tinted text of one color apart', async () => {
+    const { gfx, device } = makeGpuGfx()
+    await beginFrame(gfx, device)
+    gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
+    gfx.fillText('hi', 0, 0, { font: '10px x', color: '#f00' })
+    gfx.fillText('hi', 0, 0, { font: '10px x', color: '#f00', tint: true })
+    gfx.endFrame()
+    expect(device.subImageUploads.length).toBe(2)
+  })
+
   it('packs many distinct labels into one page -> one bind, one draw', async () => {
     const { gfx, device } = makeGpuGfx()
     await beginFrame(gfx, device)
@@ -190,6 +225,16 @@ describe('GpuGfx.warmText', () => {
     gfx.fillText('later', 10, 10, { font: '16px sans-serif' })
     gfx.endFrame()
     expect(device.textures.length).toBe(warmed)
+  })
+
+  it('warms a tinted label for every color it is drawn in', async () => {
+    const { gfx, device } = makeGpuGfx()
+    await beginFrame(gfx, device)
+    gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
+    gfx.warmText('hi', { font: '10px x', color: '#fff', tint: true })
+    gfx.fillText('hi', 0, 0, { font: '10px x', color: '#123456', tint: true })
+    gfx.endFrame()
+    expect(device.subImageUploads.length).toBe(1)
   })
 
   it('ignores an empty string', async () => {

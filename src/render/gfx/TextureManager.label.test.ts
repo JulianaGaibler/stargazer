@@ -244,6 +244,102 @@ describe('label raster hold', () => {
   })
 })
 
+describe('text label near sizes', () => {
+  const frame = (): void => tm.resetLabelBudget()
+  const font = { head: '600 ', tail: ' x' }
+  const text = (scale: number) =>
+    tm.ensureTextLabel('line', 'a line', { ...style }, font, 10, scale)
+
+  it('draws a raster a hair off the size instead of making a new one', () => {
+    const first = text(2)
+    const before = device.subImageUploads.length
+    for (const scale of [2.005, 2.02, 1.98]) {
+      for (let i = 0; i < 10; i++) {
+        frame()
+        expect(text(scale)).toBe(first)
+      }
+    }
+    expect(device.subImageUploads.length).toBe(before)
+  })
+
+  it('makes a new raster for a size further off', () => {
+    const first = text(2)
+    let last = first
+    for (let i = 0; i < 10; i++) {
+      frame()
+      last = text(2.2)
+    }
+    expect(last).not.toBe(first)
+    expect(last?.px).toBe(22)
+  })
+
+  it('holds its last raster through a zoom that starts after a rest', () => {
+    const rest = text(2)
+    for (let i = 0; i < 20; i++) {
+      frame()
+      text(2)
+    }
+    const before = device.subImageUploads.length
+    for (let i = 1; i <= 6; i++) {
+      frame()
+      expect(text(2 + i * 0.1)).toBe(rest)
+    }
+    expect(device.subImageUploads.length).toBe(before)
+  })
+
+  it('makes a warmed raster at once, even while the size is changing', () => {
+    text(2)
+    frame()
+    text(2.2)
+    const warmed = tm.ensureTextLabel(
+      'line',
+      'a line',
+      { ...style },
+      font,
+      10,
+      3,
+      true,
+    )
+    expect(warmed?.px).toBe(30)
+  })
+
+  it('draws a growing text from the warmed raster it grows into', () => {
+    text(2)
+    const target = tm.ensureTextLabel(
+      'line',
+      'a line',
+      { ...style },
+      font,
+      10,
+      3,
+      true,
+    )
+    const before = device.subImageUploads.length
+    for (let i = 1; i <= 10; i++) {
+      frame()
+      expect(text(2 + i * 0.1)).toBe(target)
+    }
+    expect(device.subImageUploads.length).toBe(before)
+  })
+
+  it('makes an exact raster at rest rather than keep drawing a larger one', () => {
+    tm.ensureTextLabel('line', 'a line', { ...style }, font, 10, 3, true)
+    let last = text(2)
+    for (let i = 0; i < 10; i++) {
+      frame()
+      last = text(2)
+    }
+    expect(last?.px).toBe(20)
+  })
+
+  it('makes exact rasters for a surface that does not hold labels', () => {
+    tm.holdLabels = false
+    const first = text(2)
+    frame()
+    expect(text(2.02)).not.toBe(first)
+  })
+})
+
 describe('label page overflow', () => {
   it("keeps this frame's slots intact and resets the page on the next frame", () => {
     // Each label takes about 400 by 160 px, so a 2048 page holds about 60.

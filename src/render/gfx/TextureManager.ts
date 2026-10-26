@@ -191,6 +191,17 @@ const LABEL_SCALE_EPSILON = 0.002
 const LABEL_BORROW_OFFSETS = [1, 2, 3, -1, -2] as const
 /** Most labels whose scale motion is tracked at once. */
 const LABEL_MOTION_MAX = 2048
+/**
+ * How far a text label's cached raster may be from the size asked for and still
+ * be drawn instead of a new one: up to 3% larger, which only minifies, or 1.5%
+ * smaller. Text is rasterized at its exact device px, so without this a card
+ * that comes to rest a hair off its last size, as the tail of an ease often
+ * does, rasterizes all its text again and fills the page with near copies.
+ */
+const TEXT_REUSE_LARGER = 1.03
+const TEXT_REUSE_SMALLER = 1.015
+/** Raster sizes remembered per text label for {@link TEXT_REUSE_LARGER}. */
+const TEXT_SIZES_KEPT = 4
 
 /** How a label's requested scale has moved over recent frames. */
 interface LabelMotion {
@@ -436,6 +447,8 @@ export class TextureManager implements TextureInspector {
   #labelPageWipes = 0
   #labelRasters = 0
   #labelMotion = new Map<string, LabelMotion>()
+  /** The px sizes each text label was last rasterized at, newest last. */
+  #textSizes = new Map<string, number[]>()
   #labelUploadBytes = 0
   #labelDedicated = 0
   #labelHolds = 0
@@ -1071,9 +1084,15 @@ export class TextureManager implements TextureInspector {
    * keyed by the font without its size (`familyKey`) and the size in device px,
    * and rasterized at exactly that size, so text at rest is drawn texel for
    * pixel. Text whose font grows while its scale shrinks keeps one raster.
-   * While the device size keeps changing, the label draws from the raster it
-   * last made, up to 2x larger or 1.6x smaller, and a new one is made at the
-   * exact size once it settles or leaves that range.
+   * While the device size keeps changing, the label draws from the smallest
+   * cached raster at least as large, up to 2x, which stays sharp. Without one
+   * it draws from the raster it last made, up to 2x larger or 1.6x smaller, and
+   * a new one is made at the exact size once it settles or leaves that range.
+   *
+   * With `warm`, a raster at the size, or within {@link TEXT_REUSE_LARGER} of
+   * it, is there on return whether the size is changing or not, and nothing
+   * about the label's motion is recorded. Warming the size a zoom ends at gives
+   * the zoom a sharp raster from its first frame.
    */
   ensureTextLabel(
     familyKey: string,
@@ -1082,6 +1101,7 @@ export class TextureManager implements TextureInspector {
     font: LabelFontTemplate,
     fontPx: number,
     deviceScale: number,
+    warm = false,
   ): LabelTexture | null {
     const device = fontPx * deviceScale
     if (!(device > 0)) return null
@@ -1092,12 +1112,23 @@ export class TextureManager implements TextureInspector {
       hit.usedFrame = this.#labelFrame
       return hit
     }
-    const settled = this.#noteLabelScale(familyKey, device)
-    const motion = this.#labelMotion.get(familyKey)
+    const sizes = this.#textSizes.get(familyKey)
+    if (this.holdLabels && sizes) {
+      const close = this.#closeTextRaster(familyKey, sizes, device)
+      if (close) return close
+    }
+    const settled = warm || this.#noteLabelScale(familyKey, device)
+    const motion = warm ? undefined : this.#labelMotion.get(familyKey)
     if (
       this.holdLabels &&
+      !warm &&
       (!settled || this.#labelRegensThisFrame >= LABEL_MAX_REGENS_PER_FRAME)
     ) {
+      const larger = sizes && this.#largerTextRaster(familyKey, sizes, device)
+      if (larger) {
+        this.#labelHolds++
+        return larger
+      }
       const last = motion?.lastPx ?? 0
       const near =
         last > 0 && last <= device * 2 && last * 1.6 >= device
@@ -1123,8 +1154,67 @@ export class TextureManager implements TextureInspector {
     this.#labelCache.set(key, entry)
     this.#labelRegensThisFrame++
     if (motion) motion.lastPx = px
+    this.#noteTextSize(familyKey, sizes, px)
     if (this.#labelCache.size > LABEL_CACHE_MAX) this.#evictLabel()
     return entry
+  }
+
+  /**
+   * A cached raster of the text label within {@link TEXT_REUSE_LARGER} of
+   * `device` px, touched so it stays resident, or null.
+   */
+  #closeTextRaster(
+    familyKey: string,
+    sizes: number[],
+    device: number,
+  ): LabelCacheEntry | null {
+    for (let i = sizes.length - 1; i >= 0; i--) {
+      const px = sizes[i]!
+      if (px > device * TEXT_REUSE_LARGER) continue
+      if (px * TEXT_REUSE_SMALLER < device) continue
+      const entry = this.#labelCache.get(`${familyKey}@${px}`)
+      if (!entry) continue
+      entry.usedFrame = this.#labelFrame
+      return entry
+    }
+    return null
+  }
+
+  /**
+   * The smallest cached raster of the text label at least `device` px and at
+   * most twice that, touched so it stays resident, or null. Drawn smaller, it
+   * stays sharp.
+   */
+  #largerTextRaster(
+    familyKey: string,
+    sizes: number[],
+    device: number,
+  ): LabelCacheEntry | null {
+    let best: LabelCacheEntry | null = null
+    let bestPx = Infinity
+    for (const px of sizes) {
+      if (px < device || px > device * 2 || px >= bestPx) continue
+      const entry = this.#labelCache.get(`${familyKey}@${px}`)
+      if (!entry) continue
+      best = entry
+      bestPx = px
+    }
+    if (best) best.usedFrame = this.#labelFrame
+    return best
+  }
+
+  #noteTextSize(
+    familyKey: string,
+    sizes: number[] | undefined,
+    px: number,
+  ): void {
+    if (!sizes) {
+      this.#textSizes.set(familyKey, [px])
+      if (this.#textSizes.size > LABEL_MOTION_MAX) evictOldest(this.#textSizes)
+      return
+    }
+    sizes.push(px)
+    if (sizes.length > TEXT_SIZES_KEPT) sizes.shift()
   }
 
   /** Ids for image sources, so a raster's cache key can name its source. */
@@ -1282,7 +1372,9 @@ export class TextureManager implements TextureInspector {
     const frame = this.#labelFrame
     let m = this.#labelMotion.get(baseKey)
     if (!m || frame - m.last > 1) {
-      m = { scale, since: frame, last: frame }
+      // A label at rest hits the cache and notes nothing, so its record goes
+      // stale. The raster it last made is still the one to hold on to.
+      m = { lastPx: m?.lastPx, scale, since: frame, last: frame }
       this.#labelMotion.set(baseKey, m)
       if (this.#labelMotion.size > LABEL_MOTION_MAX) {
         evictOldest(this.#labelMotion)

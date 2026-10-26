@@ -4,6 +4,7 @@
 import type { GfxTextStyle } from './Gfx2D'
 import type { GpuBatchContext } from './GpuBatchContext'
 import { SHAPE_TEX_LABEL } from './batchLayout'
+import { packColor } from './packing'
 import { labelFont } from './labelFont'
 import { DEFAULT_LABEL_FONT, type LabelStyle } from './rasterizeLabel'
 import type { ShapeProgram } from './programs/shape'
@@ -12,6 +13,9 @@ import type { LabelTexture } from './TextureManager'
 
 /** The style a `fillText` call without one draws with. */
 const NO_TEXT_STYLE: GfxTextStyle = {}
+
+/** The color a tinted label is rasterized in, so the tint alone colors it. */
+const TINT_BASE = '#fff'
 
 /**
  * The scale-independent half of a label's cache key. `TextureManager` appends
@@ -55,26 +59,28 @@ export class TextDraw {
     const t = this.#ctx.txOut
     const deviceScale = Math.max(Math.hypot(t.a, t.b), Math.hypot(t.c, t.d))
     if (!(deviceScale > 0)) return
-    this.#label(text, style, deviceScale)
+    this.#label(text, style, deviceScale, true)
   }
 
   /**
    * The label for `text`. A font with a px size is keyed without it and
    * rasterized at its size in device px, so `labelScale` is what the label's
    * sizes are multiplied by to reach local units. Any other font is keyed whole
-   * and rasterized at the scale.
+   * and rasterized at the scale. With `warm`, a text label is rasterized at its
+   * exact size even while its size is changing.
    */
   #label(
     text: string,
     style: GfxTextStyle,
     deviceScale: number,
+    warm = false,
   ): LabelTexture | null {
     const resolved = this.#labelStyle
     const fontName = style.font ?? DEFAULT_LABEL_FONT
     resolved.font = fontName
     resolved.align = style.align ?? 'left'
     resolved.baseline = style.baseline ?? 'alphabetic'
-    resolved.color = style.color ?? '#000'
+    resolved.color = style.tint ? TINT_BASE : (style.color ?? '#000')
     const font = labelFont(fontName)
     if (!font) {
       this.#labelScale = 1
@@ -92,6 +98,7 @@ export class TextDraw {
       font,
       font.size,
       deviceScale,
+      warm,
     )
     this.#labelScale = label?.px ? font.size / label.px : 1
     return label
@@ -138,11 +145,17 @@ export class TextDraw {
       ty = Math.round(ty)
     }
 
-    // Tint = white × alpha (premultiplied). Baked glyph color is preserved,
-    // this only applies the current alpha (and keeps emoji multi-color).
+    // Tint = white × alpha (premultiplied), which keeps a baked glyph color
+    // (and a multi-color emoji) and only applies the current alpha. A tinted
+    // label is white, and the tint is its color × alpha.
     const alpha = this.#ctx.stateStack.getAlpha()
-    const a = Math.max(0, Math.min(255, Math.round(alpha * 255)))
-    const packedTint = ((a << 24) | (a << 16) | (a << 8) | a) >>> 0
+    let packedTint: number
+    if (style.tint) {
+      packedTint = packColor(style.color ?? '#000', alpha) >>> 0
+    } else {
+      const a = Math.max(0, Math.min(255, Math.round(alpha * 255)))
+      packedTint = ((a << 24) | (a << 16) | (a << 8) | a) >>> 0
+    }
 
     // Sample the label's region in its texture: a sub-rect of the shared label
     // page, or the whole texture ([0,0,1,1]) for an oversized dedicated label.

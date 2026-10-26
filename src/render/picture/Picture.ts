@@ -66,6 +66,7 @@ export const Op = {
   fillEllipse: 35,
   strokeEllipse: 36,
   fillAndStrokeEllipse: 37,
+  warmText: 38,
 } as const
 
 const OP_NAMES: string[] = []
@@ -458,6 +459,9 @@ export class Picture {
             a[2] as number,
             a[3] as GfxTextStyle,
           )
+          break
+        case Op.warmText:
+          gfx.warmText(a[0] as string, a[1] as GfxTextStyle)
           break
       }
     }

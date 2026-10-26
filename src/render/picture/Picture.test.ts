@@ -134,6 +134,30 @@ describe('replay', () => {
     expect(log[3]).toEqual(['setAlpha', 0.25])
   })
 
+  it('re-issues a warmed text under the scale it was warmed at', () => {
+    const scene = new SceneTree()
+    const style = { font: '10px x' }
+    scene.root.add(
+      new Painter((c) => {
+        c.save()
+        c.scale(2, 2)
+        c.warmText('hi', style)
+        c.restore()
+      }),
+    )
+    const { gfx, log } = logGfx()
+    drawFrame(scene, makeWalk(), gfx)
+    const names = log.map((l) => l[0])
+    expect(names.slice(names.indexOf('scale'))).toEqual([
+      'scale',
+      'warmText',
+      'restore',
+      'restore',
+      'setAlpha',
+    ])
+    expect(log[names.indexOf('warmText')]).toEqual(['warmText', 'hi', style])
+  })
+
   it('copies its arguments, so a scratch array changed later does not change it', () => {
     const pts = new Float32Array([0, 0, 10, 0, 10, 10])
     const scene = new SceneTree()
