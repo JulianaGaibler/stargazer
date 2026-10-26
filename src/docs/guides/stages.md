@@ -17,7 +17,7 @@ To layer content inside one scene, use a {@link Layer} in the same tree. A heads
 This example attaches a stage to a second canvas and draws a circle on it. `engine` is `host.engine`.
 
 ```ts
-import { CameraNode2D, ShapeNode } from 'stargazer'
+import { CameraNode2D, ShapeNode } from '@julianagaibler/stargazer'
 
 const stage = engine.attachStage(cardCanvas, { name: 'card' })
 
@@ -48,8 +48,8 @@ The {@link mountStage} action attaches a stage when the canvas mounts and detach
 
 ```svelte
 <script lang="ts">
-  import { mountStage, CameraNode2D } from 'stargazer'
-  import type { Engine, Stage } from 'stargazer'
+  import { mountStage, CameraNode2D } from '@julianagaibler/stargazer'
+  import type { Engine, Stage } from '@julianagaibler/stargazer'
 
   const { engine }: { engine: Engine } = $props()
 
@@ -77,7 +77,7 @@ The {@link mountStage} action attaches a stage when the canvas mounts and detach
 Pass `interactive: true` and the nodes on a secondary stage receive pointer events, the same way nodes on the primary stage do.
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
 
 const stage = engine.attachStage(cardCanvas, { interactive: true })
 
@@ -147,7 +147,7 @@ engine.animate(cardNode, { x: 100 }, { duration: 2 })
 Each stage has its own scene tree, cameras, render target, GPU context, texture caches and input. Text that appears on two stages is rasterized once per stage. Asset data holds no GPU handles, so one instance can back nodes on several stages. This includes a `Path2D`, a {@link BitmapMask}, an image, and the tessellations from {@link parseSvgPaths}.
 
 ```ts
-import { Path2DNode, parseSvgPaths } from 'stargazer'
+import { Path2DNode, parseSvgPaths } from '@julianagaibler/stargazer'
 
 const { paths } = parseSvgPaths(svgSource, { tessellate: true })
 const badge = paths.get('badge')!.path
@@ -169,7 +169,11 @@ Set `fixedPixelSize` for a stage that should render at an exact size, with a pix
 This example encodes a 400 by 200 pixel card with a gradient and a title as a JPEG.
 
 ```ts
-import { ShapeNode, TextNode, cssLinearGradient } from 'stargazer'
+import {
+  ShapeNode,
+  TextNode,
+  cssLinearGradient,
+} from '@julianagaibler/stargazer'
 
 const jpeg = await engine.captureBlob({
   width: 400,

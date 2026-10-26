@@ -1,10 +1,36 @@
 {
-  "name": "stargazer",
+  "name": "@julianagaibler/stargazer",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "A 2D game engine with an optional 3D pass, for the browser.",
+  "description": "A TypeScript 2D rendering engine for the browser, with WebGPU and WebGL2 backends and an optional 3D pass.",
   "license": "MPL-2.0",
+  "author": "Juliana Gaibler",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JulianaGaibler/stargazer.git"
+  },
+  "homepage": "https://julianagaibler.github.io/stargazer/",
+  "bugs": {
+    "url": "https://github.com/JulianaGaibler/stargazer/issues"
+  },
+  "keywords": [
+    "2d",
+    "rendering",
+    "webgpu",
+    "webgl2",
+    "game-engine",
+    "scene-graph",
+    "svelte",
+    "typescript",
+    "lottie"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "svelte-check --tsconfig ./tsconfig.json",

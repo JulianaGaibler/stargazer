@@ -19,7 +19,7 @@ Start with built-in nodes. Write a custom node when one node should draw many th
 A built-in node takes options and handles bounds, hit testing and stroke scaling. A card is a {@link ShapeNode} with a {@link TextNode} as its child.
 
 ```ts
-import { ShapeNode, TextNode } from 'stargazer'
+import { ShapeNode, TextNode } from '@julianagaibler/stargazer'
 
 const card = new ShapeNode({
   geometry: { kind: 'rect', width: 240, height: 140, radii: 16 },
@@ -50,8 +50,8 @@ A dark blue rounded rectangle with a 2 pixel yellow border and the word "Ready" 
 A custom node subclasses {@link Node2D} and overrides `paint`. Declare the values `paint` reads with {@link definePaintProps}, so that writing one repaints the node.
 
 ```ts
-import { Node2D, definePaintProps } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D, definePaintProps } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Card extends Node2D {
   declare label: string
@@ -90,8 +90,8 @@ Pick built-in nodes for single shapes, text and images. Pick a custom node when 
 A built-in node and a custom node combine. A custom node added as a child of the card draws in the card's local space, so it moves, scales and fades with the card.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Badge extends Node2D {
   override paint(canvas: Canvas): void {
@@ -105,8 +105,8 @@ card.add(new Badge())
 A red dot appears near the top-right corner of the card. To keep the card and the dot in one node, subclass the built-in node and call `super.paint` before your own draw commands.
 
 ```ts
-import { ShapeNode } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class ScoreCard extends ShapeNode {
   override paint(canvas: Canvas): void {
@@ -123,8 +123,8 @@ class ScoreCard extends ShapeNode {
 `paint` runs the first time the node is drawn. After that it runs when a paint property changes, including a change made by a tween.
 
 ```ts
-import { Node2D, definePaintProps } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D, definePaintProps } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Gauge extends Node2D {
   declare value: number
@@ -168,8 +168,8 @@ The node draws a dark panel, a light blue circle in its middle and a purple tab 
 A stroke takes a full style object on every call. Keep a style that stays the same in a module-level constant.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 const RULE = { color: '#2a3550', width: { screen: 1 } }
 
@@ -211,7 +211,7 @@ The label appears at the top-left corner and the image under it. `{ smoothing: f
 An {@link ImageNode} draws a loaded image, such as an `<img>` element, an `ImageBitmap` or a canvas element, as a rectangle.
 
 ```ts
-import { ImageNode } from 'stargazer'
+import { ImageNode } from '@julianagaibler/stargazer'
 
 const logo = new Image()
 logo.src = '/logo.png'
@@ -265,8 +265,8 @@ A soft dark shadow appears under the card. The style is {@link GfxShadowStyle}. 
 A path has no closed-form distance, so {@link Path2DNode} draws its shadow from a cached mask. The mask is a small texture of the path's blurred coverage. The engine bakes it once and reuses it every frame.
 
 ```ts
-import { Path2DNode, parseSvgPaths } from 'stargazer'
-import type { Scene } from 'stargazer'
+import { Path2DNode, parseSvgPaths } from '@julianagaibler/stargazer'
+import type { Scene } from '@julianagaibler/stargazer'
 
 declare const scene: Scene
 declare const svgText: string
@@ -291,8 +291,8 @@ Animating `offsetX` and `offsetY` is free, because the mask is placed at the off
 A `'screen'` blur is a CSS length, so under a zoom its value in local units changes on every frame and every frame bakes again. Set `strokeSpace: 'world'` on a node the camera zooms. The blur then keeps one value, and one mask serves a whole scale bucket.
 
 ```ts
-import { Path2DNode } from 'stargazer'
-import type { Scene } from 'stargazer'
+import { Path2DNode } from '@julianagaibler/stargazer'
+import type { Scene } from '@julianagaibler/stargazer'
 
 declare const scene: Scene
 declare const path: Path2D
@@ -312,7 +312,7 @@ With `'world'` the shadow grows and shrinks with the path. Use `'screen'` for a 
 To bake the masks for a zoom before the camera gets there, call {@link Stage.warmPathShadows}. Each factor is a multiple of the scale the shadows draw at now. {@link Stage.pendingPathShadowWarmups} counts the masks still waiting to bake.
 
 ```ts
-import type { EngineHost } from 'stargazer'
+import type { EngineHost } from '@julianagaibler/stargazer'
 
 declare const host: EngineHost
 
@@ -351,8 +351,8 @@ These sections cover the rules `paint` follows, drawing in a changing view, path
 `paint` is a function of the node's declared state. It reads declared paint properties and resources declared with `canvas.use`. A node whose content changes every frame, such as a growing bar, calls `markNeedsPaint()` from `onUpdate`.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Bar extends Node2D {
   progress = 0
@@ -424,8 +424,8 @@ Inside `paint` these calls change the recorded geometry. The engine applies the 
 A {@link GfxPath} is a path you build in code and edit at any time. `fillPath` and `strokePath` record it as a dependency, so editing the path repaints the node that drew it.
 
 ```ts
-import { GfxPath, Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { GfxPath, Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 const blob = new GfxPath()
 blob.moveTo(0, 0)
@@ -473,7 +473,7 @@ A radial gradient works on `fillRect`, `fillPath`, `fillConvexPoly`, `fillPath2D
 {@link cssLinearGradient} builds the linear gradient that CSS `linear-gradient(<angle>, ...)` paints over a box, so a design given in CSS carries over directly.
 
 ```ts
-import { cssLinearGradient } from 'stargazer'
+import { cssLinearGradient } from '@julianagaibler/stargazer'
 
 // linear-gradient(75deg, #ffeb49 -30%, #ff6600 120%) on a 330 by 330 box
 const fill = cssLinearGradient(330, 330, 75, [
@@ -522,7 +522,7 @@ Under a translucent border, a very short segment or a sharp inner corner shows a
 A rounded rectangle can have smooth corners, as with the corner smoothing setting in Figma. A smooth corner eases from the straight side into its curve, so the outline reads as continuous. `smoothing` runs from 0, a circular corner, to 1. {@link IOS_CORNER_SMOOTHING} matches the iOS app icon shape.
 
 ```ts
-import { IOS_CORNER_SMOOTHING, ShapeNode } from 'stargazer'
+import { IOS_CORNER_SMOOTHING, ShapeNode } from '@julianagaibler/stargazer'
 
 const icon = new ShapeNode({
   geometry: {
@@ -543,7 +543,11 @@ The analytic shadow has circular corners. A smooth-cornered shape's shadow uses 
 To mask other content, such as a photo, to a smooth-cornered shape, use a squircle `ShapeNode` as the content's [`matte`](/module/scene/node2d#matte), which gives an anti-aliased edge. For a cheaper hard-edged clip, set the parent's `clip` to an outline from {@link squirclePath}.
 
 ```ts
-import { GfxPath, IOS_CORNER_SMOOTHING, squirclePath } from 'stargazer'
+import {
+  GfxPath,
+  IOS_CORNER_SMOOTHING,
+  squirclePath,
+} from '@julianagaibler/stargazer'
 
 card.clip = squirclePath(
   new GfxPath(),
@@ -590,7 +594,7 @@ A subtree that fades as one flat image sets [`compositeGroup`](/module/scene/nod
 [`matte`](/module/scene/node2d#matte) takes another node whose drawing scales this one's, as a track matte. The engine draws the node and its subtree into one surface, and the matte node and its subtree into another over the same area. The node then composites through the matte by [`matteMode`](/module/scene/node2d#mattemode): `'alpha'`, `'inverted-alpha'`, `'luma'` or `'inverted-luma'`.
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
 
 const reveal = new ShapeNode({
   geometry: { kind: 'circle', radius: 80 },
@@ -610,7 +614,7 @@ A mask made of several shapes is a matte whose children are groups with `composi
 A {@link Layer} is a node that gives its subtree its own placement, its own post-processing effects, or a kept render.
 
 ```ts
-import { Layer } from 'stargazer'
+import { Layer } from '@julianagaibler/stargazer'
 
 const hud = new Layer({
   space: { frame: { x: 0, y: 0, width: 1920, height: 1080 } },
@@ -651,7 +655,7 @@ A node's [`bounds`](/module/scene/node2d#bounds) is the local box of what its pi
 `fillPath2D`, `strokePath2D` and `shadowPath2D` give a picture no bounds, because a `Path2D` has no bounds of its own. Such a node draws every frame wherever the camera is, until you set [`boundsOverride`](/module/scene/node2d#boundsoverride) to its local box.
 
 ```ts
-import { Node2D } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
 
 class Panel extends Node2D {
   constructor() {
@@ -668,8 +672,8 @@ class Panel extends Node2D {
 Immediate drawing runs the draw commands again every frame, through {@link Gfx2D}. Use it for content that changes on every frame, when recording a picture each frame would cost more than drawing directly. A `Node2D` that has no `paint` method overrides [`draw(gfx, camera, dt)`](/module/scene/node2d#draw) instead.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Gfx2D } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Gfx2D } from '@julianagaibler/stargazer'
 
 class Scope extends Node2D {
   readonly samples = new Float32Array(128)
@@ -693,7 +697,7 @@ When one fragment shader can stand in for many shapes, such as a field of dots, 
 A class field with an initializer defines an own property on the instance, which hides the accessor that `definePaintProps` installs. Writing the field then never reaches the accessor. In development `definePaintProps` throws when it finds one. Declare the field with `declare` and no initializer.
 
 ```ts
-import { Node2D, definePaintProps } from 'stargazer'
+import { Node2D, definePaintProps } from '@julianagaibler/stargazer'
 
 // Hides the accessor, so writes to value never repaint.
 class Stuck extends Node2D {
@@ -720,7 +724,7 @@ class Gauge extends Node2D {
 A `ShapeNode` rectangle is centered on the node's origin by default, while `Canvas.fillRect` takes a top-left corner. Mixing the two shifts content by half its size. Set `centered: false` to give a `ShapeNode` a top-left origin, or draw from `(-width / 2, -height / 2)` in `paint`.
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
 
 const panel = new ShapeNode({
   geometry: { kind: 'rect', width: 240, height: 140, centered: false },
@@ -733,8 +737,8 @@ const panel = new ShapeNode({
 `paint` that reads the clock, the node's transform or the camera records a picture that goes stale, because the engine replays it until a declared value changes. Put content that moves on a clock in a child node and write the child's transform in `onUpdate`.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Hand extends Node2D {
   override paint(canvas: Canvas): void {

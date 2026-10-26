@@ -19,8 +19,8 @@ Each habit in this part keeps batches long. A change of program, texture or blen
 A node's `alpha` and `setAlpha` are stored per instance, so a fade replays the picture and repaints nothing.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 const TILE = '#2a3550'
 
@@ -46,8 +46,8 @@ The board draws 600 tiles with one color string and fades to 40 percent over 0.3
 {@link mixColor} and {@link withAlpha} return new strings. Call them once at module load, and pass the same strings to every draw.
 
 ```ts
-import { Node2D, definePaintProps, mixColor } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D, definePaintProps, mixColor } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 const BACKGROUND = '#0d1a2c'
 const INK = '#ffd34d'
@@ -80,8 +80,8 @@ The dots cross-fade from dim to yellow as `lit` goes from 0 to 1. Each dot draws
 A translucent shape drawn as two overlapping parts, such as a plus sign made of two bars, blends twice where the parts overlap and reads as a dark patch. Mix the color once into an opaque color that looks the same.
 
 ```ts
-import { Node2D, mixColor } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D, mixColor } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 const PLUS = mixColor('#0d1a2c', '#ffd34d', 0.5)
 
@@ -100,8 +100,8 @@ The plus sign looks like the yellow at 50 percent over the dark blue background,
 Each switch between images from different sources starts a new batch. Draw all the images of one source, then all the images of the next.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 declare const grass: ImageBitmap
 declare const treeImage: ImageBitmap
@@ -128,7 +128,7 @@ The two loops make two batches, where alternating tiles and trees would make one
 The debug HUD shows what a frame costs. Open it with `?debug=hud` in the page's address, or with the `debug` option of {@link EngineHostOptions}.
 
 ```ts
-import { createEngineHost } from 'stargazer'
+import { createEngineHost } from '@julianagaibler/stargazer'
 
 const host = createEngineHost({ canvas, debug: 'hud' })
 ```
@@ -156,8 +156,8 @@ A translucent stroke with several segments paints each pixel once, through the s
 A picture at rest is replayed every frame. The renderer keeps on the GPU what it builds from the picture, so a still scene uploads little per frame. Something is kept once it is drawn the same way on two frames in a row, and only where keeping it costs no extra draw call.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Coastline extends Node2D {
   readonly points = new Float32Array(2 * 2000)

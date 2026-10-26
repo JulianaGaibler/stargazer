@@ -15,13 +15,13 @@ The base class stores position, velocity and angle for a fixed number of particl
 This burst of triangles and line shards slows down, despawns and then removes its node.
 
 ```ts
-import { VectorParticleNode } from 'stargazer'
+import { VectorParticleNode } from '@julianagaibler/stargazer'
 import type {
   Canvas,
   SceneTree,
   Vec2,
   VectorParticleSpawnInit,
-} from 'stargazer'
+} from '@julianagaibler/stargazer'
 
 declare const scene: SceneTree
 
@@ -116,7 +116,7 @@ The triangles tumble as they drift apart. `angle` changes when your code changes
 When a subclass keeps the default `shouldDespawn`, its particles stay until something destroys the node. They settle and stay, which suits debris that remains on screen. Put such bursts under one parent node, and call [`destroyChildren`](/module/scene/node#destroychildren) on the parent to clear them, for example at a level reset.
 
 ```ts
-import { Node2D } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
 
 const debris = new Node2D()
 scene.root.add(debris)

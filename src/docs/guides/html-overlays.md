@@ -16,7 +16,7 @@ In Svelte, add the `domAnchor` action to the element and give it the engine, the
 
 ```svelte
 <script lang="ts">
-  import { domAnchor } from 'stargazer'
+  import { domAnchor } from '@julianagaibler/stargazer'
 </script>
 
 <div
@@ -35,7 +35,7 @@ The element is 480 by 320 world units and covers the node's local area from `(0,
 In plain TypeScript, call [`engine.dom.attach`](/module/dom/domtransformsync#attach) and keep the handle it returns.
 
 ```ts
-import type { Engine, Node2D } from 'stargazer'
+import type { Engine, Node2D } from '@julianagaibler/stargazer'
 
 declare const engine: Engine
 declare const node: Node2D
@@ -163,7 +163,7 @@ With `cull`, a camera move is the whole transition between two views. Place each
 
 ```svelte
 <script lang="ts">
-  import { Node2D, domAnchor } from 'stargazer'
+  import { Node2D, domAnchor } from '@julianagaibler/stargazer'
 
   const { engine } = $props()
 
@@ -199,7 +199,7 @@ During the pan, the menu slides off the left edge and gets `display: none`, whic
 An overlay follows the view that places its node. A node under a {@link Layer} with a `space` of `'screen'` or a frame is placed by the layer, so its element stays still while the camera pans and zooms. Use this for HTML in a heads-up display: lay out the display for a fixed design rect and anchor each element to a node in it.
 
 ```ts
-import { Layer, Node2D } from 'stargazer'
+import { Layer, Node2D } from '@julianagaibler/stargazer'
 
 const ui = new Layer({
   space: { frame: { x: 0, y: 0, width: 1920, height: 1080 } },
@@ -241,7 +241,7 @@ The sync runs once per frame, on the engine's `frame` event, after every stage h
 {@link projectWorldToCss} is the function behind the sync. It combines a camera's screen affine with a node's world matrix into the six values of a CSS `matrix()`. Use it when you place an element yourself.
 
 ```ts
-import { projectWorldToCss } from 'stargazer'
+import { projectWorldToCss } from '@julianagaibler/stargazer'
 
 const m = projectWorldToCss(camera.getScreenAffine(), node.transform.world)
 element.style.transform = `matrix(${m.a},${m.b},${m.c},${m.d},${m.e},${m.f})`

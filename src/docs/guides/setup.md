@@ -20,8 +20,12 @@ This component mounts the engine, builds a scene with a camera and one circle, a
 
 ```svelte
 <script lang="ts">
-  import { mountEngine, CameraNode2D, ShapeNode } from 'stargazer'
-  import type { EngineHost } from 'stargazer'
+  import {
+    mountEngine,
+    CameraNode2D,
+    ShapeNode,
+  } from '@julianagaibler/stargazer'
+  import type { EngineHost } from '@julianagaibler/stargazer'
 
   async function onReady(host: EngineHost): Promise<void> {
     await host.loadScene((scene) => {
@@ -58,7 +62,7 @@ A yellow circle appears in the middle of the 1920 by 1080 world, on a dark blue 
 Pass the canvas element to {@link createEngineHost}, and call `destroy` when the page is finished with the engine.
 
 ```ts
-import { createEngineHost, CameraNode2D } from 'stargazer'
+import { createEngineHost, CameraNode2D } from '@julianagaibler/stargazer'
 
 const canvas = document.querySelector('canvas')!
 const host = createEngineHost({ canvas, clearColor: '#0d1a2c' })
@@ -84,7 +88,7 @@ The engine sizes the canvas backing store from the canvas element's CSS size and
 A scene shows content once it has a {@link CameraNode2D}. The first camera added to a stage becomes the current one, and [`makeCurrent`](/module/camera/cameranode2d#makecurrent) switches to another. `engine.currentCamera2D` returns the current camera, or `null` while the tree has none.
 
 ```ts
-import { CameraNode2D } from 'stargazer'
+import { CameraNode2D } from '@julianagaibler/stargazer'
 
 const overview = new CameraNode2D()
 overview.setViewport({ x: 0, y: 0, width: 1920, height: 1080 })
@@ -102,7 +106,11 @@ The canvas shows the 400 by 200 rectangle around the middle of the world. The ca
 `loadScene` destroys the children of the scene root, then calls your builder with the empty scene and the engine. Nodes with `persistent` set to `true` stay, together with their subtrees. The builder can be async, so it can wait for assets before it adds nodes.
 
 ```ts
-import { CameraNode2D, Path2DNode, parseSvgPaths } from 'stargazer'
+import {
+  CameraNode2D,
+  Path2DNode,
+  parseSvgPaths,
+} from '@julianagaibler/stargazer'
 
 await host.loadScene(async (scene, engine) => {
   const cam = new CameraNode2D()
@@ -144,9 +152,9 @@ The canvas shows only the background color. The stage has no current camera. Add
 A tween rejects with `AbortError` after a scene swap. The tween belonged to a node that `loadScene` destroyed. Catch the rejection with {@link ignoreAbort}, or start the tween with `node.play`, which does this for you:
 
 ```ts
-import { ignoreAbort } from 'stargazer'
+import { ignoreAbort } from '@julianagaibler/stargazer'
 
-declare const node: import('stargazer').Node2D
+declare const node: import('@julianagaibler/stargazer').Node2D
 
 node.tween({ x: 400 }, { duration: 0.5 }).catch(ignoreAbort)
 node.play({ x: 400 }, { duration: 0.5 })
@@ -169,7 +177,7 @@ A canvas element keeps the context type it gets first, so the choice is made onc
 In plain TypeScript, call {@link selectGfxDevice} first and pass the device to the host:
 
 ```ts
-import { selectGfxDevice, createEngineHost } from 'stargazer'
+import { selectGfxDevice, createEngineHost } from '@julianagaibler/stargazer'
 
 const { device, backend } = await selectGfxDevice(canvas, 'auto')
 console.info('rendering backend:', backend)
@@ -183,7 +191,7 @@ The log line prints `webgpu` or `webgl2`, and the host renders through that devi
 Every option has a default, so pass the ones your project changes. This host caps the frame rate, turns off automatic quality reduction, shows the debug HUD at start and logs informational diagnostics:
 
 ```ts
-import { createEngineHost } from 'stargazer'
+import { createEngineHost } from '@julianagaibler/stargazer'
 
 const host = createEngineHost({
   canvas,
@@ -272,7 +280,7 @@ A lost WebGL2 context can come back. The host emits `contextlost` and waits. Whe
 A lost WebGPU device stays lost, and a canvas element keeps its context type. The host emits `contextlost` and `backendlost`, then calls `onBackendLost`, or `onReload` if you passed no `onBackendLost`. To recover in place, the component that owns the canvas remounts on a new canvas element with `backend: 'webgl2'`.
 
 ```ts
-import { createEngineHost } from 'stargazer'
+import { createEngineHost } from '@julianagaibler/stargazer'
 
 const host = createEngineHost({
   canvas,

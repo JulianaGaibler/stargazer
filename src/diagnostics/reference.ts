@@ -57,7 +57,7 @@ createEngineHost({ canvas, log: 'info' })
 \`diagnostics.on\` calls your function for each diagnostic. Use it to send errors to a log service or to show them in your own interface.
 
 \`\`\`ts
-import { diagnostics } from 'stargazer'
+import { diagnostics } from '@julianagaibler/stargazer'
 
 const off = diagnostics.on((d) => {
   if (d.level === 'error') sendToLogs({ code: d.code, message: d.message })

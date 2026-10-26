@@ -24,7 +24,7 @@ Give the engine a mount element right after the canvas element, then describe a 
 Add semantics to a node with [`node.a11y()`](/module/scene/node2d#a11y).
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
 
 const startButton = new ShapeNode({
   geometry: { kind: 'rect', width: 240, height: 64 },
@@ -47,7 +47,7 @@ The mount element belongs to your app. Put it where its reading order next to th
 Outside Svelte, call [`engine.a11y.mount(element)`](/module/a11y/accessibilitytree#mount). The engine builds the tree once it has a mount element, and you can describe nodes before or after you mount.
 
 ```ts
-import type { Engine } from 'stargazer'
+import type { Engine } from '@julianagaibler/stargazer'
 
 declare const engine: Engine
 
@@ -110,7 +110,7 @@ panel          (Node2D)
 Describe the four nodes that carry meaning.
 
 ```ts
-import { Node2D, ShapeNode, TextNode } from 'stargazer'
+import { Node2D, ShapeNode, TextNode } from '@julianagaibler/stargazer'
 
 const geometry = { kind: 'rect', width: 240, height: 64 } as const
 

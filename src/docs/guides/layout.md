@@ -17,7 +17,7 @@ Each parent tells its children the minimum and maximum size they may take. Each 
 This example fills the screen with a column: a title bar at the top, a footer at the bottom, and a body that takes the height left over.
 
 ```ts
-import { LayoutRoot, Column, Expanded } from 'stargazer'
+import { LayoutRoot, Column, Expanded } from '@julianagaibler/stargazer'
 
 const root = new LayoutRoot()
 root.setContent(
@@ -89,7 +89,7 @@ A {@link Flexible} child gets the same share as an `Expanded` one in a row or co
 {@link SizedBox} is a box of a fixed size, and reserves empty space when it has no child. {@link Padding} adds space around a child. {@link edgeInsets} builds the padding the way CSS shorthand does.
 
 ```ts
-import { Box, SizedBox, Padding, edgeInsets } from 'stargazer'
+import { Box, SizedBox, Padding, edgeInsets } from '@julianagaibler/stargazer'
 
 new Box({ width: 480, padding: edgeInsets(24), child: content })
 new SizedBox({ width: 96, height: 96, child: icon })
@@ -208,7 +208,7 @@ Under a `Layer` with space `'screen'`, one unit is one CSS pixel and the root fi
 Some content positions itself, such as a physics field or a grid drawn from its own geometry. A {@link LayoutBuilder} keeps it inside a layout. It takes a place in the layout like any other child, and reports the rect it gets to an `onLayout` callback. The rect is in world coordinates, so content anywhere in the scene can use it.
 
 ```ts
-import { LayoutBuilder, Center, AspectRatio } from 'stargazer'
+import { LayoutBuilder, Center, AspectRatio } from '@julianagaibler/stargazer'
 
 const field = new LayoutBuilder({ onLayout: (rect) => board.fit(rect) })
 root.setContent(
@@ -227,7 +227,7 @@ A `LayoutBuilder` fills a box when its parent gives it an exact size, as a `Layo
 {@link alignWithin} places a box inside a rect without any layout tree and returns the top-left point. Use it for a node, a rect of your own, or an HTML overlay.
 
 ```ts
-import { alignWithin } from 'stargazer'
+import { alignWithin } from '@julianagaibler/stargazer'
 
 const { x, y } = alignWithin(rightMargin, 120, 48, 'center', 'center')
 badge.transform.x = x
@@ -241,7 +241,11 @@ The badge is centered in `rightMargin`. `'stretch'` acts like `'start'` here, be
 A node takes part in layout when it implements {@link Measurable}. Extend {@link LayoutNode} for a container. It creates `measuredSize` and adds `markLayoutDirty()`, which walks up to the root and schedules a pass. In `arrange`, call `place`, which sets the node's `transform.x` and `transform.y` and its `boundsOverride`.
 
 ```ts
-import { LayoutNode, BoxConstraints, type Size } from 'stargazer'
+import {
+  LayoutNode,
+  BoxConstraints,
+  type Size,
+} from '@julianagaibler/stargazer'
 
 class FixedBox extends LayoutNode {
   w: number

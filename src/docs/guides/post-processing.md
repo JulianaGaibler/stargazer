@@ -15,7 +15,7 @@ Each stage owns a {@link PostProcessPipeline}. The primary stage's is [`engine.p
 Add effect instances to the pipeline. This example darkens the corners and adds a color fringe at the edges:
 
 ```ts
-import { ChromaticAberration, Vignette } from 'stargazer'
+import { ChromaticAberration, Vignette } from '@julianagaibler/stargazer'
 
 engine.postProcess.add(new Vignette({ intensity: 0.6, radius: 0.4 }))
 engine.postProcess.add(new ChromaticAberration({ amount: 0.008 }))
@@ -56,7 +56,7 @@ Calling `warm` again skips passes that are already compiled. While a pass is sti
 The stage's pipeline processes the whole frame. To process part of the scene, put that part under a {@link Layer} and give the layer the effects. This example blurs what lies behind a panel:
 
 ```ts
-import { DualKawaseBlur, Layer } from 'stargazer'
+import { DualKawaseBlur, Layer } from '@julianagaibler/stargazer'
 
 const frosted = new Layer({
   effects: [new DualKawaseBlur({ levels: 3 })],
@@ -78,7 +78,7 @@ A layer uses the same effect classes as the stage, with the same fields. One eff
 Each built-in effect takes its options in the constructor and exposes them as public fields. The option types, such as {@link VignetteOptions}, {@link ChromaticAberrationOptions}, {@link VignetteBlurOptions}, {@link DualKawaseBlurOptions} and {@link FilmGrainOptions}, list the options with their defaults. Every effect also has `enabled`.
 
 ```ts
-import { DualKawaseBlur, FilmGrain } from 'stargazer'
+import { DualKawaseBlur, FilmGrain } from '@julianagaibler/stargazer'
 
 const blur = engine.postProcess.add(new DualKawaseBlur({ levels: 4 }))
 engine.postProcess.add(new FilmGrain({ opacity: 0.1, cellPx: 2 }))
@@ -104,8 +104,12 @@ The generator finds the entry points by these names and reports an error for a r
 On the TypeScript side, {@link postShader} wraps the generated files and `writeParams` fills the block:
 
 ```ts
-import { postShader } from 'stargazer'
-import type { PostEffect, PostPass, ShaderReflection } from 'stargazer'
+import { postShader } from '@julianagaibler/stargazer'
+import type {
+  PostEffect,
+  PostPass,
+  ShaderReflection,
+} from '@julianagaibler/stargazer'
 import wgsl from './scanlines.wgsl?raw'
 import vertSrc from './scanlines.gen.vert.glsl?raw'
 import fragSrc from './scanlines.gen.frag.glsl?raw'
@@ -145,7 +149,7 @@ Take the texture coordinate from `a_uv`. The pipeline uploads the fullscreen tri
 A pass with a direction or an off-center point reads `ctx.uvYDown` in `writeParams`. It is `true` when `a_uv.y` grows downward on screen (WebGPU) and `false` when it grows upward (WebGL2).
 
 ```ts
-import type { PostPass } from 'stargazer'
+import type { PostPass } from '@julianagaibler/stargazer'
 
 const angle = 0.5 // radians, counter-clockwise on screen
 
@@ -217,7 +221,7 @@ A pass reads the previous pass's output at `u_tex`. Set [`input`](/module/render
 [`textures`](/module/render/postpass#textures) binds up to four more textures at bindings 1 to 4. The shader samples them as `u_tex1` to `u_tex4`, and each sampler sits at the binding plus 16.
 
 ```ts
-import { DataTexture } from 'stargazer'
+import { DataTexture } from '@julianagaibler/stargazer'
 
 const table = new DataTexture(256, 1)
 table.data[0] = 255 // write texels, then mark the texture as changed
@@ -258,7 +262,7 @@ const dots: PostPass = {
 Some work needs more than one fragment per pixel, such as an algorithm that visits the pixels in order. A {@link PostDataPass} makes a texture from its input instead of drawing one. Later passes read the texture through their `textures`, and it keeps its contents between frames.
 
 ```ts
-import type { PostDataPass } from 'stargazer'
+import type { PostDataPass } from '@julianagaibler/stargazer'
 
 const prefixSums: PostDataPass = {
   kind: 'data',
@@ -324,7 +328,7 @@ A layer with effects renders its surface and runs its passes every frame it is d
 A layer whose content rarely changes can keep what it rendered. With `cache: 'raster'`, the layer stores the processed result in a target of its own and draws it again as one textured quad while nothing has changed.
 
 ```ts
-import { DualKawaseBlur, FilmGrain, Layer } from 'stargazer'
+import { DualKawaseBlur, FilmGrain, Layer } from '@julianagaibler/stargazer'
 
 const backdrop = new Layer({
   space: { frame: { x: 0, y: 0, width: 1920, height: 1080 } },

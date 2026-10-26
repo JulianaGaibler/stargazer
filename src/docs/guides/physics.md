@@ -21,7 +21,7 @@ import {
   RigidBodyBehavior,
   BodyType,
   aabbShape,
-} from 'stargazer'
+} from '@julianagaibler/stargazer'
 
 const host = createEngineHost({
   canvas,
@@ -62,7 +62,7 @@ The crate node falls, bounces a little, and comes to rest at the floor's height.
 A body has a position, rotation, velocity, mass, and one or more colliders. [`createBody`](/module/physics/physicsworld#createbody) takes a {@link BodyDef} and adds the body to the world. An empty definition makes a dynamic body with mass 1 at the origin.
 
 ```ts
-import { circleShape, polygonShape } from 'stargazer'
+import { circleShape, polygonShape } from '@julianagaibler/stargazer'
 
 const ball = world.createBody({
   position: { x: 0, y: 0 },

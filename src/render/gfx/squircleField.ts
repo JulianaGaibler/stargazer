@@ -209,7 +209,8 @@ let fieldLoader: (() => Promise<Uint16Array | null>) | null = null
 /**
  * Replaces how {@link loadField} gets the field. A test served over HTTP can't
  * fetch `squircleField.bin`, so it passes a loader that resolves to `null`.
- * Pass `null` to restore the default. Exported through `stargazer/testing`.
+ * Pass `null` to restore the default. Exported through
+ * `@julianagaibler/stargazer/testing`.
  */
 export function setSmoothCornerFieldLoader(
   loader: (() => Promise<Uint16Array | null>) | null,

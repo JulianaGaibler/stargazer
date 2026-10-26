@@ -87,8 +87,13 @@ Each pixel finds its grid cell, reads that cell's color, and fades out toward th
 `quadShader` bundles the generated files. A {@link DataTexture} holds the colors, and `paramsBytes` is the size of the `Params` block.
 
 ```ts
-import { DataTexture, Node2D, ShaderQuad, quadShader } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import {
+  DataTexture,
+  Node2D,
+  ShaderQuad,
+  quadShader,
+} from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 import vert from './dotField.gen.vert.glsl?raw'
 import frag from './dotField.gen.frag.glsl?raw'
 import wgsl from './dotField.gen.wgsl?raw'
@@ -119,8 +124,8 @@ The field covers the 1920 by 1080 world with 48 by 27 circular dots. One draw re
 `quad.params` is a live `Float32Array` over the `Params` block. A `DataTexture` exposes its texels as `data`, in RGBA bytes with texel `(x, y)` at byte `(y * width + x) * 4`. Call `markDirty()` after writing, and the texture uploads on the next draw that binds it.
 
 ```ts
-import { Node2D } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class PulsingField extends Node2D {
   #time = 0

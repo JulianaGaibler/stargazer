@@ -15,7 +15,7 @@ Each interactive {@link Stage} has an {@link InputSystem} that listens on its ca
 Give a node pointer handlers with [`bindPointer`](/module/scene/node#bindpointer).
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
 
 const ball = new ShapeNode({
   geometry: { kind: 'circle', radius: 60 },
@@ -84,7 +84,7 @@ The piece follows the pointer at any parent transform. `localTo` takes an option
 A {@link ButtonBehavior} turns a node into a tap button. The button is pressed on `down`, and `onClick` fires on `up` when the release is still over the node. To cancel a press, drag off the button before releasing.
 
 ```ts
-import { ButtonBehavior } from 'stargazer'
+import { ButtonBehavior } from '@julianagaibler/stargazer'
 
 node.addBehavior(
   new ButtonBehavior({
@@ -102,7 +102,7 @@ The node draws itself. `onPressedChange` reports the pressed state, so make `pre
 A {@link DraggableBehavior} carries a node onto a drop target, such as a card into a slot.
 
 ```ts
-import { DraggableBehavior } from 'stargazer'
+import { DraggableBehavior } from '@julianagaibler/stargazer'
 
 node.addBehavior(
   new DraggableBehavior<Cell>({
@@ -172,7 +172,7 @@ While the first pointer is down, the handlers follow it and ignore every other p
 {@link bindRegionGesture} reacts to presses on an area of the primary stage instead of on a node. Use it for a board you tap to drop a piece, or a strip you swipe from.
 
 ```ts
-import { bindRegionGesture } from 'stargazer'
+import { bindRegionGesture } from '@julianagaibler/stargazer'
 
 const off = bindRegionGesture(engine, {
   hitTest: (w) => insideBoard(w.x, w.y),
@@ -194,7 +194,7 @@ A press is accepted when `hitTest` and `enabled` both pass, and `onReject` recei
 {@link ButtonBehavior} fires on release, which suits a menu item. A game control acts the moment the finger lands. {@link HoldButtonBehavior} fires `onPress` on the press and can repeat while held.
 
 ```ts
-import { HoldButtonBehavior } from 'stargazer'
+import { HoldButtonBehavior } from '@julianagaibler/stargazer'
 
 node.addBehavior(
   new HoldButtonBehavior({

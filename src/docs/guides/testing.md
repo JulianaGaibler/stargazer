@@ -6,11 +6,11 @@ order: 25
 
 # Testing
 
-Code that uses Stargazer runs in a unit test without a GPU or a browser canvas. The helpers in `stargazer/testing` give the engine a recording device, give text a size, and keep engine messages out of test output. After this guide you can render a scene in a test and assert on what it drew.
+Code that uses Stargazer runs in a unit test without a GPU or a browser canvas. The helpers in `@julianagaibler/stargazer/testing` give the engine a recording device, give text a size, and keep engine messages out of test output. After this guide you can render a scene in a test and assert on what it drew.
 
 ## Basic usage
 
-Import the helpers from `stargazer/testing`. They live outside the main entry, so an app bundle leaves them out.
+Import the helpers from `@julianagaibler/stargazer/testing`. They live outside the main entry, so an app bundle leaves them out.
 
 ### Run an engine without a GPU
 
@@ -18,8 +18,8 @@ Import the helpers from `stargazer/testing`. They live outside the main entry, s
 
 ```ts
 import { expect, it, vi } from 'vitest'
-import { CameraNode2D, Engine, ShapeNode } from 'stargazer'
-import { MockGfxDevice } from 'stargazer/testing'
+import { CameraNode2D, Engine, ShapeNode } from '@julianagaibler/stargazer'
+import { MockGfxDevice } from '@julianagaibler/stargazer/testing'
 
 it('draws the circle', async () => {
   vi.useFakeTimers()
@@ -53,7 +53,7 @@ The test passes once the engine has run a frame and the device has recorded a dr
 A headless environment has no 2D canvas context, so every string measures as empty and every string fits. `setTextMeasurer` replaces the measurement with your own function until you call the function it returns.
 
 ```ts
-import { setTextMeasurer } from 'stargazer/testing'
+import { setTextMeasurer } from '@julianagaibler/stargazer/testing'
 
 const restore = setTextMeasurer((text, style) => {
   const size = Number(/(\d+)px/.exec(style.font)?.[1] ?? 10)
@@ -81,8 +81,11 @@ Text now measures about half its font size per character, so wrapping and fittin
 {@link createPostChain} builds the chain that runs {@link PostEffect}s on a device. Call `chain.prepare(effects, colorSpace)` until it returns true, then `chain.run`.
 
 ```ts
-import { FilmGrain } from 'stargazer'
-import { MockGfxDevice, createPostChain } from 'stargazer/testing'
+import { FilmGrain } from '@julianagaibler/stargazer'
+import {
+  MockGfxDevice,
+  createPostChain,
+} from '@julianagaibler/stargazer/testing'
 
 const device = new MockGfxDevice()
 const chain = createPostChain(device)
@@ -108,7 +111,7 @@ const result = chain.run(source, effects, 'linear', null)
 Smooth corners load a data file over the network. A test served over HTTP requests the file, gets no data and logs a warning. A loader that resolves to `null` draws circular corners and logs nothing.
 
 ```ts
-import { setSmoothCornerFieldLoader } from 'stargazer/testing'
+import { setSmoothCornerFieldLoader } from '@julianagaibler/stargazer/testing'
 
 setSmoothCornerFieldLoader(() => Promise.resolve(null))
 ```
@@ -121,7 +124,7 @@ The engine reports problems through [diagnostics](/guides/diagnostics). To keep 
 
 ```ts
 import { expect } from 'vitest'
-import { diagnostics } from 'stargazer'
+import { diagnostics } from '@julianagaibler/stargazer'
 
 diagnostics.configure({ console: false })
 const seen: string[] = []

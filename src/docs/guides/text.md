@@ -15,7 +15,7 @@ After this page you can add labels, fit text into a box, mix weights and icons i
 A `TextNode` takes its string and style as options. Every option is a public field, so assigning a new value shows on the next frame.
 
 ```ts
-import { TextNode } from 'stargazer'
+import { TextNode } from '@julianagaibler/stargazer'
 
 const label = new TextNode({
   text: 'Ready',
@@ -37,8 +37,8 @@ A bold cream label reads "Ready" near the top-left corner, then "Go" on the next
 A node that paints itself calls `fillText` on its `Canvas`. Declare the string with {@link definePaintProps} so that changing it repaints the node.
 
 ```ts
-import { Node2D, definePaintProps } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D, definePaintProps } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class ScoreLabel extends Node2D {
   declare score: number
@@ -66,7 +66,7 @@ class ScoreLabel extends Node2D {
 [`wrapText`](/module/render/wraptext) breaks a string into lines that fit a width. Draw the lines at increasing `y` values.
 
 ```ts
-import { wrapText } from 'stargazer'
+import { wrapText } from '@julianagaibler/stargazer'
 
 const font = '400 18px Inter, sans-serif'
 const lines = wrapText(rules, font, 300, 4)
@@ -149,7 +149,7 @@ canvas.fillText('Round over', 0, 0, {
 The measuring functions take a CSS font string and return sizes in the local units that `fillText` draws in. They cache their results, so calling them from `paint` is cheap. This example sizes a name to fit a 240-unit box and cuts it if the smallest size is still too wide.
 
 ```ts
-import { ellipsize, fitFontSize } from 'stargazer'
+import { ellipsize, fitFontSize } from '@julianagaibler/stargazer'
 
 const makeFont = (size: number) => `600 ${size}px Inter, sans-serif`
 const size = fitFontSize(name, [28, 24, 20, 16], makeFont, 240)
@@ -162,7 +162,7 @@ canvas.fillText(shown, 0, 0, { font: makeFont(size) })
 {@link textWidth} and {@link textAdvance} are different numbers. `textWidth` is the width of the label's bitmap box, which includes transparent padding around the glyphs. Fit text into a box with it. `textAdvance` is the pen step. To draw a second run right after the first, add the advance to `x`.
 
 ```ts
-import { textAdvance } from 'stargazer'
+import { textAdvance } from '@julianagaibler/stargazer'
 
 const bigFont = '700 40px Inter, sans-serif'
 const smallFont = '400 20px Inter, sans-serif'
@@ -179,7 +179,7 @@ canvas.fillText('k', x + textAdvance('42', bigFont), y, { font: smallFont })
 To center a row of text on `cy`, put the baseline at `cy` plus half the cap height and draw with `baseline: 'alphabetic'`. This example draws a large number and a small unit on one baseline.
 
 ```ts
-import { textMetrics } from 'stargazer'
+import { textMetrics } from '@julianagaibler/stargazer'
 
 const bigFont = '700 40px Inter, sans-serif'
 const smallFont = '400 20px Inter, sans-serif'
@@ -197,7 +197,7 @@ Both runs sit on one baseline, and the number is centered on `cy`. A block of `n
 This example centers a block of text vertically in a box.
 
 ```ts
-import { fitTextBlock } from 'stargazer'
+import { fitTextBlock } from '@julianagaibler/stargazer'
 
 const mkFont = (size: number) => `400 ${size}px Inter, sans-serif`
 const block = fitTextBlock(text, [20, 18, 16, 14], mkFont, box)
@@ -222,7 +222,7 @@ The optional fifth argument, `lineHeightRatio`, scales the font's own line heigh
 `fillText` takes one font per call, so a line such as "add 2k to the budget", with "2k" in bold, is drawn as several runs. {@link wrapRichText} takes a list of {@link TextSpan} objects, each `{ text, bold? }`, and a `makeFont(bold)` callback. It breaks lines at whitespace and returns {@link RichLine} objects whose runs carry their `x` offsets.
 
 ```ts
-import { wrapRichText, type TextSpan } from 'stargazer'
+import { wrapRichText, type TextSpan } from '@julianagaibler/stargazer'
 
 const spans: TextSpan[] = [
   { text: 'add ' },
@@ -250,7 +250,7 @@ Neighboring pieces with the same weight join into one run, so a line costs one `
 A span can also be an {@link InlineBox}: a rectangle that the engine measures, wraps and positions, and your code paints. It has a name, a height in em (`heightEm`) and a width-to-height ratio (`aspect`).
 
 ```ts
-import { wrapRichText, type TextSpan } from 'stargazer'
+import { wrapRichText, type TextSpan } from '@julianagaibler/stargazer'
 
 const font = (bold: boolean) => `${bold ? 700 : 400} 18px Inter, sans-serif`
 const spans: TextSpan[] = [
@@ -287,7 +287,10 @@ A box attaches to the word next to it, so a badge stays with the number it quali
 The renderer caches each label by its font string. The measurement caches work the same way, so `fontMetrics` and the wrap functions keep sizes and line breaks that came from the fallback face. When a face can arrive after the first frame, clear all three caches as it does.
 
 ```ts
-import { clearFontMetricsCache, clearTextLayoutCaches } from 'stargazer'
+import {
+  clearFontMetricsCache,
+  clearTextLayoutCaches,
+} from '@julianagaibler/stargazer'
 
 document.fonts.addEventListener('loadingdone', () => {
   clearFontMetricsCache()

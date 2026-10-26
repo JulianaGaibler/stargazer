@@ -15,8 +15,8 @@ Each particle is one baked sprite, scaled and faded by curves you set in the con
 This example adds a continuous trail to the scene and moves its emission point each frame.
 
 ```ts
-import { ParticleEmitterNode } from 'stargazer'
-import type { SceneTree } from 'stargazer'
+import { ParticleEmitterNode } from '@julianagaibler/stargazer'
+import type { SceneTree } from '@julianagaibler/stargazer'
 
 declare const scene: SceneTree
 declare const pointerWorld: { x: number; y: number }
@@ -76,7 +76,7 @@ The first call sends 200 sparks in every direction from the middle of the world,
 For a one-shot burst, pair [`waitUntilEmpty`](/module/particles/particleemitter#waituntilempty) with [`autoDestroy`](/module/scene/node#autodestroy). The node destroys itself once its last particle dies.
 
 ```ts
-import type { ParticleEmitterConfig } from 'stargazer'
+import type { ParticleEmitterConfig } from '@julianagaibler/stargazer'
 
 declare const config: ParticleEmitterConfig
 
@@ -93,7 +93,7 @@ scene.root.add(burst)
 Particles live in the node's local space, and `setOrigin` and `burst` take local points. A node under `scene.root` with no transform uses world coordinates.
 
 ```ts
-import type { Node2D } from 'stargazer'
+import type { Node2D } from '@julianagaibler/stargazer'
 
 declare const ship: Node2D
 

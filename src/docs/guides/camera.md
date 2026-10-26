@@ -15,7 +15,7 @@ A {@link Stage} renders through its current 2D camera, and a scene shows content
 Add a camera in the scene builder and give it the world rect to show.
 
 ```ts
-import { CameraNode2D } from 'stargazer'
+import { CameraNode2D } from '@julianagaibler/stargazer'
 
 await host.loadScene((scene) => {
   const cam = new CameraNode2D()
@@ -52,7 +52,7 @@ Both take an optional `out` object to fill, which keeps a call in a hot loop fro
 [`animateTo`](/module/camera/cameranode2d#animateto) moves and resizes the viewport over time, a combined pan and zoom.
 
 ```ts
-import { easings } from 'stargazer'
+import { easings } from '@julianagaibler/stargazer'
 
 await cam.animateTo(
   { x: 0, y: 380, width: 661, height: 520 },
@@ -84,7 +84,7 @@ Reach for these parts to follow a node, choose which camera is current, size str
 A camera is a {@link Node2D}, so its `transform` works on the view. Moving the camera node pans the view, rotating it rotates the view, and [`zoom`](/module/camera/cameranode2d#zoom) zooms. A larger `zoom` is closer. To follow a node, make the camera its child and frame a rect centered on the origin.
 
 ```ts
-import { CameraNode2D, ShapeNode } from 'stargazer'
+import { CameraNode2D, ShapeNode } from '@julianagaibler/stargazer'
 
 const hero = new ShapeNode({
   geometry: { kind: 'circle', radius: 30 },
@@ -126,7 +126,7 @@ When no enabled camera is left, `currentCamera2D` is `null`. `clearCurrent(false
 A second `animateTo` runs next to the first, so the two animations write the viewport together. To replace a running animation, keep an `AbortController`, abort it, and pass the new signal.
 
 ```ts
-import { ignoreAbort, type Rect } from 'stargazer'
+import { ignoreAbort, type Rect } from '@julianagaibler/stargazer'
 
 let controller: AbortController | null = null
 

@@ -19,7 +19,7 @@ A scene builder adds nodes to the tree, and the nodes you add control what the s
 A scene builder passed to `host.loadScene` adds a camera and some content to the root. The host comes from {@link createEngineHost}, see [Setup](/guides/setup).
 
 ```ts
-import { CameraNode2D, ShapeNode } from 'stargazer'
+import { CameraNode2D, ShapeNode } from '@julianagaibler/stargazer'
 
 await host.loadScene((scene) => {
   const cam = new CameraNode2D()
@@ -45,7 +45,7 @@ The camera frames a 1920 by 1080 world rectangle, and a yellow circle sits in it
 Start with the built-in nodes. {@link ShapeNode}, {@link Path2DNode}, {@link PolylineNode}, {@link TextNode}, {@link ImageNode} and the other ready-made nodes describe what to show through options. A card with a border and a label is a `ShapeNode` and a `TextNode` under one parent:
 
 ```ts
-import { Node2D, ShapeNode, TextNode } from 'stargazer'
+import { Node2D, ShapeNode, TextNode } from '@julianagaibler/stargazer'
 
 const card = new Node2D('card')
 card.add(
@@ -72,7 +72,11 @@ scene.root.add(card)
 When no built-in node draws what you need, or one node should draw many things such as a grid or a gauge, subclass `Node2D` and override `paint`. The engine records the draw commands you call on the {@link Canvas} into a picture and replays the picture every frame. The same card as one custom node:
 
 ```ts
-import { Node2D, definePaintProps, type Canvas } from 'stargazer'
+import {
+  Node2D,
+  definePaintProps,
+  type Canvas,
+} from '@julianagaibler/stargazer'
 
 class Card extends Node2D {
   declare label: string
@@ -144,7 +148,7 @@ scene.root.insertBefore(backdrop, card)
 A {@link Behavior} attaches logic to a node. Extend it, override the hooks you need, and attach an instance with `addBehavior`:
 
 ```ts
-import { Behavior } from 'stargazer'
+import { Behavior } from '@julianagaibler/stargazer'
 
 class Spin extends Behavior {
   radPerSec: number
@@ -169,7 +173,7 @@ The node spins half a radian per second. A behavior reaches its node through `th
 Destroying a node aborts `node.abortSignal`. Every `node.tween(...)` and `node.wait(...)` is tied to that signal, so it rejects with an `AbortError` when the node is destroyed. Pass {@link ignoreAbort} to `.catch` to treat that rejection as a normal end:
 
 ```ts
-import { easings, ignoreAbort } from 'stargazer'
+import { easings, ignoreAbort } from '@julianagaibler/stargazer'
 
 await node
   .tween({ alpha: 0 }, { duration: 0.5, easing: easings.outCubic })
@@ -218,7 +222,7 @@ Reach for these parts when a scene needs input, effects on a subtree, a HUD that
 A behavior hears about the tree through three hooks. `addBehavior` sets `this.node` and calls `onAttach` at once. `onSceneReady` runs once after that, as soon as the node is in a scene, so it is the place to read `this.node.engine`. `onDetach` runs when the behavior is removed or the node is destroyed.
 
 ```ts
-import { Behavior, Node2D } from 'stargazer'
+import { Behavior, Node2D } from '@julianagaibler/stargazer'
 
 class Announce extends Behavior {
   override onSceneReady(): void {
@@ -263,7 +267,7 @@ A node added during the pass first updates on the next frame. A node destroyed d
 The tree mixes three kinds of node: {@link Node2D}, {@link Node3D} and {@link GroupNode}. Each 2D node takes its world transform from the nearest `Node2D` ancestor, skipping nodes of other kinds. A `Node2D` under a `GroupNode` or a `Node3D` with no `Node2D` ancestor is placed as if it sat at the root.
 
 ```ts
-import { GroupNode } from 'stargazer'
+import { GroupNode } from '@julianagaibler/stargazer'
 
 const level = new GroupNode('level')
 level.add(hud, world) // hud holds 2D nodes, world holds 3D nodes
@@ -294,7 +298,10 @@ Code that changes an ancestor and needs a descendant's new position in the same 
 {@link PointerBehavior} is a base class for a behavior that handles pointer input. Return the handlers from `handlers()`. The base class binds them with `bindPointer` on attach and unbinds them on detach.
 
 ```ts
-import { PointerBehavior, type PointerHandlers } from 'stargazer'
+import {
+  PointerBehavior,
+  type PointerHandlers,
+} from '@julianagaibler/stargazer'
 
 class DragToMove extends PointerBehavior {
   protected handlers(): PointerHandlers {
@@ -391,7 +398,7 @@ A size in CSS pixels is `size * canvas.screenScale()`. A stroke width can be `{ 
 To test what a node draws, `paintCalls` runs its `paint` and returns the recorded calls in the vocabulary of `Canvas`:
 
 ```ts
-import { paintCalls } from 'stargazer'
+import { paintCalls } from '@julianagaibler/stargazer'
 
 const calls = paintCalls(new Hand(), { deviceScale: 2 })
 console.log(calls.map((c) => c.name)) // ['strokeLine']
@@ -427,7 +434,7 @@ A group costs a surface each frame and a render pass of its own, so turn it on o
 The compose walk skips a painted node when its bounds lie fully outside the visible world rect. The bounds are the picture's bounds combined with `boundsOverride`, grown a little for strokes and shadows. A node whose picture has unknown bounds, such as one that draws a `Path2D`, is culled when it sets `boundsOverride`. A culled node still checks its dependencies, so it is up to date when it comes back into view.
 
 ```ts
-import { Path2DNode } from 'stargazer'
+import { Path2DNode } from '@julianagaibler/stargazer'
 
 const coastline = new Path2DNode({
   path,
@@ -470,7 +477,7 @@ The clip follows the node's transform, so a rotated or scaled panel clips correc
 An `InsetViewNode` shows a separate 2D world inside a rounded rect, with a view of its own, like picture-in-picture. Build the inner world under `inset.content` in its own units. Set `inset.viewport` to the rect of that world to show. The rect is fitted into the inset at a uniform scale and centered. Setting it every frame pans and zooms like a camera.
 
 ```ts
-import { InsetViewNode } from 'stargazer'
+import { InsetViewNode } from '@julianagaibler/stargazer'
 
 const inset = new InsetViewNode({ width: 392, height: 516, radius: 40 })
 inset.content.add(ship)
@@ -494,7 +501,7 @@ An inset has these limits. A node inside that calls `setClip` itself replaces th
 A {@link Layer} gives its subtree a placement of its own. The stage camera moves and scales everything in the tree, which suits a world but moves a heads-up display away. Put such nodes under a layer whose `space` is not `'world'`, and the camera leaves them in place.
 
 ```ts
-import { Layer, TextNode } from 'stargazer'
+import { Layer, TextNode } from '@julianagaibler/stargazer'
 
 // One unit is one CSS pixel, origin at the top left of the canvas.
 const hud = new Layer({ space: 'screen' })

@@ -15,7 +15,7 @@ The search is negamax with alpha-beta pruning over a state object you own, so it
 This example describes tic-tac-toe and asks for the best move for the player to move.
 
 ```ts
-import { searchBestMove, type AdversarialGame } from 'stargazer'
+import { searchBestMove, type AdversarialGame } from '@julianagaibler/stargazer'
 
 interface Board {
   cells: Int8Array // 0 empty, 1 or 2 for a player
@@ -118,7 +118,7 @@ A random move gives an easier opponent than a move with a slightly lower score, 
 When several moves share the best score, the search picks one at random, each with the same chance, so the opponent plays a different game each time. `SearchOptions.random` sets the random source and defaults to `Math.random`. Pass a seeded generator to make a search reproducible in tests.
 
 ```ts
-import { searchBestMove } from 'stargazer'
+import { searchBestMove } from '@julianagaibler/stargazer'
 
 let seed = 1
 const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647

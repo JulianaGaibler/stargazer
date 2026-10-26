@@ -78,7 +78,7 @@ const REPEAT_MILESTONES = new Set([10, 100, 1000, 10000])
  * Use the shared {@link diagnostics} instance.
  *
  * @example
- *   import { diagnostics } from 'stargazer'
+ *   import { diagnostics } from '@julianagaibler/stargazer'
  *
  *   // Send every warning and error to your own logging.
  *   const off = diagnostics.on((d) => sendToLogs(d.code, d.message))

@@ -350,7 +350,7 @@ let measurerOverride:
 /**
  * Replaces {@link measureText} with `measure` until the returned function is
  * called. A headless test has no 2D context, so every string measures zero and
- * every string fits. Exported through `stargazer/testing`.
+ * every string fits. Exported through `@julianagaibler/stargazer/testing`.
  */
 export function setTextMeasurer(
   measure: (text: string, style: LabelStyle) => LabelMetrics,

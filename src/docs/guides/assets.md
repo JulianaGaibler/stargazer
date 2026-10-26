@@ -15,7 +15,11 @@ The GPU renderer draws triangles, so every `Path2D` it fills or strokes needs a 
 This example loads an SVG map once, then adds one region of it to a scene.
 
 ```ts
-import { AssetLoader, Path2DNode, parseSvgPaths } from 'stargazer'
+import {
+  AssetLoader,
+  Path2DNode,
+  parseSvgPaths,
+} from '@julianagaibler/stargazer'
 
 const assets = new AssetLoader()
 
@@ -52,7 +56,7 @@ Each entry has `path`, a `Path2D`, and `bounds`, its axis-aligned bounds. With `
 Use `rasterizeSvg` for artwork that keeps its own colors, such as a detailed illustration or an icon. It returns a canvas that you draw with [`drawImage`](/module/scene/canvas#drawimage) or an {@link ImageNode}.
 
 ```ts
-import { rasterizeSvg } from 'stargazer'
+import { rasterizeSvg } from '@julianagaibler/stargazer'
 
 const icon = await assets.load('coin', () =>
   rasterizeSvg(coinSvg, { scale: 4 }),
@@ -83,7 +87,7 @@ import {
   flattenSvgPath,
   registerPathTessellation,
   tessellateContours,
-} from 'stargazer'
+} from '@julianagaibler/stargazer'
 
 const d = 'M0 0 L40 0 L40 40 Z'
 const contours = flattenSvgPath(d, 0.5)
@@ -144,7 +148,7 @@ const { paths } = parseSvgPaths(svg, {
 Two helpers measure a tessellated shape. {@link deepestInteriorPoint} returns the point inside the contours that is farthest from every edge, a good spot for a label or marker. `interiorThickness(entry)` returns the shape's mean width, `2 * area / perimeter`.
 
 ```ts
-import { deepestInteriorPoint } from 'stargazer'
+import { deepestInteriorPoint } from '@julianagaibler/stargazer'
 
 const at = deepestInteriorPoint(north.contours ?? [])
 if (at) {
@@ -160,7 +164,7 @@ if (at) {
 When the decode fails, `rasterizeSvg` logs a warning and resolves to a blank canvas of the right size, so a missing asset leaves startup intact. {@link isBlankRaster} tells you that happened, for example in a test environment that can't decode images.
 
 ```ts
-import { isBlankRaster } from 'stargazer'
+import { isBlankRaster } from '@julianagaibler/stargazer'
 
 const canvas = await rasterizeSvg(coinSvg, { width: 128, height: 128 })
 if (isBlankRaster(canvas)) console.warn('coin art did not decode')
@@ -173,7 +177,7 @@ if (isBlankRaster(canvas)) console.warn('coin art did not decode')
 `buildBitmapMask({ path, worldRect })` fills a path into a pixel mask and returns a {@link BitmapMask}. Its `contains(worldX, worldY)` answers whether a point is inside the shape with one array lookup.
 
 ```ts
-import { buildBitmapMask } from 'stargazer'
+import { buildBitmapMask } from '@julianagaibler/stargazer'
 
 const mask = await buildBitmapMask({ path: arena, worldRect: arenaRect })
 const inside = mask.contains(piece.transform.x, piece.transform.y, 8)
@@ -195,7 +199,7 @@ import {
   createQuadGeometry,
   createTexture,
   rasterizeSvg,
-} from 'stargazer'
+} from '@julianagaibler/stargazer'
 
 const quad = createQuadGeometry({ width: 2.5, height: 3.5 })
 const face = await createTexture(await rasterizeSvg(cardSvg, { scale: 2 }))

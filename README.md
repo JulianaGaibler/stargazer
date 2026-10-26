@@ -21,6 +21,14 @@ Stargazer is WebGPU first, with a WebGL2 fallback behind the same device interfa
 - HTML overlays that can be attached to scene nodes and transform with them seamlessly
 - Extendable debug interface
 
+## Install
+
+```sh
+npm install @julianagaibler/stargazer svelte
+```
+
+Svelte 5 is a peer dependency. The `mountEngine` action and the debug UI use it. The engine itself has two dependencies, `earcut` and `esm-env`. Install `@webgpu/types` as well if you want WebGPU types in your own project.
+
 ## Quick start
 
 Give a `<canvas>` a CSS size and mount the engine on it. The engine picks WebGPU where it works and falls back to WebGL2:
@@ -31,7 +39,7 @@ import {
   ShapeNode,
   createEngineHost,
   selectGfxDevice,
-} from 'stargazer'
+} from '@julianagaibler/stargazer'
 
 const canvas = document.querySelector('canvas')!
 const { device } = await selectGfxDevice(canvas, 'auto')

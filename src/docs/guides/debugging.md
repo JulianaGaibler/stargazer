@@ -12,8 +12,8 @@ The host builds the controller in every build, so the hotkeys work whether or no
 
 ```svelte
 <script lang="ts">
-  import { DebugHud } from 'stargazer/debug-ui'
-  import type { EngineHost } from 'stargazer'
+  import { DebugHud } from '@julianagaibler/stargazer/debug-ui'
+  import type { EngineHost } from '@julianagaibler/stargazer'
 
   const { host }: { host: EngineHost } = $props()
 </script>

@@ -8,10 +8,14 @@ order: 23
 
 The debug HUD is built from Svelte components that you can use too. This page shows how to build a panel for the HUD, a debug window of your own, and how the components fit together. [Debugging](/guides/debugging) describes the HUD and the {@link DebugController}.
 
-Import the components from `stargazer/debug-ui`. The entry loads the debug styles, so an app imports them only where it shows a debug UI.
+Import the components from `@julianagaibler/stargazer/debug-ui`. The entry loads the debug styles, so an app imports them only where it shows a debug UI.
 
 ```ts
-import { DebugSection, DebugRow, DebugSlider } from 'stargazer/debug-ui'
+import {
+  DebugSection,
+  DebugRow,
+  DebugSlider,
+} from '@julianagaibler/stargazer/debug-ui'
 ```
 
 ## Basic usage
@@ -21,8 +25,12 @@ A panel for the HUD is a Svelte component. The HUD gives it a `debug` prop, whic
 ```svelte
 <!-- BoardPanel.svelte -->
 <script lang="ts">
-  import type { DebugController } from 'stargazer'
-  import { DebugRow, DebugSection, DebugSlider } from 'stargazer/debug-ui'
+  import type { DebugController } from '@julianagaibler/stargazer'
+  import {
+    DebugRow,
+    DebugSection,
+    DebugSlider,
+  } from '@julianagaibler/stargazer/debug-ui'
 
   interface Props {
     debug: DebugController
@@ -77,7 +85,7 @@ Put the components in a `DraggableWindow` anywhere in your app, whether or not t
     DebugSection,
     DraggableWindow,
     ToggleButton,
-  } from 'stargazer/debug-ui'
+  } from '@julianagaibler/stargazer/debug-ui'
 
   let visible = $state(false)
   let showGrid = $state(false)
@@ -150,7 +158,7 @@ These sections list the components by purpose, then describe tones, tooltips, wi
 A tone is `neutral`, `good`, `warn` or `bad`. `TONE_COLORS` maps each tone to a color. `toneFor(threshold, value)` picks the tone for a reading from a `Threshold`, which has a `good` limit and a `warn` limit. A threshold with `lowIsBad` runs the other way, for readings like a cache hit rate.
 
 ```ts
-import { toneFor, type Threshold } from 'stargazer/debug-ui'
+import { toneFor, type Threshold } from '@julianagaibler/stargazer/debug-ui'
 
 const frameTime: Threshold = {
   label: 'Frame time',
@@ -167,7 +175,7 @@ toneFor(frameTime, 20) // 'warn'
 
 ```svelte
 <script lang="ts">
-  import { MetricRow } from 'stargazer/debug-ui'
+  import { MetricRow } from '@julianagaibler/stargazer/debug-ui'
 </script>
 
 <MetricRow
@@ -187,7 +195,7 @@ A window opens in the corner named by `side`. A window opened from another windo
 
 ```svelte
 <script lang="ts">
-  import { DebugRow, DraggableWindow } from 'stargazer/debug-ui'
+  import { DebugRow, DraggableWindow } from '@julianagaibler/stargazer/debug-ui'
 
   let detailsVisible = $state(true)
   let selected = $state('Card 3')
@@ -214,7 +222,7 @@ The close button ignores a click in the first 250 ms after the window opens, so 
 
 ### Styles
 
-The components use global CSS classes from the debug styles, such as `.debug-panel`. They are plain CSS with fixed colors and a monospace font, and buttons are sized for touch. Importing `stargazer/debug-ui` loads them.
+The components use global CSS classes from the debug styles, such as `.debug-panel`. They are plain CSS with fixed colors and a monospace font, and buttons are sized for touch. Importing `@julianagaibler/stargazer/debug-ui` loads them.
 
 ## Next step
 

@@ -242,7 +242,7 @@ export const DIAGNOSTIC_CODES = {
     title: 'Text cannot be measured',
     cause:
       'There is no 2D canvas context to measure text with, as in a headless environment. Every string measures as empty.',
-    fix: 'In tests, use `setTextMeasurer` from `stargazer/testing`.',
+    fix: 'In tests, use `setTextMeasurer` from `@julianagaibler/stargazer/testing`.',
   },
   SG2020: {
     area: 'gfx',

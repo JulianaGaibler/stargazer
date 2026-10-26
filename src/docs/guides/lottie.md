@@ -13,8 +13,8 @@ Lottie files describe vector animations as JSON. A {@link LottieNode} plays one 
 Fetch a file with {@link loadLottie}, give the result to a `LottieNode` and add the node to the scene.
 
 ```ts
-import { LottieNode, loadLottie } from 'stargazer'
-import type { SceneTree } from 'stargazer'
+import { LottieNode, loadLottie } from '@julianagaibler/stargazer'
+import type { SceneTree } from '@julianagaibler/stargazer'
 
 declare const scene: SceneTree
 
@@ -58,7 +58,7 @@ The events are listed in {@link LottiePlayerEvents}.
 A `.lottie` file is a zip archive with a manifest, animations, themes, and the images and fonts they use. {@link loadDotLottie} opens one.
 
 ```ts
-import { LottieNode, loadDotLottie } from 'stargazer'
+import { LottieNode, loadDotLottie } from '@julianagaibler/stargazer'
 
 const file = await loadDotLottie('/mascot.lottie')
 const mascot = new LottieNode({
@@ -113,8 +113,8 @@ scene.root.add(badge)
 {@link computeLayout} is the function the node uses, and you can call it to place other content the same way.
 
 ```ts
-import { computeLayout } from 'stargazer'
-import type { LottieAnimation } from 'stargazer'
+import { computeLayout } from '@julianagaibler/stargazer'
+import type { LottieAnimation } from '@julianagaibler/stargazer'
 
 declare const anim: LottieAnimation
 
@@ -222,7 +222,7 @@ Archive entries stored with deflate are read through the browser's `Decompressio
 {@link LottiePlayer} is the clock inside the node, and you can use it to drive your own drawing. It runs on the time you give it. Call `advance(dtMs)` once per frame and read the frame it returns.
 
 ```ts
-import { LottiePlayer, parseLottie } from 'stargazer'
+import { LottiePlayer, parseLottie } from '@julianagaibler/stargazer'
 
 declare const json: string
 declare const dtMs: number

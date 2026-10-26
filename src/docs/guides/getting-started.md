@@ -8,14 +8,18 @@ order: 1
 
 This guide builds a small game called Star catcher, one step at a time. You put a scene on screen, add shapes and text, move them, react to a tap, add a heads-up display and a second scene, and then draw a node of your own. After the last step you know where to look things up and which habits save time.
 
-You need TypeScript, a page with one `<canvas>` element that has a CSS size, and the `stargazer` package in your project. Every code block imports from `'stargazer'`.
+You need TypeScript, a page with one `<canvas>` element that has a CSS size, and the `@julianagaibler/stargazer` package in your project. Every code block imports from `'@julianagaibler/stargazer'`.
 
 ## See something on screen
 
 An {@link EngineHost} runs the engine on a canvas element. A scene shows content once it has a camera, so the first scene adds a {@link CameraNode2D} and one circle.
 
 ```ts
-import { createEngineHost, CameraNode2D, ShapeNode } from 'stargazer'
+import {
+  createEngineHost,
+  CameraNode2D,
+  ShapeNode,
+} from '@julianagaibler/stargazer'
 
 const canvas = document.querySelector('canvas')!
 const host = createEngineHost({ canvas, clearColor: '#0d1a2c' })
@@ -46,7 +50,7 @@ If the canvas shows only the dark blue, the scene has no camera. Add a `CameraNo
 A built-in node describes what to show through its options. The rest of this guide adds lines to the scene builder, after the camera. This step adds a backdrop, a card and a label.
 
 ```ts
-import { ShapeNode, TextNode } from 'stargazer'
+import { ShapeNode, TextNode } from '@julianagaibler/stargazer'
 
 const backdrop = new ShapeNode({
   geometry: { kind: 'rect', width: 1920, height: 1080, centered: false },
@@ -83,7 +87,7 @@ The canvas shows a slightly lighter backdrop with a dark card near the bottom, a
 A star is a vector path. {@link parseSvgPaths} reads path data from SVG text, and a {@link Path2DNode} draws one of the paths.
 
 ```ts
-import { Path2DNode, parseSvgPaths } from 'stargazer'
+import { Path2DNode, parseSvgPaths } from '@julianagaibler/stargazer'
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-64 -64 128 128">
   <path id="star" d="M0 -60 L17 -20 L57 -18 L26 8 L35 48 L0 26 L-35 48 L-26 8 L-57 -18 L-17 -20 Z"/>
@@ -121,7 +125,7 @@ The label now sits in the card's own space, so it keeps its place when the card 
 A tween moves numbers from their current values to new values over a duration and returns a promise. `loop` runs an async function again and again while the node lives.
 
 ```ts
-import { easings } from 'stargazer'
+import { easings } from '@julianagaibler/stargazer'
 
 star.loop(async () => {
   await star.tween({ y: 440 }, { duration: 1.2, easing: easings.inOutQuad })
@@ -134,7 +138,7 @@ The star floats up and down. Destroying the node ends the loop, because every tw
 A {@link Behavior} attaches logic that runs on every frame. Write one when something changes continuously and has no end, such as a spin.
 
 ```ts
-import { Behavior } from 'stargazer'
+import { Behavior } from '@julianagaibler/stargazer'
 
 class Spin extends Behavior {
   radPerSec: number
@@ -157,8 +161,8 @@ The star turns about 0.8 radians per second while it floats. `dt` is the frame t
 A {@link ButtonBehavior} turns a node into a tap button. It calls `onClick` when the pointer goes down and comes up on the node. A path node takes taps over the region its `hitMode` describes, and `'circle'` uses a circle of `hitRadiusWorld` around the node's origin.
 
 ```ts
-import { ButtonBehavior, easings, ignoreAbort } from 'stargazer'
-import type { Node2D } from 'stargazer'
+import { ButtonBehavior, easings, ignoreAbort } from '@julianagaibler/stargazer'
+import type { Node2D } from '@julianagaibler/stargazer'
 
 let score = 0
 
@@ -215,7 +219,7 @@ export const COLORS = {
 export const WORLD = { x: 0, y: 0, width: 1920, height: 1080 }
 
 // game.ts
-import { createEmitter } from 'stargazer'
+import { createEmitter } from '@julianagaibler/stargazer'
 
 export const game = createEmitter<{ score: number }>()
 ```
@@ -231,7 +235,7 @@ import {
   easings,
   ignoreAbort,
   parseSvgPaths,
-} from 'stargazer'
+} from '@julianagaibler/stargazer'
 import { COLORS } from '../theme'
 
 const STAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-64 -64 128 128">
@@ -270,7 +274,7 @@ A heads-up display stays in place while the camera moves, so it belongs in a {@l
 
 ```ts
 // parts/hud.ts
-import { Layer, TextNode } from 'stargazer'
+import { Layer, TextNode } from '@julianagaibler/stargazer'
 import { COLORS } from '../theme'
 import { game } from '../game'
 
@@ -299,8 +303,8 @@ A scene is a function that fills an empty scene. `loadScene` destroys what the p
 
 ```ts
 // scenes/play.ts
-import { CameraNode2D, Node2D, ShapeNode } from 'stargazer'
-import type { SceneBuilder } from 'stargazer'
+import { CameraNode2D, Node2D, ShapeNode } from '@julianagaibler/stargazer'
+import type { SceneBuilder } from '@julianagaibler/stargazer'
 import { COLORS, WORLD } from '../theme'
 import { game } from '../game'
 import { buildStar } from '../parts/star'
@@ -340,8 +344,13 @@ The `world` group holds the game's content, and the HUD sits beside it under the
 
 ```ts
 // scenes/title.ts
-import { ButtonBehavior, CameraNode2D, ShapeNode, TextNode } from 'stargazer'
-import type { EngineHost, SceneBuilder } from 'stargazer'
+import {
+  ButtonBehavior,
+  CameraNode2D,
+  ShapeNode,
+  TextNode,
+} from '@julianagaibler/stargazer'
+import type { EngineHost, SceneBuilder } from '@julianagaibler/stargazer'
 import { COLORS, WORLD } from '../theme'
 import { playScene } from './play'
 
@@ -382,7 +391,7 @@ export function titleScene(host: EngineHost): SceneBuilder {
 
 ```ts
 // main.ts
-import { createEngineHost } from 'stargazer'
+import { createEngineHost } from '@julianagaibler/stargazer'
 import { titleScene } from './scenes/title'
 
 const canvas = document.querySelector('canvas')!
@@ -401,8 +410,8 @@ When no built-in node draws what you need, write a custom node. Subclass {@link 
 This node draws the card from earlier in one piece, and a change to `title` repaints it.
 
 ```ts
-import { Node2D, definePaintProps } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D, definePaintProps } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Card extends Node2D {
   declare title: string
@@ -437,7 +446,7 @@ The picture matches the card from the built-in version, with the label inside it
 A custom node can also add to a built-in one. Add it as a child of the `ShapeNode` and it draws in the shape's local space. Or subclass the built-in node and call `super.paint(canvas)` before your own draw commands:
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
 
 class ScoreCard extends ShapeNode {
   override paint(canvas: Canvas): void {

@@ -15,7 +15,7 @@ The engine's {@link Animator} runs every tween and wait. It advances them once p
 This example scales a node up, waits half a second, then fades it out.
 
 ```ts
-import { easings, ignoreAbort, type Node2D } from 'stargazer'
+import { easings, ignoreAbort, type Node2D } from '@julianagaibler/stargazer'
 
 async function popAndFade(node: Node2D): Promise<void> {
   await node.tween(
@@ -114,7 +114,7 @@ A timeline suits a fixed sequence. For branches, loops or state changes between 
 An easing maps progress from 0 to 1 onto the eased value. The default is linear, and the built-in easings are in the {@link easings} namespace.
 
 ```ts
-import { easings } from 'stargazer'
+import { easings } from '@julianagaibler/stargazer'
 
 await node.tween({ y: 0 }, { duration: 0.6, easing: easings.outBounce })
 
@@ -226,7 +226,7 @@ This covers `wait`, `tweenTo`, `Node2D.tween`, `Node3D.tween`, [`CameraNode2D.an
 {@link combineAbortSignals} returns a {@link CombinedAbort}, `{ signal, dispose }`. The combined signal aborts when any source aborts, and `dispose()` removes the listeners it added to the sources.
 
 ```ts
-import { combineAbortSignals } from 'stargazer'
+import { combineAbortSignals } from '@julianagaibler/stargazer'
 
 const combined = combineAbortSignals(node.abortSignal, opts.signal)
 try {

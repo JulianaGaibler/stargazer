@@ -21,7 +21,7 @@ A {@link SceneTree} has one root, a {@link GroupNode}, and holds 2D and 3D nodes
 A node's `transform` is relative to its parent. This card has a yellow dot as a child:
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode } from '@julianagaibler/stargazer'
 
 const card = new ShapeNode({
   geometry: { kind: 'rect', width: 240, height: 140, radii: 16 },
@@ -57,8 +57,8 @@ The ticker also runs a fixed step, by default 120 times a second. Use it through
 This behavior moves a node at a steady speed in fixed steps and draws the position between the last two steps:
 
 ```ts
-import { Behavior } from 'stargazer'
-import type { Engine } from 'stargazer'
+import { Behavior } from '@julianagaibler/stargazer'
+import type { Engine } from '@julianagaibler/stargazer'
 
 class Drift extends Behavior {
   readonly #engine: Engine
@@ -119,8 +119,8 @@ off() // remove the handler
 This behavior reads a pointer in step 4:
 
 ```ts
-import { Behavior } from 'stargazer'
-import type { Engine } from 'stargazer'
+import { Behavior } from '@julianagaibler/stargazer'
+import type { Engine } from '@julianagaibler/stargazer'
 
 class FollowPointer extends Behavior {
   readonly #engine: Engine
@@ -183,8 +183,8 @@ This part covers how a node draws, stages and the Svelte boundary.
 A 2D node draws in one of two ways. A node with `paint(canvas)` records its drawing into a {@link Picture} through a {@link Canvas}, and the stage replays the picture every frame. A node with `draw(gfx, camera, dt)` draws into {@link Gfx2D} directly, every frame.
 
 ```ts
-import { Node2D, definePaintProps } from 'stargazer'
-import type { Canvas } from 'stargazer'
+import { Node2D, definePaintProps } from '@julianagaibler/stargazer'
+import type { Canvas } from '@julianagaibler/stargazer'
 
 class Gauge extends Node2D {
   declare value: number
@@ -210,7 +210,7 @@ The [Rendering model](/guides/rendering) guide follows the rest of the way: how 
 A {@link Stage} is one canvas element with its own {@link Renderer}, scene tree, cameras, GPU context and render target. The engine owns the primary stage at `engine.primaryStage`, and `engine.tree`, `engine.renderer` and `engine.currentCamera2D` read from it.
 
 ```ts
-import { CameraNode2D } from 'stargazer'
+import { CameraNode2D } from '@julianagaibler/stargazer'
 
 const stage = engine.attachStage(secondCanvas, { interactive: true })
 const cam = new CameraNode2D()
@@ -234,7 +234,7 @@ Create an {@link Emitter} with {@link createEmitter} for your own game events. T
 Use stores for events that fire now and then. Read per-frame values with `on` inside a `$effect`, because each store update re-renders the components that read it, and `frame` and `pointerMove` fire many times per second. The store helpers log a warning when given those two events.
 
 ```ts
-import { emitterStore } from 'stargazer'
+import { emitterStore } from '@julianagaibler/stargazer'
 
 // An event that fires a few times a minute, as a store.
 const score = emitterStore(game.events, 'score', 0) // {$score} in markup
