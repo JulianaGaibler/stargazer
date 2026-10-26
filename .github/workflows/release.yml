@@ -1,8 +1,8 @@
 name: Release
 
 # Run by hand from the Actions tab once the version in package.json is the one
-# to release. It checks the code, publishes to npm, deploys the docs to GitHub
-# Pages, then tags the commit and creates the GitHub release.
+# to release. It checks the code, publishes to npm, then tags the commit and
+# creates the GitHub release.
 on:
   workflow_dispatch:
 
@@ -20,8 +20,6 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,27 +55,3 @@ jobs:
           gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" --generate-notes $flags
         env:
           GH_TOKEN: ${{ github.token }}
-
-  docs:
-    needs: publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run docs
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - id: deploy
-        uses: actions/deploy-pages@v4
