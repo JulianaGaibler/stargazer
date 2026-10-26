@@ -196,7 +196,7 @@ A label page reset means every label in the scene was drawn again in one frame. 
 
 Bytes uploaded grow with the number of primitives the renderer redraws instead of keeping between frames. The upload buffers grow when a frame needs more room and shrink again after a run of quiet frames.
 
-The path-shadow rows in Caches help tune shadow budgets. A climbing `Outline tessellations` count while the camera is still means a stroke outline is built again every frame. A low `Bake pool hit rate` means mask bakes allocate new render targets instead of taking them from the pool. A `Mask memory` reading that keeps climbing means `quality.vector.shadowMaskBudgetBytes` is larger than the scene needs. See [Path shadows](/path-shadows) for what each budget bounds.
+The path-shadow rows in Caches help tune shadow budgets. A climbing `Outline tessellations` count while the camera is still means a stroke outline is built again every frame. A low `Bake pool hit rate` means mask bakes allocate new render targets instead of taking them from the pool. A `Mask memory` reading that keeps climbing means `quality.vector.shadowMaskBudgetBytes` is larger than the scene needs. See [Rendering performance](/guides/performance#budget-path-shadow-masks) for what each budget does.
 
 ### Demos
 
@@ -219,4 +219,3 @@ Build your own panel for the HUD in [Debug UI](/guides/debug-ui).
 - [Physics](/guides/physics): worlds, bodies, and the physics overlay
 - [Rendering performance](/guides/performance): batching and what the renderer keeps
 - [Text](/guides/text): the label cache
-- [Path shadows](/path-shadows): shadow mask budgets

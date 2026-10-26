@@ -13,7 +13,7 @@
   // Slashed zeros + tabular numbers, digits align cleanly and can't be
   // mistaken for the letter O in kbd chips or coordinate readouts.
   font-variant-numeric: slashed-zero tabular-nums
-  max-height: calc(100vh - 20px)
+  max-height: calc(100vh - 20px - env(safe-area-inset-top, 0px))
   overflow-y: auto
   display: flex
   flex-direction: column
@@ -40,13 +40,15 @@
     &:hover
       background: rgba(96, 165, 250, 0.5)
 
+  // Clears the iPad status bar when the page runs as an installed app, where
+  // the viewport extends under it. The inset is 0 everywhere else.
   &.left
-    top: 10px
-    left: 10px
+    top: calc(10px + env(safe-area-inset-top, 0px))
+    left: calc(10px + env(safe-area-inset-left, 0px))
 
   &.right
-    top: 10px
-    right: 10px
+    top: calc(10px + env(safe-area-inset-top, 0px))
+    right: calc(10px + env(safe-area-inset-right, 0px))
 
   details, .header
     background: rgba(0, 0, 0, 0.9)

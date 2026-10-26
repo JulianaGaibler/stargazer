@@ -1468,6 +1468,11 @@ export class WebGPUDevice implements GfxDevice {
    * load would be legal (WebGPU zero-initializes lazily) but leaves depth at
    * `0.0`, which fails the engine's `less-equal` default for every fragment and
    * makes 3D content vanish with no error to trace it by.
+   *
+   * @remarks
+   *   Maintainers: the attachment comes from the target's own format and ignores
+   *   which of `desc.depth` and `desc.stencil` the caller filled in. WebGPU
+   *   wants operations for every aspect the format carries and for no other.
    */
   #depthStencilAttachment(
     desc: RenderPassDesc,

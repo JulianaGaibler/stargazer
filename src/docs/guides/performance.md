@@ -149,7 +149,7 @@ The renderer merges runs of the same program and state when no draw between them
 
 The buffers grow when a frame needs more room and shrink after they sit mostly empty for a while. A scene with thousands of separate runs pays in upload bytes and uniform slices, which the HUD shows.
 
-A translucent stroke with several segments paints each pixel once, through the stencil buffer, so a dashed translucent polyline shows no beads at its joins. An outline-rendered border is one filled shape and needs no such step. See [Combined depth and stencil](/combined-depth-stencil) for the stencil bits.
+A translucent stroke with several segments paints each pixel once, through the stencil buffer, so a dashed translucent polyline shows no beads at its joins. An outline-rendered border is one filled shape and needs no such step.
 
 ### Let the renderer keep content
 
@@ -183,6 +183,29 @@ Repainting frees what was kept for the old recording. A kept stroke is held in d
 
 Content that changes on every frame suits [immediate drawing](/guides/drawing#draw-immediately-with-draw), which records nothing.
 
+### Budget path shadow masks
+
+A {@link Path2DNode} shadow draws from a cached mask, and each mask costs memory and a bake. See [Drawing](/guides/drawing#shadows-on-paths) for how shadows behave. Three fields of {@link VectorQuality} set the limits. Read them at `engine.quality.vector`.
+
+- `shadowMaskBudgetBytes` caps the memory of all masks. When a new mask does not fit, the least recently used masks are freed first. A mask that was just baked is kept for a while so two shadows do not evict each other every frame.
+- `shadowBakeWorkPerFrame` caps the blur work of the bakes in one frame. Bakes past it wait for the next frame. One bake always runs, so a large shadow never waits forever. A frame also holds at most 128 bakes.
+- `pathShadowsEnabled` turns path shadows off. An outset shadow then draws as a hard silhouette and an inset shadow draws nothing.
+
+A blur of one device pixel or less needs no mask. It draws a hard silhouette, which looks the same and costs nothing. A mask stays until a new mask needs its bytes, and it bakes again on its next use.
+
+A bake takes effect one frame after the draw that asked for it. Until then the shadow draws from another mask of the same path, if one has a blur within half an octave of the requested one. The scale may differ by any amount, and the mask is resampled. When none qualifies, an outset shadow draws as a hard silhouette and an inset shadow draws nothing.
+
+That limit is a cliff. If the blur moves more than half an octave between one bake of a shadow and the next, the shadow disappears until its own bake lands. Many shadows share the bake budget, so each one refreshes less often. These are measurements on a 100 unit square with a 36 px screen-space blur.
+
+| Zoom                 | Shapes | Shadow draws unpainted |
+| -------------------- | ------ | ---------------------- |
+| 3x over 10 frames    | 1      | 0%                     |
+| 3x over 10 frames    | 4      | 40%                    |
+| 3x over 10 frames    | 32     | 66%                    |
+| 1.59x over 36 frames | 32     | 22%                    |
+
+A world-space blur avoids the race, which makes it a better fix than a larger budget. {@link Stage.warmPathShadows} bakes the next zoom's masks ahead of time. The engine warns once when a shadow has asked for a new blur on 20 frames in a row.
+
 ## Next step
 
 Draw a field of shapes with one draw call in [Custom shaders](/guides/custom-shaders).
@@ -194,4 +217,3 @@ Draw a field of shapes with one draw call in [Custom shaders](/guides/custom-sha
 - [Text](/guides/text): the label cache that text and small images share
 - {@link Canvas}: the recorder a node's `paint` draws into
 - {@link mixColor}, {@link withAlpha}: color helpers that return new strings
-- [Combined depth and stencil](/combined-depth-stencil): the stencil bit layout

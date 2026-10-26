@@ -26,6 +26,16 @@ export function hasStencilAspect(f: DepthStencilFormat): boolean {
  * {@link PipelineDesc.depthStencil} wins. Otherwise it follows the state the
  * pipeline asked for, which is correct whenever a pipeline uses every aspect
  * its target carries.
+ *
+ * @remarks
+ *   Maintainers: both backends and `pipelineKey` call this one function, so the
+ *   cache key and the compiled descriptor always agree on the format. WebGPU
+ *   rejects a pipeline whose format differs from its pass's attachment, so
+ *   every pipeline in a pass names the same format, including 2D pipelines that
+ *   test neither depth nor stencil. Such a pipeline sets `depthStencil` and
+ *   leaves `depth` and `stencil` null. The backend then supplies the inert
+ *   state: writes off and an always-pass compare for depth, and all-`keep`
+ *   operations with a zero write mask for stencil.
  */
 export function resolveDepthStencil(desc: PipelineDesc): DepthStencilFormat {
   if (desc.depthStencil) return desc.depthStencil
@@ -44,6 +54,12 @@ export function depthStencilFormatOf(rt: RenderTarget): DepthStencilFormat {
  * The format a set of target options asks for. `depthSampled` takes the depth
  * aspect alone: its attachment is a sampleable depth-only texture, so stencil
  * bits requested alongside it are not allocated and must not be reported.
+ *
+ * @remarks
+ *   Maintainers: WebGL2 samples depth only from a `DEPTH_COMPONENT24` texture,
+ *   which has no stencil bits. Reporting stencil there would make WebGL2 differ
+ *   from WebGPU for the same options. The ambient occlusion G-buffer is the
+ *   sampled target in practice.
  */
 export function depthStencilFormatFor(
   opts: RenderTargetOpts,

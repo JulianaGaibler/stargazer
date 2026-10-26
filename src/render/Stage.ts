@@ -258,8 +258,8 @@ export class Stage implements CameraHost {
       canvas: opts.directPresent ?? true,
       // Backs the deduplicated translucent-stroke path. Fixed here because a
       // pipeline bakes its depth-stencil format, so it cannot be turned on
-      // later without re-warming every 2D pipeline. Dropped again if the stage
-      // turns on depth for a 3D pass (see `GpuGfx.enableDepth`).
+      // later without re-warming every 2D pipeline. A 3D pass adds depth to the
+      // same attachment (see `GpuGfx.enableDepth`) and the stencil bits stay.
       stencil: true,
       vectorQuality: engine.quality.vector,
       failures: this.failures,

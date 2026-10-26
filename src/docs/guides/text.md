@@ -134,6 +134,16 @@ canvas.fillText('Level 3', 0, 0, {
 
 The color is part of the rasterized bitmap, not a tint. Any CSS color string works, and a multi-color emoji keeps its own colors. The node's alpha and [`setAlpha`](/module/scene/canvas#setalpha) apply on top of it. To crop text to a shape, use [`setClip`](/module/scene/canvas#setclip).
 
+The same text in many colors costs one bitmap per color. To share one, pass `tint: true` to `fillText`. The engine rasterizes the text in white and multiplies it by `color` when it draws, so every color of that string, font and size draws from the same bitmap. A multi-color emoji comes out in the one color.
+
+```ts
+canvas.fillText('Round over', 0, 0, {
+  font: titleFont,
+  color: teamColor,
+  tint: true,
+})
+```
+
 ### Measure text
 
 The measuring functions take a CSS font string and return sizes in the local units that `fillText` draws in. They cache their results, so calling them from `paint` is cheap. This example sizes a name to fit a 240-unit box and cuts it if the smallest size is still too wide.
@@ -300,9 +310,23 @@ Shaping and uploading a label are the costs to keep out of the frame loop, so th
 await label.tween({ alpha: 0 }, { duration: 0.3 })
 ```
 
-Color is baked into the bitmap, so tweening `color` rasterizes a new label on every frame the value changes. Fade with alpha instead.
+Color is baked into the bitmap, so tweening `color` rasterizes a new label on every frame the value changes. Fade with alpha instead, or draw the text with `tint: true`, whose color changes without a new raster.
 
-Text whose device size keeps changing, such as world-space text during a zoom or a tween of `fontSize`, keeps drawing its last raster while that raster is close enough in size. It rasterizes at the exact size once the size holds still or leaves that range. Screen-space text keeps its device size when the camera zooms, so a zoom rasterizes nothing. The renderer limits the new rasters per frame, so the first frame of a text-heavy scene pays for all its text and later frames cost less.
+Text whose device size keeps changing, such as world-space text during a zoom or a tween of `fontSize`, draws from the smallest raster it has that is at least as large, up to twice the size, which stays sharp. Without one it keeps drawing its last raster while that raster is close enough in size, which is soft while it is smaller than the text. It rasterizes at the exact size once the size holds still or leaves that range. Text that comes to rest within a few percent of a size it already has a raster for, up to 3% smaller or 1.5% larger, keeps that raster, so text that settles a hair off its last size, as the tail of an ease often leaves it, does not rasterize again. Screen-space text keeps its device size when the camera zooms, so a zoom rasterizes nothing. The renderer limits the new rasters per frame, so the first frame of a text-heavy scene pays for all its text and later frames cost less.
+
+Text that grows from a raster it is drawn larger than is soft until it settles, and then sharpens at once. When the size a zoom ends at is known, warm it at the start: `canvas.warmText` under a scale that takes the text to that size rasterizes it there without drawing anything. The zoom then draws from the warmed raster from its first frame, sharp all the way, and lands on it. Text that shrinks draws from its larger starting raster, which stays sharp, and warming its end lets it land on the exact raster rather than wait to settle. A raster that is there already costs only a lookup, so a node can warm the end of a zoom in every frame of it.
+
+```ts
+override paint(canvas: Canvas): void {
+  // `scale` is the scale the text is at now, `to` the one the zoom ends at.
+  const k = this.to / this.scale
+  canvas.save()
+  canvas.scale(k, k)
+  canvas.warmText(this.text, { font: this.font })
+  canvas.restore()
+  canvas.fillText(this.text, 0, 0, { font: this.font })
+}
+```
 
 The cache has a fixed capacity and drops the oldest labels, and spares those drawn in the last few frames. Labels share one texture page, so they draw in one batch. A very large label gets a texture of its own and ends the batch. When the page has no room, the renderer frees a limited number of unused labels. If that is not enough, it clears the page at the start of the next frame, and every label on screen rasterizes again in that frame. A string so long, or a zoom so deep, that the texture would exceed the maximum size is rasterized at a lower scale, which softens it.
 
@@ -328,7 +352,7 @@ The face arrived after the text was first drawn. Wait for `document.fonts.load` 
 
 ### Color animation stutters
 
-An animated `color` rasterizes a new label on every changed frame. Tween `alpha` instead.
+An animated `color` rasterizes a new label on every changed frame. Tween `alpha` instead, or draw the text with `tint: true`.
 
 ## See also
 

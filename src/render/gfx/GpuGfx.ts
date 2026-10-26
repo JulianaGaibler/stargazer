@@ -391,6 +391,11 @@ export class GpuGfx implements Gfx2D {
    * (Re)create every backend resource. Called from the constructor and from
    * `rebuildResources` on context restore. Kicks off the async pipeline
    * warm-up.
+   *
+   * @remarks
+   *   Maintainers: this builds a new path-shadow cache, so every baked mask is
+   *   gone after a context loss. Requests still queued in `PathShadows` stay
+   *   queued and bake again on the restored device.
    */
   #initGpuResources(): void {
     const device = this.#device
@@ -585,6 +590,12 @@ export class GpuGfx implements Gfx2D {
    * can run before the 2D layers, and clear it each frame from then on.
    * Idempotent, and reversible through {@link GpuGfx.disableDepth}. The
    * attachment survives resize and context restore. No-op if already enabled.
+   *
+   * @remarks
+   *   Maintainers: this and {@link GpuGfx.disableDepth} both go through
+   *   `#retarget`. The path shadow bakes draw into targets of their own, so a
+   *   swap leaves them alone. `Stage.render` calls these ahead of its readiness
+   *   gate.
    */
   enableDepth(): void {
     if (this.#depthEnabled) return
@@ -607,7 +618,13 @@ export class GpuGfx implements Gfx2D {
     this.#retarget()
   }
 
-  /** Rebuild the offscreen target for the current depth and stencil flags. */
+  /**
+   * Rebuild the offscreen target for the current depth and stencil flags, and
+   * warm every pipeline again when the resolved format changed. The first swap
+   * on a stage compiles for real. Later swaps find the pipelines in the
+   * device's cache. The caller's frame has to be skipped until warmup ends,
+   * which is why `Stage.render` swaps before its readiness gate.
+   */
   #retarget(): void {
     const had = depthStencilFormatOf(this.#target)
     this.#ctx.flushActive()

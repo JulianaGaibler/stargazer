@@ -398,6 +398,11 @@ export type ColorFormat = 'linear' | 'srgb' | 'canvas'
  * / `'rg8'` back a single- or dual-channel coverage mask (the path-shadow bake)
  * and are single-sample only: no backend exposes a renderable multisample
  * R8/RG8 target.
+ *
+ * @remarks
+ *   Maintainers: the formats stay out of `ColorFormat` on purpose. Many sites
+ *   choose between two formats with `srgb ? a : b`, and a new `ColorFormat`
+ *   member would silently take the `rgba8` branch there.
  */
 export type TargetPixelFormat = 'rgba8' | 'r8' | 'rg8'
 
@@ -412,6 +417,18 @@ export type TexturePixelFormat = TargetPixelFormat | 'rgba16f'
  * Which aspects a depth-stencil attachment carries. A pipeline bakes this and a
  * backend that validates (WebGPU) rejects a pipeline whose format differs from
  * the attachment it draws into, so the two have to be described the same way.
+ *
+ * @remarks
+ *   Maintainers: the backing format of each value.
+ *
+ *   | Value | WebGPU | WebGL2 | | --------------- | ---------------------- |
+ *   ------------------ | | `stencil` | `stencil8` | `STENCIL_INDEX8` | |
+ *   `depth` | `depth24plus` | `DEPTH24_STENCIL8` | | `depth-stencil` |
+ *   `depth24plus-stencil8` | `DEPTH24_STENCIL8` |
+ *
+ *   A stencil-only attachment takes a quarter of the memory of a combined one,
+ *   which is all a pure 2D stage needs. WebGL2 packs depth with stencil either
+ *   way.
  */
 export type DepthStencilFormat = 'none' | 'depth' | 'stencil' | 'depth-stencil'
 

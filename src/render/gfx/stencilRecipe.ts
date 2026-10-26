@@ -16,6 +16,25 @@
 // variant, and the per-draw reference comes from `stencilReferenceFor`. The
 // comparison direction is the same on both backends: `less` passes when
 // `(reference & readMask) < (stencil & readMask)`.
+//
+// Maintainers: a 3D pass or any other writer outside the 2D renderer has to
+// leave bits 7..5 at zero where 2D content starts.
+//
+// A nonzero fill records a fan and then a cover. The fan is a set of triangles
+// from the first point of each contour. Where the depth bits equal D, front
+// faces add one to the winding bits and back faces subtract one, with color
+// writes off. The cover is a device-space quad over the path's bounds, clipped
+// to the target. It paints where the count is non-zero and zeroes it again, so
+// the winding bits are zero everywhere outside a fan and its cover. The fan and
+// the cover go into the fan stream and the main stream back to back. A clip
+// push writes its fan and apply quad from one reservation.
+//
+// A translucent stroke draws three passes over the same instances. The core
+// pass and the fringe pass both use `strokeMark`, which paints a pixel once
+// because the first fragment sets the flag. The reset pass uses `strokeReset`
+// to clear the flag with color writes off.
+//
+// Example: `stencilReferenceFor('fanNonzero', 2)` is `2 << 5`, which is 64.
 
 import type { StencilState } from './GfxDevice'
 

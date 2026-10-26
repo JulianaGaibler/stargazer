@@ -258,7 +258,69 @@ canvas.fillRoundRect(0, 0, 240, 140, 16, '#1c1c22')
 
 A soft dark shadow appears under the card. The style is {@link GfxShadowStyle}. `offsetX`, `offsetY`, `blur` and `spread` are lengths in the node's local units. `blur` is the CSS blur radius, and the shadow's Gaussian sigma is half of it. `inset: true` draws the shadow inside the shape, as CSS `box-shadow` does.
 
-`ShapeNode` takes the same style in its `shadow` option and draws in CSS order: outset shadows, the fill, inset shadows, then the border. An outset shadow is cut out from under the shape, so the shadow stays hidden behind a translucent fill. {@link Path2DNode} takes a `shadow` option too, which draws from a cached mask. See [Path shadows](/path-shadows) for what the cache costs and what stays free to animate.
+`ShapeNode` takes the same style in its `shadow` option and draws in CSS order: outset shadows, the fill, inset shadows, then the border. An outset shadow is cut out from under the shape, so the shadow stays hidden behind a translucent fill. {@link Path2DNode} takes a `shadow` option too, described next.
+
+### Shadows on paths
+
+A path has no closed-form distance, so {@link Path2DNode} draws its shadow from a cached mask. The mask is a small texture of the path's blurred coverage. The engine bakes it once and reuses it every frame.
+
+```ts
+import { Path2DNode, parseSvgPaths } from 'stargazer'
+import type { Scene } from 'stargazer'
+
+declare const scene: Scene
+declare const svgText: string
+
+const { paths } = parseSvgPaths(svgText, { tessellate: true })
+const country = paths.get('france')
+if (country) {
+  scene.root.add(
+    new Path2DNode({
+      path: country.path,
+      fill: '#88c',
+      shadow: { color: 'rgba(0, 0, 0, 0.5)', offsetY: 6, blur: 24 },
+    }),
+  )
+}
+```
+
+The first frame shows a hard-edged copy of the silhouette under the path. A frame or two later the blurred shadow replaces it. An inset shadow draws nothing until its mask is ready.
+
+Animating `offsetX` and `offsetY` is free, because the mask is placed at the offset when it is drawn. An animated `blur` or `spread` bakes a new mask, and so does a camera zoom that crosses into a new scale bucket. Each bake costs time, so see [Rendering performance](/guides/performance#budget-path-shadow-masks) for the limits.
+
+A `'screen'` blur is a CSS length, so under a zoom its value in local units changes on every frame and every frame bakes again. Set `strokeSpace: 'world'` on a node the camera zooms. The blur then keeps one value, and one mask serves a whole scale bucket.
+
+```ts
+import { Path2DNode } from 'stargazer'
+import type { Scene } from 'stargazer'
+
+declare const scene: Scene
+declare const path: Path2D
+
+scene.root.add(
+  new Path2DNode({
+    path,
+    fill: '#88c',
+    strokeSpace: 'world',
+    shadow: { color: 'rgba(0, 0, 0, 0.5)', blur: 24 },
+  }),
+)
+```
+
+With `'world'` the shadow grows and shrinks with the path. Use `'screen'` for a shadow on a node the camera keeps at one scale.
+
+To bake the masks for a zoom before the camera gets there, call {@link Stage.warmPathShadows}. Each factor is a multiple of the scale the shadows draw at now. {@link Stage.pendingPathShadowWarmups} counts the masks still waiting to bake.
+
+```ts
+import type { EngineHost } from 'stargazer'
+
+declare const host: EngineHost
+
+const stage = host.engine.primaryStage
+stage.warmPathShadows([2])
+```
+
+The call prepares a camera that is about to zoom to twice its scale. A factor that stays inside the current scale bucket warms nothing. A shadow so small that it draws as a hard silhouette warms nothing either.
 
 ### Fill with a gradient
 
@@ -381,7 +443,7 @@ class Blob extends Node2D {
 
 The node draws a light blue blob with a white outline. Every edit increases the path's `version`. `clear()` keeps the path's storage, so refilling it every frame allocates nothing. Call `release()` when the path's owner is destroyed.
 
-`fillPath` takes a fill rule, `'nonzero'` (the default) or `'evenodd'`, as in Canvas 2D. A star drawn as one self-crossing outline fills solid under `'nonzero'` and has a hole in the middle under `'evenodd'`. Fills that resolve overlap use the stencil buffer, which the stage's main surface has. See [Combined depth and stencil](/combined-depth-stencil) for the bit layout.
+`fillPath` takes a fill rule, `'nonzero'` (the default) or `'evenodd'`, as in Canvas 2D. A star drawn as one self-crossing outline fills solid under `'nonzero'` and has a hole in the middle under `'evenodd'`. Fills that resolve overlap use the stencil buffer, which the stage's main surface has.
 
 `strokePath` cuts a `dash` pattern of any length, starting `dashOffset` into the pattern, and strokes each dash with the style's caps. With a gradient `color` or `exactJoins: true`, it draws the stroke as one filled shape, so sharp bends keep exact joins. That shape honors `cap`, `join` and `miterLimit`.
 
@@ -735,5 +797,3 @@ Keep frames cheap as the scene grows with [Rendering performance](/guides/perfor
 - [Post-processing](/guides/post-processing): effects on the stage and on a layer
 - [Rendering performance](/guides/performance): batches, kept content and the debug HUD
 - [Custom shaders](/guides/custom-shaders): your own fragment shader on a rectangle
-- [Path shadows](/path-shadows): how path shadow masks are baked and cached
-- [Combined depth and stencil](/combined-depth-stencil): the stencil bit layout

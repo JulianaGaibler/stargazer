@@ -41,6 +41,21 @@ export interface PathShadowHost {
   canDrawRetained(geo: GeometryHandle, ownRun: boolean): boolean
 }
 
+/**
+ * Draws path shadows and queues the bakes they need.
+ *
+ * @remarks
+ *   Maintainers: `shadowPath2D` runs inside the main render pass, and a device
+ *   has one open pass per command encoder. It can only peek at the cache and
+ *   queue a request on a miss. `processPendingShadowBakes` drains the queue
+ *   before `Stage.render` calls `beginFrame`, which is why a bake lands one
+ *   frame after the draw that asked for it. It runs on every rendered frame,
+ *   because a pure 2D stage skips the 3D pre-passes that share that window.
+ *
+ *   While a mask is missing, a nearby mask stands in. With none, an outset shadow
+ *   draws the hard silhouette and an inset shadow draws nothing. A blur at or
+ *   below `HARD_SHADOW_BLUR_PX` skips the cache and takes the same path.
+ */
 export class PathShadows {
   readonly #ctx: GpuBatchContext
   readonly #coloredTri: ColoredTriProgram
@@ -309,6 +324,11 @@ export class PathShadows {
    * the FOLLOWING frame's draw, one frame behind the draw call that queued it.
    * `shadowPath2D` draws a substitute mask or the hard fallback in the
    * meantime.
+   *
+   * @remarks
+   *   Maintainers: the cache also opens its frame here. That resets the bake work
+   *   budget and the uniform rings, which the previous frame's submit has
+   *   already consumed.
    */
   processPendingShadowBakes(): void {
     this.#cache.beginFrame()

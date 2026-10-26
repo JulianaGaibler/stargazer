@@ -6,7 +6,7 @@ order: 3
 
 # Architecture
 
-Stargazer keeps your content in a tree of nodes. On every browser animation frame, the engine runs your update code, places the nodes and draws them. This page explains when your code runs, which coordinate space each value is in, and what order things draw in. Read it when a value is stale, a node draws under the wrong sibling, or you need to know which hook to use. The advanced part follows a stage as it turns the tree into GPU work, which helps when you read the debug HUD or profile a scene.
+Stargazer keeps your content in a tree of nodes. On every browser animation frame, the engine runs your update code, places the nodes and draws them. This page explains when your code runs, which coordinate space each value is in, and what order things draw in. Read it when a value is stale, a node draws under the wrong sibling, or you need to know which hook to use. The advanced part covers rendering, stages and the Svelte boundary. The [Rendering model](/guides/rendering) guide follows a stage as it turns the tree into GPU work.
 
 The main types are {@link Engine}, which runs the loop, {@link Stage}, which is one canvas element with its own tree, and {@link SceneTree}, which holds the nodes. [Engine setup](/guides/setup) shows how to create them.
 
@@ -176,11 +176,11 @@ A node's alpha multiplies into its children's, and a hidden node hides its whole
 
 ## Advanced usage
 
-This part describes how a stage turns the tree into GPU work: pictures, the command list, passes, the 3D pass and the backends. It also covers stages and the Svelte boundary.
+This part covers how a node draws, stages and the Svelte boundary.
 
-### Pictures and the 2D walk
+### Rendering
 
-A 2D node draws in one of two ways. A node with `paint(canvas)` records its drawing into a {@link Picture} through a {@link Canvas}. The stage keeps the picture and replays it every frame. A node with `draw(gfx, camera, dt)` draws into {@link Gfx2D} directly, every frame.
+A 2D node draws in one of two ways. A node with `paint(canvas)` records its drawing into a {@link Picture} through a {@link Canvas}, and the stage replays the picture every frame. A node with `draw(gfx, camera, dt)` draws into {@link Gfx2D} directly, every frame.
 
 ```ts
 import { Node2D, definePaintProps } from 'stargazer'
@@ -203,64 +203,7 @@ class Gauge extends Node2D {
 
 The gauge records its picture the first time the stage draws it. Moving, scaling and fading the gauge replays that picture. Writing `gauge.value` marks the gauge for repaint, and so does a call to [`markNeedsPaint`](/module/scene/node2d#markneedspaint). The stage then records the picture again before the next draw.
 
-Each frame the stage walks the tree once in draw order. For each visible 2D node it repaints the picture if needed, skips the node when its bounds are known and outside the view, and replays the picture under the node's world transform and alpha. The walk also applies clips, `InsetViewNode` views, and {@link Layer} spaces and effects. See [Drawing](/guides/drawing) for the `Canvas` rules.
-
-### The command list
-
-The 2D renderer, `GpuGfx`, implements {@link Gfx2D}. During the walk it records, and it submits at the end of the frame. Recording works like this:
-
-- Each draw call appends its vertex or instance data to a stream that belongs to its shader program.
-- A change of program, texture, blend mode or clip ends the current run and starts a new one. A run is one future draw call.
-- Alpha, color and transform go into the per-instance data, so a change in them keeps the run going.
-
-At the end of the frame the renderer joins runs, uploads each stream once and replays the runs in draw order. A run joins an earlier run with the same program and state when no run between them touches the same pixels, so draw order holds wherever pixels overlap. Draws of the same kind on separate pixels therefore cost one draw call, which is why the frame cost depends on how often program, texture, blend mode and clip change.
-
-### Passes and surfaces
-
-Some nodes draw into an offscreen surface first, and the renderer then draws the surface into the frame. A {@link Layer} with effects or a raster cache does this. So does a node with `compositeGroup`, a `compositeBlend` other than `'source-over'`, or a `matte`.
-
-In the command list, a surface's runs sit between a begin mark and an end mark. At submit time the renderer gives every surface a render pass of its own and runs those passes before the main pass. A nested surface comes before the surface that contains it. A layer's effects run when its pass closes. The main pass then draws the frame in one go, and it composites each surface where the node sat in draw order.
-
-One stage frame runs in this order:
-
-1. Check that the stage's pipelines are ready. The stage skips the frame until they are.
-2. Bake masks for path shadows that the previous frame asked for.
-3. Render the 3D shadow maps and ambient occlusion, if the stage has 3D content.
-4. Record the 2D walk and the debug overlays.
-5. Run every surface pass.
-6. Run the main pass: clear, draw the 3D meshes, then the 2D runs.
-7. Run post-processing, if any effect is active. It reads the frame and writes the canvas element.
-
-When no effect is active and `directPresent` is on, the main pass writes the canvas element directly. See [Post-processing](/guides/post-processing).
-
-A layer with an effect takes the surface route. This layer blurs everything under it:
-
-```ts
-import { DualKawaseBlur, Layer, ShapeNode } from 'stargazer'
-
-const panel = new Layer({ effects: [new DualKawaseBlur()], padding: 24 })
-panel.add(
-  new ShapeNode({
-    geometry: { kind: 'rect', width: 400, height: 200, radii: 24 },
-    fill: '#12233f',
-  }),
-)
-scene.root.add(panel)
-```
-
-The panel's shape draws into a surface of its own. The blur runs when that pass closes, and the main pass composites the blurred result where the panel sits in draw order. A layer with no effects and no cache draws in the main pass like any other group. See [Post-processing](/guides/post-processing) for the effects a layer takes.
-
-### The 3D pass
-
-A stage with 3D content gives its frame target a depth attachment, and `MeshRenderer` draws the {@link Node3D} meshes at the start of the main pass. The 2D runs follow in the same pass and draw on top. When the last 3D node leaves the tree, the stage drops the depth attachment again. A 2D-only stage creates none. See [3D](/guides/3d).
-
-### Backends
-
-`GpuGfx` and `MeshRenderer` draw through `GfxDevice`, an interface that follows WebGPU: immutable pipelines, render passes with load and store operations, bind groups, and draws that state all their inputs. The WebGPU backend implements it directly, and the WebGL2 backend emulates it. The code that calls the interface is the same for both, so a node draws the same picture on either backend.
-
-Shaders are written in WGSL. The WebGL2 backend loads GLSL files generated from them, named `*.gen.vert.glsl` and `*.gen.frag.glsl`. After you edit a WGSL file, run `npm run gen:shaders` to regenerate the GLSL.
-
-Pipelines compile asynchronously when a stage starts, and the stage skips frames until they are ready. On WebGL2 they are ready before the next frame.
+The [Rendering model](/guides/rendering) guide follows the rest of the way: how the stage walks the tree, how the renderer batches draws into runs, what it keeps between frames, how surfaces and passes are ordered, and how the two backends share one device interface.
 
 ### Stages
 
@@ -313,6 +256,7 @@ Move things with tweens and behaviors in the [Animation](/guides/animation) guid
 - [Engine setup](/guides/setup): mounting the engine and its options
 - [Scene graph](/guides/scene): nodes, behaviors and draw order
 - [Drawing](/guides/drawing): painting nodes
+- [Rendering model](/guides/rendering): how a tree becomes GPU work
 - [Rendering performance](/guides/performance): what breaks a batch and what the renderer keeps
 - [Stages](/guides/stages): more canvases on the same clock
 - [3D](/guides/3d): meshes, lights and the 3D pass

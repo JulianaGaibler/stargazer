@@ -51,13 +51,14 @@ export interface Path2DNodeOptions {
    */
   strokeSpace?: 'screen' | 'world'
   /**
-   * One or more drop shadows, from a cached blurred-coverage mask (see the
-   * path-shadows guide for the bake, its one-frame latency, and what stays free
-   * to animate). A list draws in order, so the first entry sits deepest.
-   * Offsets, blur, and spread follow `strokeSpace`, same as `lineWidth`. Use
-   * `'world'` for a shadow on a node the camera zooms, since the cache keys
-   * masks on the blur in local units and a `'screen'` radius re-keys them at
-   * every camera scale.
+   * One or more drop shadows, from a cached blurred-coverage mask. The first
+   * frame shows a hard-edged copy of the silhouette until the bake finishes.
+   * Animating the offset never bakes again, but an animated blur or spread
+   * does. A list draws in order, so the first entry sits deepest. Offsets,
+   * blur, and spread follow `strokeSpace`, same as `lineWidth`. Use `'world'`
+   * for a shadow on a node the camera zooms, since the cache keys masks on the
+   * blur in local units and a `'screen'` radius re-keys them at every camera
+   * scale.
    *
    * While the mask is cold (the frame it first appears, or while the bake
    * budget is exhausted) the cache stands in another of this path's masks

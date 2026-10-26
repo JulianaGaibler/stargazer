@@ -261,6 +261,13 @@ export function kernelTruncatedMass(
  * lowers the resolution, so its sigma in texels stays near `sigmaBudget`. The
  * scale is computed after the size is quantized, separately for each axis, so a
  * wide and short shape blurs the same on both.
+ *
+ * @remarks
+ *   Maintainers: `k0` sets the resolution and the sigma follows from it. The
+ *   quantum of `MASK_SIZE_QUANTUM` and the cap of `MASK_MAX_EDGE` both change
+ *   the scale from what `k0` gives, which is why `kx` and `ky` come from the
+ *   final size. The padding is `extentSigmas` sigmas plus any spread on each
+ *   side.
  */
 export function resolveMaskSize(
   localBoundsW: number,
@@ -328,6 +335,35 @@ const BLUR_UBO_BYTES = 32 + 10 * 16 // axis vec4 + flags vec4 + 10 weight vec4s
  */
 const BAKES_PER_FRAME = 128
 
+/**
+ * Bakes and keeps the masks that path drop shadows draw from.
+ *
+ * @remarks
+ *   Maintainers:
+ *
+ *   A bake is a raster pass at twice the mask size into an `r8` target, then two
+ *   blur passes that each halve one axis. The second pass writes the final
+ *   `rg8` mask, so no resolve step follows.
+ *
+ *   The cache key holds the path identity, its registration epoch, blur, spread,
+ *   `shadowSigmaBudget`, `shadowExtentSigmas` and a half octave scale bucket.
+ *   The offset is not in the key, since the composite step places the mask at
+ *   the current offset.
+ *
+ *   A miss on the exact key resolves to a substitute. `#nearestForShape` ranks
+ *   the same shape's masks by blur distance first and bucket distance second.
+ *   Blur is limited to `MASK_SUBSTITUTE_BLUR_OCTAVES` and the bucket is not.
+ *
+ *   Two eviction windows protect a fresh mask from `#evictToFit`. A mask a draw
+ *   asked for by its own key keeps `MASK_EVICT_FRAMES`. Any other keeps
+ *   `MASK_EVICT_FRAMES_UNUSED`. Standing in for another request does not earn
+ *   the long window.
+ *
+ *   Each bake takes its own slices of the uniform rings, so the passes of one
+ *   frame never share uniform bytes.
+ *
+ *   `GpuGfx` builds a new cache after a context loss, which drops every mask.
+ */
 export class PathShadowCache {
   readonly #device: GfxDevice
   readonly #pool: RenderTargetPool

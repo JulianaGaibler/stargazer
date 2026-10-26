@@ -44,6 +44,14 @@ interface PoolEntry {
  * rather than silently no-opping: a silent no-op would hide the exact aliasing
  * bug this split exists to prevent (recycling a target a still-live reference
  * points at).
+ *
+ * @remarks
+ *   Maintainers: the path-shadow bake takes its raster and its middle blur target
+ *   as transient targets and releases them as soon as the bake ends. Those
+ *   targets stay pooled until a frame passes with no request for their size.
+ *   The final mask is retained and released by the cache when it evicts the
+ *   entry. Pool keys include the pixel format, so mask targets never share an
+ *   entry with color targets.
  */
 export class RenderTargetPool {
   readonly #device: GfxDevice
