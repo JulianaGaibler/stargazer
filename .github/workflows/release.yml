@@ -43,6 +43,8 @@ jobs:
       - run: npm install -g npm@11
       # A version with a dash, such as 0.6.0-beta.1, goes out under the `next`
       # tag so that `npm install` keeps resolving to the last stable release.
+      # Authenticates through the trusted publisher set up for this workflow on
+      # npmjs.com. There is no token.
       - name: Stage on npm
         run: |
           version="${{ steps.version.outputs.version }}"
@@ -60,10 +62,3 @@ jobs:
             echo
             echo "Then run the GitHub release workflow to tag and release v$version."
           } >> "$GITHUB_STEP_SUMMARY"
-        env:
-          # Used for the first stage of a new package, and as a fallback. A
-          # "Read and write (stage only)" token, because npm is ending direct
-          # publishing with tokens. Once a trusted publisher is set up for this
-          # workflow on npmjs.com, npm authenticates with OIDC instead, and
-          # this line and the NPM_TOKEN secret can go.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
