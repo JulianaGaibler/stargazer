@@ -33,6 +33,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepublishOnly": "npm run build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint src/ demo/",
     "test": "vitest",

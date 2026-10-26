@@ -49,6 +49,8 @@
   ],
   "cleanJsdocTheme": {
     "siteName": "Stargazer",
+    "basePath": "/stargazer/",
+    "siteUrl": "https://julianagaibler.github.io",
     "docs": "src/docs",
     "docGroups": ["Getting started", "Features", "3D", "Internals"],
     "copyPage": true

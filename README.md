@@ -6,7 +6,7 @@ Stargazer builds scenes from a tree of nodes, each with its own transform. Nodes
 
 A node in Stargazer draws with immediate-mode-style commands such as `fillCircle` and `strokePath`. The engine records them once and replays them directly from the GPU until changes are made.
 
-Draw commands are batched, and geometry stays cached on the GPU while nothing changes. A scene at rest uploads little, and frame cost comes from state changes such as program, texture, blend mode and clip, not from the number of shapes. The [rendering model](/guides/rendering) guide has the details.
+Draw commands are batched, and geometry stays cached on the GPU while nothing changes. A scene at rest uploads little, and frame cost comes from state changes such as program, texture, blend mode and clip, not from the number of shapes. The [rendering model](https://julianagaibler.github.io/stargazer/guides/rendering) guide has the details.
 
 Stargazer is WebGPU first, with a WebGL2 fallback behind the same device interface that draws the same scenes. Shaders are written once in WGSL and converted to GLSL.
 
@@ -64,11 +64,11 @@ await host.loadScene((scene) => {
 host.start()
 ```
 
-A yellow circle appears on a dark blue background. In Svelte, the [`mountEngine`](/module/svelte/mountengine) action does the same from a `<canvas>`. The [Getting started guide](/guides/getting-started) builds a small project from here.
+A yellow circle appears on a dark blue background. In Svelte, the [`mountEngine`](https://julianagaibler.github.io/stargazer/module/svelte/mountengine) action does the same from a `<canvas>`. The [Getting started guide](https://julianagaibler.github.io/stargazer/guides/getting-started) builds a small project from here.
 
 ## Where to read next
 
-The sidebar lists a guide for each feature, and the API reference lists every symbol by module. [Architecture](/guides/architecture) explains the frame loop, and [Rendering model](/guides/rendering) explains how a tree becomes GPU work.
+The sidebar lists a guide for each feature, and the API reference lists every symbol by module. [Architecture](https://julianagaibler.github.io/stargazer/guides/architecture) explains the frame loop, and [Rendering model](https://julianagaibler.github.io/stargazer/guides/rendering) explains how a tree becomes GPU work.
 
 ## Run the demos
 
