@@ -182,6 +182,39 @@ describe('collision events', () => {
     expect(a.position.x).toBeGreaterThan(-5)
   })
 
+  // Contacts between two bodies that cannot move are never solved, but they
+  // still report an enter with their own contact.
+  it('gives each collisionEnter the manifold of its own pair', () => {
+    const world = new PhysicsWorld()
+    const enters: { a: unknown; b: unknown; ma: unknown; mb: unknown }[] = []
+    world.events.on('collisionEnter', (e) =>
+      enters.push({ a: e.a, b: e.b, ma: e.manifold?.a, mb: e.manifold?.b }),
+    )
+    world.createBody({
+      type: BodyType.Static,
+      position: { x: 50, y: 0 },
+      colliders: [{ shape: aabbShape(2, 2) }],
+    })
+    world.createBody({
+      type: BodyType.Kinematic,
+      position: { x: 50, y: 0 },
+      colliders: [{ shape: circleShape(0.5) }],
+    })
+    world.createBody({
+      position: { x: -0.4, y: 0 },
+      colliders: [{ shape: circleShape(0.5) }],
+    })
+    world.createBody({
+      position: { x: 0.4, y: 0 },
+      colliders: [{ shape: circleShape(0.5) }],
+    })
+    world.step(DT)
+    expect(enters).toHaveLength(2)
+    for (const e of enters) {
+      expect(new Set([e.ma, e.mb])).toEqual(new Set([e.a, e.b]))
+    }
+  })
+
   it('emits collisionExit when bodies separate', () => {
     const world = new PhysicsWorld()
     let exits = 0
@@ -201,6 +234,27 @@ describe('collision events', () => {
     for (let i = 0; i < 40; i++) world.step(DT)
     void a
     expect(exits).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('collider layer overrides', () => {
+  // Masks built with `~` and layers on bit 31 are negative numbers.
+  it('honours negative layer and mask overrides', () => {
+    const PLAYER = 1 << 0
+    const world = new PhysicsWorld()
+    let enters = 0
+    world.events.on('collisionEnter', () => enters++)
+    world.createBody({
+      position: { x: 0, y: 0 },
+      colliders: [{ shape: circleShape(0.5), layer: 1 << 31, mask: ~PLAYER }],
+    })
+    world.createBody({
+      position: { x: 0.4, y: 0 },
+      layer: PLAYER,
+      colliders: [{ shape: circleShape(0.5) }],
+    })
+    world.step(DT)
+    expect(enters).toBe(0)
   })
 })
 

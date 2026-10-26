@@ -313,7 +313,8 @@ describe('InputSystem with a Layer', () => {
   it('drags a node under a screen layer by pixels while the camera is zoomed', () => {
     const r = rig()
     const card = box('card', 0, 0, 100, 100)
-    card.addBehavior(new DraggableBehavior({ threshold: 4 }))
+    // The rig has no engine to run the snap-back tween on.
+    card.addBehavior(new DraggableBehavior({ threshold: 4, snapBack: false }))
     const hud = new Layer({ space: 'screen' })
     hud.add(card)
     r.tree.root.add(hud)

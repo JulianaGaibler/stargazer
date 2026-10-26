@@ -155,10 +155,10 @@ export class Collider {
    * bodies pass straight through it.
    */
   sensor: boolean
-  /** Layer override. `-1` means inherit from the body at query time. */
-  layer: number
-  /** Mask override. `-1` means inherit from the body at query time. */
-  mask: number
+  /** Layer override. `undefined` means inherit from the body at query time. */
+  layer: number | undefined
+  /** Mask override. `undefined` means inherit from the body at query time. */
+  mask: number | undefined
   /** Surface overrides. Unset fields fall back to the body's values. */
   material: Material
   /** Free slot for the game's own reference. The engine never reads it. */
@@ -170,19 +170,19 @@ export class Collider {
     this.shape = def.shape
     this.offset = vec2(def.offset?.x ?? 0, def.offset?.y ?? 0)
     this.sensor = def.sensor ?? false
-    this.layer = def.layer ?? -1
-    this.mask = def.mask ?? -1
+    this.layer = def.layer
+    this.mask = def.mask
     this.material = def.material ?? {}
     this.userData = def.userData
   }
 
   /** Effective layer: the collider override, or the body's layer. */
   effectiveLayer(): number {
-    return this.layer >= 0 ? this.layer : this.body.layer
+    return this.layer ?? this.body.layer
   }
   /** Effective mask: the collider override, or the body's mask. */
   effectiveMask(): number {
-    return this.mask >= 0 ? this.mask : this.body.mask
+    return this.mask ?? this.body.mask
   }
   /** Effective bounciness: the material override, or the body's. */
   effectiveRestitution(): number {

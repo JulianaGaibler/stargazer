@@ -13,15 +13,12 @@ import { Transform3D } from '../math/Transform3D'
 import { vec3, vec3Normalize, vec3Sub, type Vec3 } from '../math/Vec3'
 import type { Ray } from '../math/Ray'
 import { clamp, lerp } from '../math/scalar'
-import type { Engine } from '../engine/Engine'
 import type { Easing } from '../math/easings'
 import type { CameraView3D } from './CameraView3D'
-import { rejectDetached } from '../anim/abortSignal'
 
 /**
- * Projection blend between orthographic (`0`) and perspective (`1`). A
- * `Camera3D` animates this value to move between the two looks. See
- * {@link CameraNode3D.animateProjection}.
+ * Projection blend between orthographic (`0`) and perspective (`1`). Animate
+ * it with {@link CameraNode3D.animateProjection}.
  */
 export type Projectionness = number
 
@@ -70,12 +67,6 @@ const DEG2RAD = Math.PI / 180
 export class Camera3D implements CameraView3D {
   /** Camera pose. Position + orientation of the eye in the world. */
   readonly transform = new Transform3D()
-
-  /**
-   * Set by the owning `Engine`/`Stage` after construction. `null` when used
-   * standalone (unit tests). Only {@link Camera3D.animateProjection} needs it.
-   */
-  engine: Engine | null = null
 
   #_fovYDeg = 50
   #_near = 0.1
@@ -356,39 +347,5 @@ export class Camera3D implements CameraView3D {
     r.y = m[13]
     r.z = m[14]
     return r
-  }
-
-  /**
-   * Animate {@link Camera3D.projectionness} to `target` (0 = ortho, 1 =
-   * perspective) through the engine's `Animator`. Resolves when the tween
-   * settles, rejects with `AbortError` on `opts.signal`. Requires an attached
-   * engine.
-   */
-  async animateProjection(
-    target: Projectionness,
-    opts: ProjectionAnimateOptions = {},
-  ): Promise<void> {
-    const engine = this.engine
-    if (!engine) {
-      // A bare camera has no owner that could have been destroyed, so this is
-      // always a wiring mistake. The node wrappers handle the cancelled case.
-      await rejectDetached('Camera3D.animateProjection', false)
-      return
-    }
-    const scratch = { t: this.#_projectionness }
-    await engine.animation.tween(
-      scratch,
-      { t: clamp(target, 0, 1) },
-      {
-        duration: opts.duration ?? 0.5,
-        delay: opts.delay,
-        easing: opts.easing,
-        signal: opts.signal,
-        onUpdate: () => {
-          this.projectionness = scratch.t
-        },
-      },
-    )
-    this.projectionness = clamp(target, 0, 1)
   }
 }

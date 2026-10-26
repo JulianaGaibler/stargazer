@@ -18,7 +18,8 @@ import type { DemoFn } from './types'
 // compared against WebGL2. Force the backend with `?gfx=webgpu`. The debug HUD
 // is on so the free-fly camera can inspect from any angle.
 //
-// The models load from `/debug/*.glb` (a gitignored public/ drop, dev-only).
+// The models load from `demo/public/debug/*.glb`, which is gitignored. Copy
+// them in by hand before running this demo.
 
 const runDemo: DemoFn = async ({ canvas, signal, attach }) => {
   const wantsWebGPU =

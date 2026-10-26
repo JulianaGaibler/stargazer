@@ -100,6 +100,8 @@ const AUTO_BROADPHASE_THRESHOLD = 64
 interface SolidRecord {
   a: Body
   b: Body
+  /** The pair's first contact this step. Only valid during the step. */
+  manifold: Manifold
 }
 interface SensorRecord {
   sensor: Collider
@@ -500,9 +502,9 @@ export class PhysicsWorld {
         const key = this.#pairKey(a, b)
         if (!this.#curSolid.has(key)) {
           this.#curSolid.add(key)
-          if (!this.#solidRecords.has(key)) {
-            this.#solidRecords.set(key, { a, b })
-          }
+          const rec = this.#solidRecords.get(key)
+          if (rec) rec.manifold = m
+          else this.#solidRecords.set(key, { a, b, manifold: m })
         }
         // Both immovable: nothing to solve.
         if (a.invMass === 0 && b.invMass === 0) continue
@@ -551,7 +553,7 @@ export class PhysicsWorld {
         if (rec) {
           this.#evCollisionEnter.a = rec.a
           this.#evCollisionEnter.b = rec.b
-          this.#evCollisionEnter.manifold = this.#findManifold(rec.a, rec.b)
+          this.#evCollisionEnter.manifold = rec.manifold
           this.events.emit('collisionEnter', this.#evCollisionEnter)
         }
       }
@@ -600,15 +602,6 @@ export class PhysicsWorld {
     const s2 = this.#prevSensor
     this.#prevSensor = this.#curSensor
     this.#curSensor = s2
-  }
-
-  /** Find the solid manifold for a body pair this step (for the enter payload). */
-  #findManifold(a: Body, b: Body): Manifold {
-    for (let i = 0; i < this.#_solidCount; i++) {
-      const m = this.#_solid[i]
-      if ((m.a === a && m.b === b) || (m.a === b && m.b === a)) return m
-    }
-    return this.#_solid[0]
   }
 
   /** Fire exit events for a removed body's live overlaps and drop the records. */

@@ -1022,7 +1022,7 @@ export class WebGPUDevice implements GfxDevice {
     const t = tex as WebGPUTexture
     if (source === null) {
       // Reallocate storage at the current size (drops old contents).
-      t.gpu.destroy()
+      this.#destroyDeferred(t.gpu)
       t.gpu = this.#device.createTexture({
         size: [t.width, t.height, 1],
         format: t.srgb ? 'rgba8unorm-srgb' : 'rgba8unorm',
@@ -1038,7 +1038,7 @@ export class WebGPUDevice implements GfxDevice {
     const h = getSourceHeight(source)
     if (w !== t.width || h !== t.height) {
       // Reallocate to the new source size, matching the WebGL2 reupload path.
-      t.gpu.destroy()
+      this.#destroyDeferred(t.gpu)
       ;(t as { width: number }).width = w
       ;(t as { height: number }).height = h
       t.gpu = this.#device.createTexture({
@@ -1249,7 +1249,7 @@ export class WebGPUDevice implements GfxDevice {
     const device = this.#device
     const format = r.colorFormat
     if (r.colorMs) {
-      r.colorMs.destroy()
+      this.#destroyDeferred(r.colorMs)
       r.colorMs = device.createTexture({
         size: [w, h, 1],
         format,
@@ -1258,7 +1258,7 @@ export class WebGPUDevice implements GfxDevice {
       })
     }
     if (r.color) {
-      r.color.destroy()
+      this.#destroyDeferred(r.color)
       r.color = device.createTexture({
         size: [w, h, 1],
         format,
@@ -1266,7 +1266,7 @@ export class WebGPUDevice implements GfxDevice {
       })
     }
     if (r.depthTex) {
-      r.depthTex.destroy()
+      this.#destroyDeferred(r.depthTex)
       r.depthTex = device.createTexture({
         size: [w, h, 1],
         format: r.depthFormat ?? 'depth24plus',
@@ -1277,7 +1277,7 @@ export class WebGPUDevice implements GfxDevice {
       })
     }
     if (r.stencilTex) {
-      r.stencilTex.destroy()
+      this.#destroyDeferred(r.stencilTex)
       r.stencilTex = device.createTexture({
         size: [w, h, 1],
         format: 'stencil8',
@@ -1433,11 +1433,11 @@ export class WebGPUDevice implements GfxDevice {
   }
 
   deleteShadowArray(s: ShadowArray): void {
-    ;(s as WebGPUShadowArray).gpu.destroy()
+    this.#destroyDeferred((s as WebGPUShadowArray).gpu)
   }
 
   deleteShadowCube(s: ShadowCube): void {
-    ;(s as WebGPUShadowCube).gpu.destroy()
+    this.#destroyDeferred((s as WebGPUShadowCube).gpu)
   }
 
   // --- frame lifecycle & passes ---------------------------------------------
