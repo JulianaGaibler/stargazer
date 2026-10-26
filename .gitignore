@@ -9,6 +9,3 @@ dist
 /.build
 /.svelte-kit
 /demo-dist
-
-# Large glTF models for the 3D demos, kept out of the repo.
-/demo/public/debug

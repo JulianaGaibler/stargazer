@@ -4,7 +4,6 @@ import type { DemoFn } from './types'
 // the production bundle from pulling all demos in.
 export const demos: Record<string, () => Promise<DemoFn>> = {
   scene: () => import('./demo-scene').then((m) => m.default),
-  scene3d: () => import('./demo-scene3d').then((m) => m.default),
   boxes3d: () => import('./demo-boxes3d').then((m) => m.default),
   shapes3d: () => import('./demo-shapes3d').then((m) => m.default),
   ao: () => import('./demo-ao').then((m) => m.default),
