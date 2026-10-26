@@ -20,6 +20,8 @@ export type {
   StageChip,
   DebugGpuStatsReadout,
   PhysicsWorldReadout,
+  DebugCameraMode,
+  MeshRenderMode,
 } from '../debug/DebugController'
 export type { PhysicsOverlayFlags } from '../debug/DebugPhysicsRenderer'
 export type { RetainedCacheStats } from '../render/gfx/RetainedCache'

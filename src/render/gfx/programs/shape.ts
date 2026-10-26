@@ -8,6 +8,7 @@
 // A per-source image or an oversized dedicated label has its own texture, which
 // this program does not bind, so `GpuGfx` routes those to the textQuad program.
 
+import { diagnostics } from '../../../diagnostics/Diagnostics'
 import type { GfxFill, GfxShadowStyle, SolidStrokeStyle } from '../Gfx2D'
 import type { ResolvedRadii } from '../roundRectRadii'
 import { RingStream } from '../RingStream'
@@ -496,8 +497,9 @@ export class ShapeProgram implements GpuProgram {
       // middle stop.
       if (!warnedRadial) {
         warnedRadial = true
-        console.warn(
-          'GpuGfx: radial gradients are not supported on rects and circles, drawing a flat color',
+        diagnostics.report(
+          'SG2008',
+          'radial gradients are not supported on rects and circles, drawing a flat color',
         )
       }
       const mid = resolvePaint(g.stops[g.stops.length >> 1].color, alpha)

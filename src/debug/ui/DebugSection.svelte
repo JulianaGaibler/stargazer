@@ -3,8 +3,11 @@
 
   interface Props {
     title: string
+    /** Whether the section is expanded. Can be bound. */
     open?: boolean
+    /** Limits the body to 300 px and scrolls it. */
     maxHeight?: boolean
+    /** Content shown next to the title. */
     summary?: Snippet
     children: Snippet
   }

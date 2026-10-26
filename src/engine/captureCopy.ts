@@ -1,3 +1,4 @@
+import { StargazerError } from '../diagnostics/StargazerError'
 /**
  * Copy a stage canvas's current frame into a 2D `OffscreenCanvas`.
  *
@@ -12,7 +13,11 @@ export function copyCanvas(
 ): OffscreenCanvas {
   const surface = new OffscreenCanvas(width, height)
   const ctx = surface.getContext('2d')
-  if (!ctx) throw new Error('stargazer: capture could not get a 2D context')
+  if (!ctx)
+    throw new StargazerError(
+      'SG1009',
+      'stargazer: capture could not get a 2D context',
+    )
   ctx.drawImage(source, 0, 0, width, height)
   return surface
 }

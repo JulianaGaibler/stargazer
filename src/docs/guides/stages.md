@@ -17,7 +17,7 @@ A stage is not the way to layer content inside one scene. Content that ignores t
 This example attaches a stage to a second canvas and draws a circle on it. `engine` is `host.engine`.
 
 ```ts
-import { CameraNode2D, ShapeNode } from '@src/stargazer'
+import { CameraNode2D, ShapeNode } from 'stargazer'
 
 const stage = engine.attachStage(cardCanvas, { name: 'card' })
 
@@ -48,8 +48,8 @@ The {@link mountStage} action attaches a stage when the canvas mounts and detach
 
 ```svelte
 <script lang="ts">
-  import { mountStage, CameraNode2D } from '@src/stargazer'
-  import type { Engine, Stage } from '@src/stargazer'
+  import { mountStage, CameraNode2D } from 'stargazer'
+  import type { Engine, Stage } from 'stargazer'
 
   const { engine }: { engine: Engine } = $props()
 
@@ -77,7 +77,7 @@ The {@link mountStage} action attaches a stage when the canvas mounts and detach
 A secondary stage gets no pointer input by default. Pass `interactive: true` and the nodes on the stage receive pointer events, the same way nodes on the primary stage do.
 
 ```ts
-import { ShapeNode } from '@src/stargazer'
+import { ShapeNode } from 'stargazer'
 
 const stage = engine.attachStage(cardCanvas, { interactive: true })
 
@@ -153,7 +153,7 @@ Each stage has its own scene tree, cameras, render target, GPU context, texture 
 Asset data has no GPU handles, so one instance can back nodes on several stages. This includes a `Path2D`, a {@link BitmapMask} and an image. Path tessellations from {@link parseSvgPaths} are shared by every stage too.
 
 ```ts
-import { Path2DNode, parseSvgPaths } from '@src/stargazer'
+import { Path2DNode, parseSvgPaths } from 'stargazer'
 
 const { paths } = parseSvgPaths(svgSource, { tessellate: true })
 const badge = paths.get('badge')!.path
@@ -175,7 +175,7 @@ A stage with `fixedPixelSize` skips all of this. It renders at exactly that many
 In the following example, a 400 by 200 pixel card with a gradient and a title is encoded as a JPEG.
 
 ```ts
-import { ShapeNode, TextNode, cssLinearGradient } from '@src/stargazer'
+import { ShapeNode, TextNode, cssLinearGradient } from 'stargazer'
 
 const jpeg = await engine.captureBlob({
   width: 400,

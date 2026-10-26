@@ -6,6 +6,19 @@ import type { PostEffect } from '../render/postfx/PostEffect'
 import { Node2D } from './Node2D'
 
 /**
+ * The rect a frame layer fits into the canvas: a fixed rect, or a function that
+ * picks one for a canvas of `cssW` by `cssH` CSS pixels.
+ *
+ * @example
+ *   // A wide frame on a wide canvas and a tall one on a tall canvas.
+ *   const frame: LayerFrame = (w, h) =>
+ *     w >= h
+ *       ? { x: 0, y: 0, width: 1920, height: 1080 }
+ *       : { x: 0, y: 0, width: 1080, height: 1920 }
+ */
+export type LayerFrame = Rect | ((cssW: number, cssH: number) => Rect)
+
+/**
  * How a {@link Layer} places its subtree.
  *
  * - `'world'`: the subtree uses whatever view is in effect where the layer sits,
@@ -14,9 +27,11 @@ import { Node2D } from './Node2D'
  *   canvas, so the subtree ignores the camera.
  * - `{ frame }`: `frame` is fitted into the canvas at a uniform scale and
  *   centered, the way a camera fits its viewport. The subtree ignores the
- *   camera and keeps its proportions at any canvas shape.
+ *   camera and keeps its proportions at any canvas shape. A function picks the
+ *   frame again each time the canvas size is read, so a layout can switch
+ *   frames when the canvas changes shape.
  */
-export type LayerSpace = 'world' | 'screen' | { frame: Rect }
+export type LayerSpace = 'world' | 'screen' | { frame: LayerFrame }
 
 /**
  * The region of a layer that its effects run over.
@@ -58,7 +73,15 @@ export interface LayerOptions {
    * takes part in the effects. Default none, which leaves the region
    * transparent.
    */
-  clearColor?: string | null /**
+  clearColor?: string | null
+  /**
+   * Draw nothing, instead of the unprocessed subtree, in a frame where the
+   * layer's effects are still compiling. For a layer whose raw picture is wrong
+   * on screen, such as a `clearColor` that the effects turn into dots: without
+   * this it shows as a flash the first time the layer is drawn after its
+   * pipelines were freed. Default false.
+   */
+  holdUntilEffects?: boolean /**
    * Keep the layer through a scene wipe, see {@link Node.persistent}. Default
    * false.
    */
@@ -127,6 +150,7 @@ export interface LayerOptions {
 export class Layer extends Node2D {
   #space: LayerSpace
   #view: Camera | null = null
+  #frame: Rect | null = null
 
   /**
    * The effects run over the subtree, in order. Read every frame, so the list
@@ -154,7 +178,13 @@ export class Layer extends Node2D {
     this.padding = opts.padding ?? 0
     this.clearColor = opts.clearColor ?? null
     this.cache = opts.cache ?? 'none'
-    this._fx = { owner: this, effects: this.effects, dt: 0, applied: true }
+    this._fx = {
+      owner: this,
+      effects: this.effects,
+      dt: 0,
+      applied: true,
+      hold: opts.holdUntilEffects ?? false,
+    }
     this._cacheState = {
       signature: new Float64Array(0),
       length: 0,
@@ -219,8 +249,21 @@ export class Layer extends Node2D {
 
   set space(value: LayerSpace) {
     this.#space = value
+    this.#frame = null
     // The layer stops or starts composing its world from its parent.
     this.markWorldDirty()
+  }
+
+  /**
+   * The rect a frame layer fits into the canvas, or `null` for a `'world'` or
+   * `'screen'` layer. When the frame is a function, this is the rect it picked
+   * the last time the layer was drawn or resolved through {@link viewFor}, and
+   * `null` before that.
+   */
+  get frame(): Rect | null {
+    const space = this.#space
+    if (space === 'world' || space === 'screen') return null
+    return typeof space.frame === 'function' ? this.#frame : space.frame
   }
 
   /**
@@ -251,11 +294,16 @@ export class Layer extends Node2D {
     const view = this.view as Camera | null
     if (!view) return
     const space = this.#space
-    view.setViewport(
-      space === 'screen' || space === 'world'
-        ? { x: 0, y: 0, width: cssW, height: cssH }
-        : space.frame,
-    )
+    if (space === 'screen' || space === 'world') {
+      view.setViewport({ x: 0, y: 0, width: cssW, height: cssH })
+    } else {
+      const frame =
+        typeof space.frame === 'function'
+          ? space.frame(cssW, cssH)
+          : space.frame
+      this.#frame = frame
+      view.setViewport(frame)
+    }
     view.setPixelSize(cssW, cssH)
   }
 }

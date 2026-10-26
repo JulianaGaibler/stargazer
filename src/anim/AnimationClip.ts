@@ -1,3 +1,4 @@
+import { diagnostics } from '../diagnostics/Diagnostics'
 import type { Node3D } from '../scene/Node3D'
 import { quat, quatSlerp } from '../math/Quat'
 
@@ -63,7 +64,8 @@ function sampleChannel(channel: AnimationChannel, time: number): void {
   const cubic = sampler.interpolation === 'CUBICSPLINE'
   if (cubic && !warnedCubic) {
     warnedCubic = true
-    console.warn(
+    diagnostics.report(
+      'SG6005',
       'AnimationClip: CUBICSPLINE interpolation is approximated as LINEAR.',
     )
   }

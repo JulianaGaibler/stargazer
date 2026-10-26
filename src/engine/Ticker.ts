@@ -57,7 +57,9 @@ export interface Ticker {
    */
   setMaxFps(fps: number): void
 
+  /** Start the frame loop. */
   start(): void
+  /** Stop the frame loop. */
   stop(): void
   readonly running: boolean
 }

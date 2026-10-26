@@ -1,3 +1,4 @@
+import { diagnostics, reportThrown } from '../diagnostics/Diagnostics'
 import { createEmitter, type Emitter } from '../events/Emitter'
 import type { Behavior, BehaviorCtor } from './Behavior'
 import type { Engine } from '../engine/Engine'
@@ -12,6 +13,7 @@ import {
 import { AbortScope } from '../anim/AbortScope'
 import { invalidateVisibility } from './traverse'
 import { Timeline } from '../anim/Timeline'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /** Whatever owns a node tree, giving its nodes a route to the engine. */
 export interface NodeOwner {
@@ -50,6 +52,7 @@ export type NodeKind = 'group' | '2d' | '3d'
 
 /** Events emitted by a node. `destroy` fires once when the node is destroyed. */
 export interface NodeEvents {
+  /** Fires once when the node is destroyed. */
   destroy: void
 }
 
@@ -60,9 +63,13 @@ export interface NodeEvents {
  * node that captured the pointer.
  */
 export interface PointerHandlers {
+  /** Called when a pointer presses on the node. */
   down?: (e: PointerEvent2D) => void
+  /** Called when a pointer that pressed on the node moves. */
   move?: (e: PointerEvent2D) => void
+  /** Called when a pointer that pressed on the node is released. */
   up?: (e: PointerEvent2D) => void
+  /** Called when the system cancels a pointer that pressed on the node. */
   cancel?: (e: PointerEvent2D) => void
   /** Force hit-testing on/off. Defaults to `true` when `down` is present. */
   hitEnabled?: boolean
@@ -231,6 +238,7 @@ export abstract class Node {
   get children(): readonly Node[] {
     return this._children
   }
+  /** The behaviors attached to this node, in the order they were added. */
   get behaviors(): readonly Behavior<Node>[] {
     return this._behaviors
   }
@@ -246,6 +254,7 @@ export abstract class Node {
   get worldDirty(): boolean {
     return this.#_worldDirty
   }
+  /** Whether {@link Node.destroy} has run. */
   get isDestroyed(): boolean {
     return this.#_destroyed
   }
@@ -272,8 +281,10 @@ export abstract class Node {
   }
 
   #addOne(child: Node): void {
-    if (child === this) throw new Error('Cannot add a node to itself')
-    if (child.#_destroyed) throw new Error('Cannot add a destroyed node')
+    if (child === this)
+      throw new StargazerError('SG5009', 'Cannot add a node to itself')
+    if (child.#_destroyed)
+      throw new StargazerError('SG5009', 'Cannot add a destroyed node')
     if (child.parent) child.parent.remove(child)
     child.parent = this
     invalidateVisibility()
@@ -328,7 +339,11 @@ export abstract class Node {
    */
   insertBefore(child: Node, reference: Node): this {
     const index = this._children.indexOf(reference)
-    if (index < 0) throw new Error('insertBefore: reference is not a child')
+    if (index < 0)
+      throw new StargazerError(
+        'SG5007',
+        'insertBefore: reference is not a child',
+      )
     return this.addAt(child, index)
   }
 
@@ -374,7 +389,7 @@ export abstract class Node {
       owner.count3D(1, this.#_intrinsic ? 0 : 1)
     }
     this.#_owner = owner
-    this._onAttach()
+    this.#runHook('_onAttach', () => this._onAttach())
     const behaviors = this._behaviors
     for (let i = 0; i < behaviors.length; i++) {
       const b = behaviors[i]
@@ -392,7 +407,7 @@ export abstract class Node {
       this.#_owner?.count3D(-1, this.#_intrinsic ? 0 : -1)
     }
     this.#_owner = null
-    this._onDetach()
+    this.#runHook('_onDetach', () => this._onDetach())
     for (const c of this._children) c.onDetachedFromScene()
   }
 
@@ -448,7 +463,10 @@ export abstract class Node {
    */
   addBehavior<B extends Behavior<Node>>(behavior: B): B {
     if (this.#_destroyed)
-      throw new Error('Cannot add behavior to destroyed node')
+      throw new StargazerError(
+        'SG5009',
+        'Cannot add behavior to destroyed node',
+      )
     ;(behavior as unknown as { node: Node }).node = this
     this._behaviors.push(behavior)
     const update =
@@ -460,10 +478,10 @@ export abstract class Node {
       this._hasFixedStepWork = fixed
       this.#_owner?.invalidateWork()
     }
-    behavior.onAttach?.()
+    this.#runHook('onAttach', () => behavior.onAttach?.())
     if (this.#_owner && !behavior._sceneReadyFired) {
       behavior._sceneReadyFired = true
-      behavior.onSceneReady?.()
+      this.#runHook('onSceneReady', () => behavior.onSceneReady?.())
     }
     return behavior
   }
@@ -475,7 +493,7 @@ export abstract class Node {
   removeBehavior(behavior: Behavior<Node>): this {
     const idx = this._behaviors.indexOf(behavior)
     if (idx < 0) return this
-    behavior.onDetach?.()
+    this.#runHook('onDetach', () => behavior.onDetach?.())
     behavior._sceneReadyFired = false
     this._behaviors.splice(idx, 1)
     this._recomputeHasWork()
@@ -592,13 +610,30 @@ export abstract class Node {
    * before recursing, so pending tweens and waits reject with `AbortError`
    * rather than running against a dead node. Idempotent.
    */
+  /**
+   * Run a lifecycle hook so a throw from game code cannot leave the node half
+   * attached or half detached.
+   */
+  #runHook(name: string, run: () => void): void {
+    try {
+      run()
+    } catch (error) {
+      reportThrown('SG4008', name, error, this.id)
+    }
+  }
+
+  /**
+   * Destroy the node and its children. Behaviors detach, pending tweens and
+   * loops abort, and the node leaves its parent. Safe to call twice.
+   */
   destroy(): void {
     if (this.#_destroyed) return
     this.#_destroyed = true
     const snapshot = this._children.slice()
     for (const c of snapshot) c.destroy()
     this._children.length = 0
-    for (const b of this._behaviors) b.onDetach?.()
+    for (const b of this._behaviors)
+      this.#runHook('onDetach', () => b.onDetach?.())
     this._behaviors.length = 0
     this.#abortController.abort()
     this.events.emit('destroy', undefined)
@@ -686,10 +721,11 @@ export abstract class Node {
     return p
       .catch((err: unknown) => {
         if (isAbortError(err)) return
-        console.warn(
-          `[stargazer] Node('${this.id}').autoDestroy: ` +
+        diagnostics.report(
+          'SG4007',
+          `Node('${this.id}').autoDestroy: ` +
             `non-abort rejection, destroying anyway:`,
-          err,
+          { cause: err },
         )
       })
       .finally(() => {
@@ -732,9 +768,10 @@ export abstract class Node {
         }
       } catch (err) {
         if (isAbortError(err)) return
-        console.error(
-          `[stargazer] Node.loop '${name ?? this.id}' terminated with error:`,
-          err,
+        diagnostics.report(
+          'SG4006',
+          `Node.loop '${name ?? this.id}' terminated with error:`,
+          { cause: err },
         )
       }
     }

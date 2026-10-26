@@ -7,11 +7,6 @@ export function fmtMs(sec: number): string {
   return `${(sec * 1000).toFixed(2)}ms`
 }
 
-export function fmtFps(sec: number): string {
-  if (sec <= 0) return MISSING
-  return Math.round(1 / sec).toString()
-}
-
 export function fmtCoord(n: number): string {
   return n.toFixed(1)
 }
@@ -58,13 +53,13 @@ export function msQuantity(ms: number): Quantity {
 }
 
 /** A ratio in `[0, 1]` as a percentage. */
-export function pctQuantity(ratio: number): Quantity {
+function pctQuantity(ratio: number): Quantity {
   const p = ratio * 100
   return { text: Math.abs(p) >= 100 ? p.toFixed(0) : p.toFixed(1), unit: '%' }
 }
 
 /** A quantity as one string, `12.4 KB`. */
-export function joinQuantity(q: Quantity): string {
+function joinQuantity(q: Quantity): string {
   return q.unit === '' ? q.text : `${q.text} ${q.unit}`
 }
 

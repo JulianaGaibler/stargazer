@@ -100,6 +100,7 @@ export class Camera implements CameraView2D {
     return this.#_frameNum
   }
 
+  /** Set the world rect the camera shows. Does nothing when it is unchanged. */
   setViewport(v: Rect): void {
     if (
       this.viewport.x === v.x &&
@@ -113,6 +114,7 @@ export class Camera implements CameraView2D {
     this.#_frameNum++
   }
 
+  /** Set the canvas size in pixels. Does nothing when it is unchanged. */
   setPixelSize(w: number, h: number): void {
     if (this.pixelSize.w === w && this.pixelSize.h === h) return
     this.pixelSize = { w, h }

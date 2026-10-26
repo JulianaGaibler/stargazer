@@ -1,3 +1,4 @@
+import { diagnostics } from '../../diagnostics/Diagnostics'
 // The GPU backend's transform stack. Kept separate from `GpuGfx` so the batch
 // programs and the facade share one definition.
 
@@ -71,8 +72,9 @@ export class TransformStack {
     const from = this.#top * 6
     const to = (this.#top + 1) * 6
     if (to + 6 > this.#buf.length) {
-      console.warn(
-        'GpuGfx: transform stack overflow, depth cap reached; ignoring push',
+      diagnostics.report(
+        'SG2007',
+        'transform stack overflow, depth cap reached; ignoring push',
       )
       return
     }

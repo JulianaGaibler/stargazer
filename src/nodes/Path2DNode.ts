@@ -5,6 +5,7 @@ import type { CanvasStrokeStyle } from '../render/picture/Picture'
 import type { Rect } from '../math/Rect'
 import type { GfxFill, GfxShadowStyle } from '../render/gfx/Gfx2D'
 import type { StrokeAlign } from '../render/gfx/strokeOutline'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /**
  * Hit-testing strategy for a {@link Path2DNode}. See the `hitMode` field on
@@ -313,7 +314,11 @@ function getScratchCtx(): CanvasRenderingContext2D {
   const ctx = (canvas as HTMLCanvasElement).getContext(
     '2d',
   ) as CanvasRenderingContext2D | null
-  if (!ctx) throw new Error('Path2DNode: no scratch 2D context available')
+  if (!ctx)
+    throw new StargazerError(
+      'SG2024',
+      'Path2DNode: no scratch 2D context available',
+    )
   scratchCtx = ctx
   return ctx
 }

@@ -67,10 +67,12 @@ export class PostProcessPipeline {
     return PostChain.hasWork(this.#effects)
   }
 
+  /** The effects, in the order they run. */
   get effects(): readonly PostEffect[] {
     return this.#effects
   }
 
+  /** Add `effect` to the end of the chain. Adding it twice does nothing. */
   add<T extends PostEffect>(effect: T): T {
     if (!this.#effects.includes(effect)) this.#effects.push(effect)
     return effect
@@ -98,6 +100,7 @@ export class PostProcessPipeline {
     this.#programs.warm(passes, colorSpaces)
   }
 
+  /** Take `effect` out of the chain. */
   remove(effect: PostEffect): void {
     const i = this.#effects.indexOf(effect)
     if (i < 0) return
@@ -181,6 +184,7 @@ export class PostProcessPipeline {
     return this.#placed
   }
 
+  /** Free the GPU resources of the chain. */
   destroy(): void {
     this.#offRestore()
     this.#chain.destroy()

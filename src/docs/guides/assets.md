@@ -21,7 +21,7 @@ tessellation. `parseSvgPaths` registers one for you when you pass
 This example loads an SVG map once, then adds one region of it to a scene.
 
 ```ts
-import { AssetLoader, Path2DNode, parseSvgPaths } from '@src/stargazer'
+import { AssetLoader, Path2DNode, parseSvgPaths } from 'stargazer'
 
 const assets = new AssetLoader()
 
@@ -67,7 +67,7 @@ detailed illustration or an icon. It returns a canvas that you draw with
 [`drawImage`](/module/scene/canvas#drawimage) or an {@link ImageNode}.
 
 ```ts
-import { rasterizeSvg } from '@src/stargazer'
+import { rasterizeSvg } from 'stargazer'
 
 const icon = await assets.load('coin', () =>
   rasterizeSvg(coinSvg, { scale: 4 }),
@@ -114,7 +114,7 @@ import {
   flattenSvgPath,
   registerPathTessellation,
   tessellateContours,
-} from '@src/stargazer'
+} from 'stargazer'
 
 const d = 'M0 0 L40 0 L40 40 Z'
 const contours = flattenSvgPath(d, 0.5)
@@ -234,7 +234,7 @@ import {
   createQuadGeometry,
   createTexture,
   rasterizeSvg,
-} from '@src/stargazer'
+} from 'stargazer'
 
 const quad = createQuadGeometry({ width: 2.5, height: 3.5 })
 const face = await createTexture(await rasterizeSvg(cardSvg, { scale: 2 }))

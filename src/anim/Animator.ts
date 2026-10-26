@@ -1,3 +1,4 @@
+import { diagnostics, reportThrown } from '../diagnostics/Diagnostics'
 import { linear, type Easing } from '../math/easings'
 import { abortError } from './abortSignal'
 
@@ -143,8 +144,9 @@ export class Animator {
     if (this.#_tickDepth > 0) {
       if (this.#_reentrancyWarnings < 3) {
         this.#_reentrancyWarnings++
-        console.warn(
-          `[stargazer] Animator.tick reentrant, an onTick or promise ` +
+        diagnostics.report(
+          'SG5002',
+          `Animator.tick reentrant, an onTick or promise ` +
             `resolution triggered another tick. depth=${this.#_tickDepth + 1}. ` +
             `Usually a bug (recursive game logic that will eventually stack-overflow).`,
         )
@@ -182,7 +184,12 @@ export class Animator {
           ? 1
           : Math.min(1, (record.elapsed - record.delay) / record.duration)
       const eased = record.easing(progress)
-      record.onTick?.(eased, progress)
+      try {
+        record.onTick?.(eased, progress)
+      } catch (error) {
+        // The tween still runs to its end so its promise settles.
+        reportThrown('SG4009', 'a tween onUpdate', error)
+      }
       if (progress >= 1) {
         record.completed = true
         this.#finalize(record)
@@ -289,8 +296,9 @@ export class Animator {
           if (other.target !== target || !other.keys) continue
           for (const k of other.keys) {
             if (keys.includes(k)) {
-              console.warn(
-                `[stargazer] overlapping tween on the same target key '${k}'. ` +
+              diagnostics.report(
+                'SG5003',
+                `overlapping tween on the same target key '${k}'. ` +
                   `Last-writer wins per tick; cancel the earlier tween to avoid drift.`,
               )
               break outer

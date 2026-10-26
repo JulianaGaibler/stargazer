@@ -1,3 +1,4 @@
+import { diagnostics } from '../diagnostics/Diagnostics'
 import {
   createEngineHost,
   type EngineHost,
@@ -44,7 +45,10 @@ export interface MountEngineActionParams {
 export function mountEngine(
   canvas: HTMLCanvasElement,
   params: MountEngineActionParams = {},
-): { destroy(): void } {
+): {
+  /** Destroy the host once the `onReady` callback has settled. */
+  destroy(): void
+} {
   const prefer = params.backend ?? 'auto'
 
   // Synchronous path: a caller-injected device, or WebGL2 forced. WebGL2
@@ -58,10 +62,13 @@ export function mountEngine(
     })
     const readyPromise = Promise.resolve().then(() => params.onReady?.(host))
     return {
+      /** Destroy the host once the `onReady` callback has settled. */
       destroy() {
         readyPromise
           .catch((err) => {
-            console.error('[stargazer] mountEngine.onReady failed:', err)
+            diagnostics.report('SG1006', 'mountEngine.onReady failed:', {
+              cause: err,
+            })
           })
           .finally(() => {
             try {
@@ -85,7 +92,7 @@ export function mountEngine(
         device.destroy()
         return
       }
-      console.info(`[stargazer] rendering backend: ${backend}`)
+      diagnostics.report('SG1004', `rendering backend: ${backend}`)
       host = createEngineHost({
         canvas,
         ...(params.options ?? {}),
@@ -101,9 +108,10 @@ export function mountEngine(
       destroyed = true
       readyPromise
         .catch((err) => {
-          console.error(
-            '[stargazer] mountEngine backend selection failed:',
-            err,
+          diagnostics.report(
+            'SG1005',
+            'mountEngine backend selection failed:',
+            { cause: err },
           )
         })
         .finally(() => {

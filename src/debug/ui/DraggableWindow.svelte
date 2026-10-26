@@ -1,8 +1,7 @@
 <script lang="ts">
-  // Generic draggable window shell. Header drag, viewport clamping,
-  // per-window localStorage position. `storageId` is both the storage key
-  // and the identifier used by `placeNextTo(parent, child)`. Namespacing
-  // is caller-owned.
+  // `storageId` is both the `localStorage` key and the id that `spawnedBy`
+  // refers to. The caller picks ids that do not clash with other apps on the
+  // same origin.
 
   import type { Snippet } from 'svelte'
   import { onMount } from 'svelte'
@@ -11,11 +10,13 @@
     registerWindow,
     resetChildrenOf,
     unregisterWindow,
-  } from '@src/core/ui/window/spawn'
+  } from './windowRegistry'
 
   interface Props {
     visible: boolean
+    /** The header text. */
     title: string
+    /** The `localStorage` key for the saved position. */
     storageId: string
     /**
      * Default anchor when no saved position exists. Changing at runtime resets
@@ -23,13 +24,14 @@
      * drag.
      */
     side?: 'left' | 'right'
-    /** Optional width override in CSS px. Default comes from debug-ui.sass. */
+    /** Width in CSS px. The default comes from the debug styles. */
     width?: number
     /**
      * StorageId of the spawning parent. First open with no saved position
      * auto-places adjacent via `placeNextTo`. Ignored once dragged.
      */
     spawnedBy?: string
+    /** Called when the close button is pressed. */
     onClose?: () => void
     children: Snippet
   }
@@ -50,12 +52,8 @@
   let dragStartY = 0
   let panelElement = $state<HTMLDivElement | undefined>(undefined)
   let position = $state<{ x: number; y: number } | null>(null)
-  // Timestamp of the most recent open. The close button ignores clicks that
-  // land within CLOSE_COOLDOWN_MS of open so a stray double-tap (e.g. the
-  // corner-tap gesture that opened the booth menu, or a fast toggle from a
-  // parent window) can't immediately close what it just opened. There is no
-  // disabled styling or countdown, the window simply behaves as if the first
-  // tap didn't happen.
+  // The close button ignores clicks within CLOSE_COOLDOWN_MS of the window
+  // opening, so the tap that opened it can't also close it.
   const CLOSE_COOLDOWN_MS = 250
   let openedAtMs = 0
 
@@ -63,22 +61,17 @@
     if (visible) openedAtMs = performance.now()
   })
 
-  // Clears both the persisted position and the in-memory copy so the next
-  // reactive tick re-seeds from `side` / `spawnedBy`. Also invoked by the
-  // registry when a parent window re-anchors (cascade reset), so a stale
-  // "printer at old-booth-position" doesn't survive moving the booth menu to
-  // the other side.
+  // Clears the saved and in-memory position, so the next open uses `side` or
+  // `spawnedBy` again. The registry also calls this when the parent window
+  // changes side.
   function resetPosition(): void {
     localStorage.removeItem(storageId)
     position = null
   }
 
-  // Reset saved position when the caller explicitly re-anchors us to a new
-  // side (e.g. booth menu double-tapped from the opposite corner). Also
-  // resets any child windows that declared us as their `spawnedBy`, since
-  // their previously-seeded positions were relative to our old anchor and
-  // would otherwise stay put, disconnected from us.
-  // Non-reactive `prevSide` avoids re-triggering this effect on its own.
+  // A new `side` clears the saved position, and the positions of the windows
+  // we spawned, since those were placed relative to the old one. `prevSide` is
+  // not reactive so that this effect does not trigger itself.
   let prevSide: 'left' | 'right' | undefined
   $effect(() => {
     if (prevSide !== undefined && prevSide !== side) {
@@ -88,10 +81,9 @@
     prevSide = side
   })
 
-  // Seed position on open. Order: spawnedBy (auto-place, writes storage)
-  // -> localStorage (previous drag, wins because placeNextTo no-ops when
-  // storage already has a value) -> CSS `side` fallback. `placeNextTo` and
-  // the storage read live in one effect so the write lands first.
+  // The position on open comes from, in order: a saved drag, `spawnedBy`, then
+  // the CSS for `side`. `placeNextTo` does nothing when a drag is saved. It
+  // runs in the same effect as the storage read so that its write lands first.
   $effect(() => {
     if (!visible) return
     if (position !== null) return

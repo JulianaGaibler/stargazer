@@ -134,9 +134,13 @@ Each world gets a stats block with its own color. The block shows bodies, contac
 
 The Input panel toggles the pointer overlay. It shows the pointer in screen pixels and in world units, the canvas size in CSS and device pixels, and the pixel ratio. For each active pointer it lists the type, the screen and world position, and the node that captured it.
 
+### Diagnostics panel
+
+The Diagnostics panel lists the engine's recent warnings and errors with their codes, areas, nodes and repeat counts. The hub button shows how many there are. A filter limits the list to errors, and Clear empties it. See [Diagnostics](/guides/diagnostics).
+
 ### Custom panels
 
-[`registerPanel`](/module/debug/debugcontroller#registerpanel) adds your own panel to the hub. It takes a {@link DebugPanelSpec} and returns a function that removes the panel. The component receives `debug` plus any `props` you pass.
+[`registerPanel`](/module/debug/debugcontroller#registerpanel) adds your own panel to the hub. It takes a {@link DebugPanelSpec} and returns a function that removes the panel. The component receives `debug` plus any `props` you pass. Build it from the components in [Debug UI](/guides/debug-ui).
 
 ```ts
 const off = host.debug.registerPanel({
@@ -194,12 +198,13 @@ The path-shadow rows in Caches help tune shadow budgets. `Outline tessellations`
 
 ### Demos
 
-`?demo=<name>` boots a sandbox scene from the engine's `dev/` folder instead of the app. `dev/demos.ts` lists them. Each is a short file that exercises one subsystem, and `dev/demo-scene.ts` is the shortest end-to-end example. `?demo=bench&marks` runs the benchmark demo with perf marks on.
+The repository has a demo app in `demo/`. Run it with `npm run demo` and open `?demo=<name>` to boot one sandbox scene. `demo/demos.ts` lists them. Each is a short file that exercises one subsystem, and `demo/demo-scene.ts` is the shortest end-to-end example. `?demo=bench&marks` runs the benchmark demo with perf marks on.
 
 ## See also
 
 - {@link DebugController}: HUD state, hotkeys, overlays, and stats
 - {@link DebugPanelSpec}: a custom HUD panel
+- [Debug UI](/guides/debug-ui): the components for building panels
 - {@link DebugCamera}: the free 2D debug camera
 - {@link FrameStats}: the frame-time ring buffer behind the CPU readout
 - {@link PhysicsOverlayFlags}: physics overlay toggles

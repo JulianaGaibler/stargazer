@@ -27,9 +27,14 @@ export class DebugCamera extends Camera {
     this.#gameCamera = gameCamera
   }
 
+  /** Whether the camera follows the game camera. */
   get follow(): boolean {
     return this.#_follow
   }
+  /**
+   * Follow the game camera, or stop following it. Turning it on snaps to the
+   * game view.
+   */
   setFollow(v: boolean): void {
     this.#_follow = v
     if (v && this.#gameCamera)
@@ -57,6 +62,7 @@ export class DebugCamera extends Camera {
     else this.#held.delete(code)
   }
 
+  /** Forget which movement keys are held, for when the window loses focus. */
   clearKeys(): void {
     this.#held.clear()
   }

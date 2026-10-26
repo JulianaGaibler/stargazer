@@ -25,7 +25,10 @@ export interface A11yRootParams {
 export function a11yRoot(
   element: HTMLElement,
   params: A11yRootParams,
-): { destroy(): void } {
+): {
+  /** Clear the tree this element owned. */
+  destroy(): void
+} {
   params.engine.a11y.mount(element)
   return {
     destroy(): void {

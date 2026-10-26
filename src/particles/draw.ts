@@ -2,6 +2,7 @@
 // cached indefinitely. Palettes are small enough that eviction never pays off.
 
 import { withAlpha } from '../render/gfx/parseColor'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /**
  * Which tile a particle draws. Every style bakes to a square tile that the
@@ -52,7 +53,11 @@ export function getParticleSprite(
   canvas.width = SPRITE_SIZE
   canvas.height = SPRITE_SIZE
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('getParticleSprite: 2D context unavailable')
+  if (!ctx)
+    throw new StargazerError(
+      'SG2024',
+      'getParticleSprite: 2D context unavailable',
+    )
 
   const mid = SPRITE_SIZE / 2
 
@@ -145,5 +150,3 @@ function tagAsParticleAtlasCandidate(canvas: HTMLCanvasElement): void {
 export function clearParticleSpriteCache(): void {
   spriteCache.clear()
 }
-
-export const PARTICLE_SPRITE_SIZE = SPRITE_SIZE

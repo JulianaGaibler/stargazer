@@ -217,7 +217,9 @@ export interface Dom3DAttachOptions {
 export interface Dom3DAttachment {
   readonly node: Node3D
   readonly element: HTMLElement
+  /** Replace the attachment's options. */
   setOptions(opts: Dom3DAttachOptions): void
+  /** Stop syncing and release the element. */
   detach(): void
 }
 

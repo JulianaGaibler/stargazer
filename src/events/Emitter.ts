@@ -1,3 +1,4 @@
+import { diagnostics, reportThrown } from '../diagnostics/Diagnostics'
 /** Handler for an {@link Emitter} event, called with the event's payload. */
 export type EmitterHandler<T> = (payload: T) => void
 
@@ -61,8 +62,9 @@ class EmitterImpl<M> implements Emitter<M> {
     if (state.depth > 0) {
       if (this.#reentrancyWarnings < 3) {
         this.#reentrancyWarnings++
-        console.warn(
-          `[stargazer] Emitter.emit reentrant on key '${String(key)}', ` +
+        diagnostics.report(
+          'SG5001',
+          `Emitter.emit reentrant on key '${String(key)}', ` +
             `a handler emitted the same event during dispatch. depth=${state.depth + 1}. ` +
             `Usually a bug.`,
         )
@@ -72,7 +74,11 @@ class EmitterImpl<M> implements Emitter<M> {
       state.depth++
       try {
         for (let i = 0; i < nested.length; i++) {
-          ;(nested[i] as EmitterHandler<M[K]>)(payload)
+          try {
+            ;(nested[i] as EmitterHandler<M[K]>)(payload)
+          } catch (error) {
+            reportThrown('SG4003', `a '${String(key)}' handler`, error)
+          }
         }
       } finally {
         state.depth--
@@ -90,7 +96,11 @@ class EmitterImpl<M> implements Emitter<M> {
     state.depth++
     try {
       for (let i = 0; i < scratch.length; i++) {
-        ;(scratch[i] as EmitterHandler<M[K]>)(payload)
+        try {
+          ;(scratch[i] as EmitterHandler<M[K]>)(payload)
+        } catch (error) {
+          reportThrown('SG4003', `a '${String(key)}' handler`, error)
+        }
       }
     } finally {
       state.depth--

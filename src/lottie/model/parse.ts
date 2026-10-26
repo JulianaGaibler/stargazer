@@ -29,6 +29,7 @@ import type {
   LottieStrokeStyle,
   LottieTransform,
 } from './types'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 type Json = unknown
 type Obj = Record<string, Json>
@@ -616,21 +617,26 @@ function parseFonts(json: Json): LottieFont[] {
  */
 export function parseLottie(source: unknown): LottieAnimation {
   const json: Json = typeof source === 'string' ? JSON.parse(source) : source
-  if (!isObj(json)) throw new Error('parseLottie: expected a JSON object')
+  if (!isObj(json))
+    throw new StargazerError('SG6007', 'parseLottie: expected a JSON object')
   const width = num(json, 'w', 0)
   const height = num(json, 'h', 0)
   const frameRate = num(json, 'fr', 0)
   const inPoint = num(json, 'ip', NaN)
   const outPoint = num(json, 'op', NaN)
   if (width <= 0 || height <= 0)
-    throw new Error('parseLottie: missing size (w, h)')
-  if (frameRate <= 0) throw new Error('parseLottie: missing frame rate (fr)')
+    throw new StargazerError('SG6007', 'parseLottie: missing size (w, h)')
+  if (frameRate <= 0)
+    throw new StargazerError('SG6007', 'parseLottie: missing frame rate (fr)')
   if (
     !Number.isFinite(inPoint) ||
     !Number.isFinite(outPoint) ||
     outPoint <= inPoint
   ) {
-    throw new Error('parseLottie: missing or empty frame range (ip, op)')
+    throw new StargazerError(
+      'SG6007',
+      'parseLottie: missing or empty frame range (ip, op)',
+    )
   }
   const version = str(json, 'v')
   const ctx: Ctx = {

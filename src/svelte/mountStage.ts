@@ -1,3 +1,4 @@
+import { diagnostics } from '../diagnostics/Diagnostics'
 import type { Engine } from '../engine/Engine'
 import type { Stage, StageOptions } from '../render/Stage'
 
@@ -28,15 +29,21 @@ export interface MountStageParams {
 export function mountStage(
   canvas: HTMLCanvasElement,
   params: MountStageParams,
-): { destroy(): void } {
+): {
+  /** Detach the stage once the `onReady` callback has settled. */
+  destroy(): void
+} {
   const stage = params.engine.attachStage(canvas, params.options)
   const readyPromise = Promise.resolve().then(() => params.onReady?.(stage))
 
   return {
+    /** Detach the stage once the `onReady` callback has settled. */
     destroy() {
       readyPromise
         .catch((err) => {
-          console.error('[stargazer] mountStage.onReady failed:', err)
+          diagnostics.report('SG1006', 'mountStage.onReady failed:', {
+            cause: err,
+          })
         })
         .finally(() => {
           try {

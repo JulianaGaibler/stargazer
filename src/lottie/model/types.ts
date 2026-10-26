@@ -177,6 +177,7 @@ export interface LottieUnsupportedLayer extends LottieLayerBase {
   type: 'unsupported'
 }
 
+/** Any layer a Lottie composition can hold, told apart by `type`. */
 export type LottieLayer =
   | LottieNullLayer
   | LottieSolidLayer
@@ -351,6 +352,7 @@ export interface LottieTransformItem extends LottieShapeBase {
   transform: LottieTransform
 }
 
+/** Any item inside a shape layer, told apart by `kind`. */
 export type LottieShapeItem =
   | LottieGroupItem
   | LottiePathItem

@@ -21,6 +21,7 @@ export type {
   LayerCache,
   LayerOptions,
   LayerRegion,
+  LayerFrame,
   LayerSpace,
 } from '../scene/Layer'
 export { layerOf, viewFor } from '../scene/viewFor'

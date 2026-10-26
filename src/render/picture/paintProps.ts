@@ -1,4 +1,6 @@
+import { DEV } from 'esm-env'
 import type { Node2D } from '../../scene/Node2D'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** The values of a node's paint properties, per instance. */
 const values = new WeakMap<object, Record<string, unknown>>()
@@ -45,8 +47,10 @@ export function definePaintProps<
   values.set(node, store)
   for (const name of Object.keys(initial)) {
     if (Object.prototype.hasOwnProperty.call(node, name)) {
-      if (import.meta.env.DEV) {
-        throw new Error(
+      if (DEV) {
+        throw new StargazerError(
+          'SG5007',
+
           `definePaintProps: '${name}' is already an own property of ${node.constructor.name}. Declare it with 'declare ${name}: ...' and no initializer.`,
         )
       }

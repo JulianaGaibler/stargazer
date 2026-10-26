@@ -7,9 +7,7 @@ import type { LottieAnimation } from '../model/types'
 
 const load = (name: string): Uint8Array =>
   new Uint8Array(
-    readFileSync(
-      `${process.cwd()}/src/stargazer/dev/fixtures/lottie/${name}.lottie`,
-    ),
+    readFileSync(`${process.cwd()}/fixtures/lottie/${name}.lottie`),
   )
 
 /** First sampled color of the first property that carries `slot`. */

@@ -7,6 +7,7 @@
  *
  * @module
  */
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import { BoxConstraints, type Size } from '../constraints'
 import { LayoutNode } from '../LayoutNode'
 import type { Vec2 } from '../../math/Vec2'
@@ -123,8 +124,9 @@ export class LayoutBuilder extends LayoutNode {
       !this.#warned
     ) {
       this.#warned = true
-      console.warn(
-        `[stargazer] LayoutBuilder('${this.id}') has an unconstrained ${axis} ` +
+      diagnostics.report(
+        'SG5006',
+        `LayoutBuilder('${this.id}') has an unconstrained ${axis} ` +
           `and measured to 0. Wrap it in Expanded, AspectRatio, or SizedBox.`,
       )
     }

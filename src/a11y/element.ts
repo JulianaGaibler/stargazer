@@ -32,12 +32,12 @@ const TEXT_CONTENT_ROLES: ReadonlySet<A11yRole> = new Set<A11yRole>([
 ])
 
 /** Whether a proxy for this role/semantics should be focusable. */
-export function isFocusable(sem: Semantics): boolean {
+function isFocusable(sem: Semantics): boolean {
   return INTERACTIVE_ROLES.has(sem.role) || typeof sem.onActivate === 'function'
 }
 
 /** Whether this role is a roving-group container. */
-export function isComposite(role: A11yRole): boolean {
+function isComposite(role: A11yRole): boolean {
   return COMPOSITE_ROLES.has(role)
 }
 

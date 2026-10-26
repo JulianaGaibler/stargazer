@@ -21,7 +21,7 @@ import {
   RigidBodyBehavior,
   BodyType,
   aabbShape,
-} from '@src/stargazer'
+} from 'stargazer'
 
 const host = createEngineHost({
   canvas,

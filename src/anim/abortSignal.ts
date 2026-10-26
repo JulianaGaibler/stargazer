@@ -54,6 +54,7 @@ export function rejectDetached(
 /** Result of `combineAbortSignals`, the caller MUST `dispose()` on completion. */
 export interface CombinedAbort {
   readonly signal: AbortSignal
+  /** Stop listening to the source signals. Call it when the work is done. */
   dispose(): void
 }
 

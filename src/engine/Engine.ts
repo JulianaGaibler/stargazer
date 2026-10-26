@@ -1,3 +1,4 @@
+import { diagnostics, reportThrown } from '../diagnostics/Diagnostics'
 import {
   AdaptiveQuality,
   type QualitySnapshot,
@@ -42,6 +43,7 @@ import type { PhysicsWorld, PhysicsWorldConfig } from '../physics/PhysicsWorld'
 import { DomTransformSync } from '../dom/DomTransformSync'
 import { AccessibilityTree } from '../a11y/AccessibilityTree'
 import type { LayoutRoot } from '../layout/LayoutRoot'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /** Construction options for {@link Engine}. */
 export interface EngineOptions {
@@ -69,6 +71,8 @@ export interface EngineOptions {
    * renderbuffer resolved on present. Default 4. Secondary stages inherit.
    */
   msaaSamples?: number
+  /** See {@link StageOptions.lockInteraction}. Applies to the primary stage. */
+  lockInteraction?: boolean
   /**
    * Draw the primary stage's frame in the canvas's own format, so its last pass
    * writes the canvas with no copy afterwards. Default true. `false` keeps the
@@ -226,6 +230,7 @@ export class Engine {
       clearColor: opts.clearColor,
       transparent: opts.transparent ?? false,
       interactive: true,
+      lockInteraction: opts.lockInteraction,
       msaaSamples: this.msaaSamples,
       directPresent: opts.directPresent,
       physics: opts.physics,
@@ -272,10 +277,23 @@ export class Engine {
       this.#disposeCallbacks.push(off)
     }
 
+    // A handler that throws is itself reported, so the forward must not
+    // re-enter, or the report would trigger another report without end.
+    let forwarding = false
+    this.#disposeCallbacks.push(
+      diagnostics.on((d) => {
+        if (forwarding) return
+        forwarding = true
+        try {
+          this.events.emit('diagnostic', d)
+        } finally {
+          forwarding = false
+        }
+      }),
+    )
+
     this.ticker.onFrame((dt) => this.#frame(dt))
     this.ticker.onFixedStep((fdt) => this.#fixedStep(fdt))
-    // Kiosk hygiene lives on Stage, so every canvas a Stage owns gets it,
-    // including secondaries mounted from Svelte components.
   }
 
   /** Shortcut for the primary stage's `InputSystem`. Always defined. */
@@ -397,6 +415,7 @@ export class Engine {
 
   // Convenience getters onto the primary stage: `engine.renderer`,
   // `engine.tree`, `engine.currentCamera2D`.
+  /** The primary stage's renderer. */
   get renderer(): Renderer {
     return this.primaryStage.renderer
   }
@@ -444,6 +463,7 @@ export class Engine {
   get paused(): boolean {
     return this.#_paused
   }
+  /** Pause or resume the update and fixed-step loops. Drawing continues. */
   setPaused(v: boolean): void {
     this.#_paused = v
   }
@@ -508,7 +528,10 @@ export class Engine {
    */
   attachStage(canvas: HTMLCanvasElement, opts: StageOptions = {}): Stage {
     if (this.#disposed) {
-      throw new Error('stargazer: attachStage after engine.destroy()')
+      throw new StargazerError(
+        'SG5009',
+        'stargazer: attachStage after engine.destroy()',
+      )
     }
     return this.#stageManager.attachStage(this, canvas, opts)
   }
@@ -589,7 +612,13 @@ export class Engine {
     //    (debug camera step, camera tweens) run here so step 2 sees the
     //    up-to-date camera. Runs even when paused so the debug camera
     //    stays interactive during a debug freeze.
-    for (const cb of this.#beforeFrameHandlers) cb(dt)
+    for (const cb of this.#beforeFrameHandlers) {
+      try {
+        cb(dt)
+      } catch (error) {
+        reportThrown('SG4005', 'a before-frame handler', error)
+      }
+    }
 
     // 2. Input: reproject pointer world coords, emit synthetic moves for
     //    any pointer whose world drifted under a still finger this frame.
@@ -674,8 +703,9 @@ export class Engine {
     }
     const frameMs = Math.round(this.ticker.rawDt * 1000)
     const what = tiers.map((tier) => this.#applyTier(stage, tier))
-    console.info(
-      `Stargazer: the GPU is the bottleneck (${frameMs} ms frames), ${what.join(', ')}`,
+    diagnostics.report(
+      'SG1007',
+      `the GPU is the bottleneck (${frameMs} ms frames), ${what.join(', ')}`,
     )
     const q = this.quality
     const ao = stage.peekAmbientOcclusion()
@@ -750,10 +780,23 @@ export class Engine {
       const id = marks ? node.id : ''
       const startMark = marks ? `update-${id}:start` : ''
       if (marks) performance.mark(startMark)
-      node.onUpdate?.(dt)
+      try {
+        node.onUpdate?.(dt)
+      } catch (error) {
+        reportThrown('SG4001', 'onUpdate', error, node.id)
+      }
       const behaviors = node.behaviors
       for (let i = 0; i < behaviors.length; i++) {
-        behaviors[i].onUpdate?.(dt)
+        try {
+          behaviors[i].onUpdate?.(dt)
+        } catch (error) {
+          reportThrown(
+            'SG4001',
+            `${behaviors[i].constructor.name}.onUpdate`,
+            error,
+            node.id,
+          )
+        }
       }
       if (marks) {
         const endMark = `update-${id}:end`
@@ -822,10 +865,23 @@ export class Engine {
     for (let n = 0; n < nodes.length; n++) {
       const node = nodes[n]
       if (!node._hasFixedStepWork || node.owner !== tree) continue
-      node.onFixedStep?.(fdt)
+      try {
+        node.onFixedStep?.(fdt)
+      } catch (error) {
+        reportThrown('SG4002', 'onFixedStep', error, node.id)
+      }
       const behaviors = node.behaviors
       for (let i = 0; i < behaviors.length; i++) {
-        behaviors[i].onFixedStep?.(fdt)
+        try {
+          behaviors[i].onFixedStep?.(fdt)
+        } catch (error) {
+          reportThrown(
+            'SG4002',
+            `${behaviors[i].constructor.name}.onFixedStep`,
+            error,
+            node.id,
+          )
+        }
       }
     }
   }

@@ -132,6 +132,7 @@ export class AmbientOcclusion {
     this.#createResources()
   }
 
+  /** Whether ambient occlusion runs. */
   get enabled(): boolean {
     return this.#enabled
   }
@@ -141,6 +142,7 @@ export class AmbientOcclusion {
     if (!v) this.#freeTargets()
   }
 
+  /** The quality preset, see {@link AoPreset}. */
   get preset(): AoPreset {
     return this.#preset
   }

@@ -22,7 +22,11 @@ export interface ManualQuality {
 export interface QualityHost {
   readonly quality: RenderQuality
   readonly primaryStage: Stage
-  readonly ticker: { readonly maxFps: number; setMaxFps(fps: number): void }
+  readonly ticker: {
+    readonly maxFps: number
+    /** Set the render frame-rate cap in Hz. 0 removes the cap. */
+    setMaxFps(fps: number): void
+  }
 }
 
 /** Whether a group follows the engine's own lowering or is held at a value. */
@@ -39,6 +43,7 @@ export interface QualityPreset {
   manual: Partial<ManualQuality>
 }
 
+/** The name of a quality preset. */
 export type QualityPresetId =
   'auto' | 'max' | 'balanced' | 'efficient' | 'minimal'
 
@@ -155,7 +160,7 @@ const STORAGE_PREFIX = 'stargazer.quality.v1'
  * pixel density, because the same GPU needs different settings on a 1080p panel
  * and a 4K one.
  */
-export function defaultProfileKey(): string {
+function defaultProfileKey(): string {
   if (typeof window === 'undefined') return `${STORAGE_PREFIX}.default`
   const s = window.screen
   return `${STORAGE_PREFIX}.${s.width}x${s.height}@${window.devicePixelRatio}`
@@ -173,7 +178,7 @@ function sameValue(a: unknown, b: unknown): boolean {
  * sets the same setting itself, and the adaptive controller never lowers it.
  *
  * Fixed groups and the manual settings can be saved for this screen and put
- * back when the page loads, so a booth tuned once stays tuned.
+ * back when the page loads, so a screen tuned once stays tuned.
  *
  * @example
  *   engine.qualityControl.setFixed('msaa', 2) // hold MSAA at 2x
@@ -225,6 +230,7 @@ export class QualityControl {
     return [...this.#pins.keys()]
   }
 
+  /** Whether `group` follows the engine or is held at a value. */
   mode(group: QualityGroup): QualityMode {
     return this.#pins.has(group) ? 'fixed' : 'auto'
   }
@@ -331,6 +337,7 @@ export class QualityControl {
     }
   }
 
+  /** Apply the manual settings in `patch`. Settings left out stay as they are. */
   setManual(patch: Partial<ManualQuality>): void {
     const q = this.#host.quality
     if (patch.shadowMapSize !== undefined) q.shadowMapSize = patch.shadowMapSize

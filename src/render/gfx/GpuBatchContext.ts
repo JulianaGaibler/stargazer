@@ -3,6 +3,7 @@
 // bind group, and which batch is currently open. Centralizing it here means a
 // program module never needs a back-reference to `GpuGfx` itself.
 
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import type {
   BindGroup,
   BindGroupLayout,
@@ -41,6 +42,7 @@ import type { Surface } from './OffscreenSurfaces'
 import type { CompositeDraw } from './programs/offscreenComposite'
 import type { GpuProgram } from './GpuProgram'
 import type { RingStream } from './RingStream'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /**
  * Debug render overlays. `coloredTri` and `shape` draws are affected (fills,
@@ -126,7 +128,7 @@ export interface DrawRun {
  * The programs that read their clip from the param table. Their primitives
  * carry a record index, so a change of clip does not end a run.
  */
-export const TABLE_CLIPPED: ReadonlySet<BatchKind> = new Set<BatchKind>([
+const TABLE_CLIPPED: ReadonlySet<BatchKind> = new Set<BatchKind>([
   'shape',
   'coloredTri',
   'stencilFan',
@@ -290,7 +292,7 @@ export interface GpuGfxStats {
  * run, and any difference, including two distinct gradients back to back,
  * forces a break so each gets its own `DrawParams`.
  */
-export interface ResolvedGradientPaint {
+interface ResolvedGradientPaint {
   kind: 'gradient'
   scaleDirX: number
   scaleDirY: number
@@ -468,7 +470,11 @@ export class GpuBatchContext {
         if (this.#singleSampleWarm === warm) this.singleSampleReady = true
       },
       (err: unknown) => {
-        console.error('GpuBatchContext: single-sample pipelines failed', err)
+        diagnostics.report(
+          'SG3001',
+          'GpuBatchContext: single-sample pipelines failed',
+          { cause: err },
+        )
       },
     )
     this.#singleSampleWarm = warm
@@ -667,7 +673,10 @@ export class GpuBatchContext {
    */
   get frameBindGroupLayout(): BindGroupLayout {
     if (!this.#frameLayout)
-      throw new Error('GpuBatchContext: frame UBO not initialized')
+      throw new StargazerError(
+        'SG2024',
+        'GpuBatchContext: frame UBO not initialized',
+      )
     return this.#frameLayout
   }
 
@@ -675,7 +684,10 @@ export class GpuBatchContext {
   frameBindGroupEntry(clipOffset = 0): DrawBindGroup {
     const slot = this.#frameSlots[this.#curSlot]
     if (!slot || !this.#frameLayout) {
-      throw new Error('GpuBatchContext: frame UBO not initialized')
+      throw new StargazerError(
+        'SG2024',
+        'GpuBatchContext: frame UBO not initialized',
+      )
     }
     const ring = this.#clipRing
     if (

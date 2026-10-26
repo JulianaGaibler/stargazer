@@ -5,6 +5,7 @@
 
 import { Stage, type StageOptions } from '../render/Stage'
 import type { Engine } from './Engine'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 export class EngineStageManager {
   readonly #_stages = new Set<Stage>()
@@ -33,7 +34,9 @@ export class EngineStageManager {
     opts: StageOptions,
   ): Stage {
     if (this.#_attachedCanvases.has(canvas)) {
-      throw new Error(
+      throw new StargazerError(
+        'SG1009',
+
         'stargazer: attachStage called with a canvas that is already attached',
       )
     }

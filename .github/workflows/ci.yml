@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run check
+      - run: npm run test:run
+      - run: npm run knip
+      - run: npm run build
+      - run: npx publint
+      # Fails on a broken link or an undocumented public method.
+      - run: npx typedoc --options typedoc.json --emit none --treatValidationWarningsAsErrors
+      # The generated GLSL is committed, so it has to match the WGSL.
+      - run: npm run check:shaders
+      # The diagnostics guide is generated from the code table.
+      - run: npm run gen:diagnostics && git diff --exit-code src/docs/guides/diagnostics.md

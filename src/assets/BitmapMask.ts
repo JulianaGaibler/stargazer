@@ -1,4 +1,5 @@
 import type { Rect } from '../math/Rect'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /** Options for {@link buildBitmapMask}. */
 export interface BitmapMaskOptions {
@@ -41,6 +42,7 @@ export interface BitmapMask {
    * the 1-pixel-wide border, for example).
    */
   contains(worldX: number, worldY: number, insetWorld?: number): boolean
+  /** Free the mask. It cannot be used afterwards. */
   dispose(): void
 }
 
@@ -57,7 +59,10 @@ export async function buildBitmapMask(
   const target = opts.resolution ?? 1024
   const alphaThreshold = opts.alphaThreshold ?? 128
   if (worldRect.width <= 0 || worldRect.height <= 0) {
-    throw new Error('buildBitmapMask: worldRect must have positive size')
+    throw new StargazerError(
+      'SG2024',
+      'buildBitmapMask: worldRect must have positive size',
+    )
   }
   const longest = Math.max(worldRect.width, worldRect.height)
   const w = Math.max(1, Math.round((worldRect.width / longest) * target))
@@ -65,7 +70,7 @@ export async function buildBitmapMask(
 
   const canvas = createOffscreen(w, h)
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null
-  if (!ctx) throw new Error('buildBitmapMask: no 2D context')
+  if (!ctx) throw new StargazerError('SG2024', 'buildBitmapMask: no 2D context')
 
   const scaleX = w / worldRect.width
   const scaleY = h / worldRect.height

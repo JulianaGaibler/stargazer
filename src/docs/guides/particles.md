@@ -17,7 +17,7 @@ For particles that need their own vector shapes, such as triangles and line shar
 The example below adds a continuous trail to the scene and moves its emission point each frame.
 
 ```ts
-import { ParticleEmitterNode } from '@src/stargazer'
+import { ParticleEmitterNode } from 'stargazer'
 
 const trail = new ParticleEmitterNode({
   config: {

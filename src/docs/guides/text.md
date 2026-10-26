@@ -21,7 +21,7 @@ string and its style. [`fillText`](/module/scene/canvas#filltext) on a
 This example adds a label to the scene and changes it later.
 
 ```ts
-import { TextNode } from '@src/stargazer'
+import { TextNode } from 'stargazer'
 
 const label = new TextNode({
   text: 'Ready',
@@ -47,8 +47,8 @@ A node that paints itself calls `fillText` on its canvas. Declare the string
 with {@link definePaintProps} so that changing it repaints the node.
 
 ```ts
-import { Node2D, definePaintProps } from '@src/stargazer'
-import type { Canvas } from '@src/stargazer'
+import { Node2D, definePaintProps } from 'stargazer'
+import type { Canvas } from 'stargazer'
 
 class ScoreLabel extends Node2D {
   declare score: number
@@ -79,7 +79,7 @@ never wraps.
 width, so you can draw a paragraph line by line.
 
 ```ts
-import { wrapText } from '@src/stargazer'
+import { wrapText } from 'stargazer'
 
 const font = '400 18px Inter, sans-serif'
 const lines = wrapText(rules, font, 300, 4)
@@ -217,7 +217,7 @@ This example draws a large number and a small unit on one baseline, centered
 on `cy`.
 
 ```ts
-import { textMetrics } from '@src/stargazer'
+import { textMetrics } from 'stargazer'
 
 const bigFont = '700 40px Inter, sans-serif'
 const smallFont = '400 20px Inter, sans-serif'
@@ -239,7 +239,7 @@ smallest size had to drop words.
 This example centers a block of text vertically in a box.
 
 ```ts
-import { fitTextBlock } from '@src/stargazer'
+import { fitTextBlock } from 'stargazer'
 
 const mkFont = (size: number) => `400 ${size}px Inter, sans-serif`
 const block = fitTextBlock(text, [20, 18, 16, 14], mkFont, box)
@@ -273,7 +273,7 @@ and returns {@link RichLine} objects whose runs carry their `x` offsets. A
 `makeFont(bold)` callback supplies the font for each weight.
 
 ```ts
-import { wrapRichText, type TextSpan } from '@src/stargazer'
+import { wrapRichText, type TextSpan } from 'stargazer'
 
 const spans: TextSpan[] = [
   { text: 'add ' },
@@ -363,7 +363,7 @@ If a face can still arrive after the first frame, clear all three caches when
 it does:
 
 ```ts
-import { clearFontMetricsCache, clearTextLayoutCaches } from '@src/stargazer'
+import { clearFontMetricsCache, clearTextLayoutCaches } from 'stargazer'
 
 document.fonts.addEventListener('loadingdone', () => {
   clearFontMetricsCache()

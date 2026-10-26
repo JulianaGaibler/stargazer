@@ -15,7 +15,7 @@ Each {@link Stage} renders through one current 2D camera. The engine never creat
 Add a camera to the tree and give it the world rect to show:
 
 ```ts
-import { CameraNode2D } from '@src/stargazer'
+import { CameraNode2D } from 'stargazer'
 
 const cam = new CameraNode2D()
 cam.setViewport({ x: 0, y: 0, width: 1920, height: 1080 })
@@ -46,7 +46,7 @@ Both take an optional `out` object to fill, so a call in a hot loop does not all
 [`animateTo`](/module/camera/cameranode2d#animateto) moves and resizes the viewport over time, a combined pan and zoom:
 
 ```ts
-import { easings } from '@src/stargazer'
+import { easings } from 'stargazer'
 
 await cam.animateTo(
   { x: 0, y: 380, width: 661, height: 520 },
@@ -101,7 +101,7 @@ The next camera is the enabled one with the highest `priority`, and the earliest
 Starting a second `animateTo` does not cancel the first, so two animations would fight over the viewport. Keep an `AbortController`, abort it before starting a new animation, and pass the new signal:
 
 ```ts
-import { ignoreAbort, type Rect } from '@src/stargazer'
+import { ignoreAbort, type Rect } from 'stargazer'
 
 let controller: AbortController | null = null
 

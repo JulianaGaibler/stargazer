@@ -24,7 +24,7 @@ Add effect instances to the pipeline. This example darkens the corners and adds
 a color fringe at the edges:
 
 ```ts
-import { ChromaticAberration, Vignette } from '@src/stargazer'
+import { ChromaticAberration, Vignette } from 'stargazer'
 
 engine.postProcess.add(new Vignette({ intensity: 0.6, radius: 0.4 }))
 engine.postProcess.add(new ChromaticAberration({ amount: 0.008 }))
@@ -75,7 +75,7 @@ scene, put that part under a {@link Layer} and give the layer the effects. This
 example blurs what lies behind a panel:
 
 ```ts
-import { DualKawaseBlur, Layer } from '@src/stargazer'
+import { DualKawaseBlur, Layer } from 'stargazer'
 
 const frosted = new Layer({
   effects: [new DualKawaseBlur({ levels: 3 })],
@@ -167,8 +167,8 @@ The TypeScript side wraps the generated files with {@link postShader} and writes
 the params:
 
 ```ts
-import { postShader } from '@src/stargazer'
-import type { PostEffect, PostPass, ShaderReflection } from '@src/stargazer'
+import { postShader } from 'stargazer'
+import type { PostEffect, PostPass, ShaderReflection } from 'stargazer'
 import wgsl from './scanlines.wgsl?raw'
 import vertSrc from './scanlines.gen.vert.glsl?raw'
 import fragSrc from './scanlines.gen.frag.glsl?raw'
@@ -399,7 +399,10 @@ layer inside another layer is already processed when the outer one runs.
 [`effectsApplied`](/module/scene/layer#effectsapplied) reports whether the last
 frame drew the subtree with every effect. It is false while an effect's
 pipelines are still compiling, when the subtree draws without effects, which
-`warm()` avoids. It is also false for a layer that holds an `InsetViewNode` or
+`warm()` avoids. A layer that is hidden for a few seconds loses its pipelines
+and compiles them again when it shows, so a layer whose unprocessed picture
+would be wrong, such as an opaque `clearColor` that the effects turn into dots,
+sets `holdUntilEffects` to draw nothing for those frames. It is also false for a layer that holds an `InsetViewNode` or
 sits inside one, because those cannot be drawn into a surface. The engine warns
 once in development.
 
@@ -417,7 +420,7 @@ While nothing has changed, it draws that result again as one textured quad,
 without drawing its subtree:
 
 ```ts
-import { DualKawaseBlur, FilmGrain, Layer } from '@src/stargazer'
+import { DualKawaseBlur, FilmGrain, Layer } from 'stargazer'
 
 const backdrop = new Layer({
   space: { frame: { x: 0, y: 0, width: 1920, height: 1080 } },

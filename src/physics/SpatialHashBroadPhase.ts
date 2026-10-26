@@ -34,11 +34,13 @@ export class SpatialHashBroadPhase implements BroadPhase {
     this.#invCellSize = 1 / this.cellSize
   }
 
+  /** Start tracking `body`. */
   insert(body: Body): void {
     this.#bodies.push(body)
     this.#aabbs.push(rect())
   }
 
+  /** Stop tracking `body`. */
   remove(body: Body): void {
     const i = this.#bodies.indexOf(body)
     if (i < 0) return

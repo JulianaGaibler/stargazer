@@ -50,8 +50,7 @@ describe('parseSvgPaths', () => {
   it('parses the engine dev fixture via the Vite ?raw loader end-to-end', async () => {
     // Import via Vite's `?raw` loader so the test exercises the same code
     // path as production.
-    const raw = (await import('@src/stargazer/dev/fixtures/shapes.svg?raw'))
-      .default
+    const raw = (await import('../../fixtures/shapes.svg?raw')).default
     const map = parseSvgPaths(raw)
     expect(map.paths.size).toBeGreaterThanOrEqual(4)
     for (const [id, entry] of map.paths) {

@@ -7,6 +7,7 @@ import { parseLottie } from '../model/parse'
 import type { LottieAnimation } from '../model/types'
 import { parseTheme, type LottieTheme } from './theme'
 import { extractZipEntry, readZip, type ZipEntry } from './zip'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** An animation listed in the manifest. */
 export interface DotLottieAnimationEntry {
@@ -72,7 +73,10 @@ function str(v: unknown): string | undefined {
 
 function parseManifest(json: unknown): DotLottieManifest {
   if (typeof json !== 'object' || json === null) {
-    throw new Error('parseDotLottie: manifest.json is not an object')
+    throw new StargazerError(
+      'SG6007',
+      'parseDotLottie: manifest.json is not an object',
+    )
   }
   const m = json as Record<string, unknown>
   const animations: DotLottieAnimationEntry[] = []
@@ -130,7 +134,8 @@ function find(
 export async function parseDotLottie(bytes: Uint8Array): Promise<DotLottie> {
   const entries = readZip(bytes)
   const manifestEntry = entries.get('manifest.json')
-  if (!manifestEntry) throw new Error('parseDotLottie: no manifest.json')
+  if (!manifestEntry)
+    throw new StargazerError('SG6007', 'parseDotLottie: no manifest.json')
   const decoder = new TextDecoder()
   const manifest = parseManifest(
     JSON.parse(decoder.decode(await extractZipEntry(bytes, manifestEntry))),
@@ -166,7 +171,10 @@ export async function parseDotLottie(bytes: Uint8Array): Promise<DotLottie> {
       const chosen = id ?? manifest.initialAnimation ?? ids[0]
       const text = chosen !== undefined ? animationText.get(chosen) : undefined
       if (text === undefined) {
-        throw new Error(`DotLottie.getAnimation: no animation '${chosen}'`)
+        throw new StargazerError(
+          'SG6007',
+          `DotLottie.getAnimation: no animation '${chosen}'`,
+        )
       }
       return parseLottie(text)
     },
@@ -181,7 +189,10 @@ export async function parseDotLottie(bytes: Uint8Array): Promise<DotLottie> {
     getTheme(id) {
       const text = themeText.get(id)
       if (text === undefined) {
-        throw new Error(`DotLottie.getTheme: no theme '${id}'`)
+        throw new StargazerError(
+          'SG6007',
+          `DotLottie.getTheme: no theme '${id}'`,
+        )
       }
       return parseTheme(text)
     },
@@ -213,7 +224,11 @@ export function loadLottie(
   let p = cache.get(key) as Promise<string> | undefined
   if (!p) {
     p = (opts.fetch ?? fetch)(url).then((r) => {
-      if (!r.ok) throw new Error(`loadLottie: ${url} returned ${r.status}`)
+      if (!r.ok)
+        throw new StargazerError(
+          'SG6006',
+          `loadLottie: ${url} returned ${r.status}`,
+        )
       return r.text()
     })
     cache.set(key, p)
@@ -233,7 +248,11 @@ export function loadDotLottie(
   if (!p) {
     p = (opts.fetch ?? fetch)(url)
       .then((r) => {
-        if (!r.ok) throw new Error(`loadDotLottie: ${url} returned ${r.status}`)
+        if (!r.ok)
+          throw new StargazerError(
+            'SG6006',
+            `loadDotLottie: ${url} returned ${r.status}`,
+          )
         return r.arrayBuffer()
       })
       .then((buf) => parseDotLottie(new Uint8Array(buf)))

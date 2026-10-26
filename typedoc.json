@@ -1,0 +1,93 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/modules/engine.ts",
+    "src/modules/scene.ts",
+    "src/modules/layout.ts",
+    "src/modules/nodes.ts",
+    "src/modules/camera.ts",
+    "src/modules/anim.ts",
+    "src/modules/particles.ts",
+    "src/modules/physics.ts",
+    "src/modules/input.ts",
+    "src/modules/events.ts",
+    "src/modules/assets.ts",
+    "src/modules/render.ts",
+    "src/modules/math.ts",
+    "src/modules/ai.ts",
+    "src/modules/dom.ts",
+    "src/modules/a11y.ts",
+    "src/modules/lottie.ts",
+    "src/modules/debug.ts",
+    "src/modules/diagnostics.ts",
+    "src/modules/svelte.ts"
+  ],
+  "entryPointStrategy": "resolve",
+  "exclude": ["**/*.test.ts", "**/debug/ui/**", "**/webgl2/**", "**/*.svelte"],
+  "tsconfig": "tsconfig.json",
+  "readme": "README.md",
+  "plugin": ["@clean-jsdoc-theme/typedoc"],
+  "outputs": [
+    {
+      "name": "clean-jsdoc-theme",
+      "path": "site"
+    }
+  ],
+  "categorizeByGroup": false,
+  "sort": ["source-order"],
+  "skipErrorChecking": true,
+  "highlightLanguages": [
+    "bash",
+    "console",
+    "css",
+    "html",
+    "javascript",
+    "json",
+    "jsonc",
+    "json5",
+    "yaml",
+    "tsx",
+    "typescript",
+    "svelte"
+  ],
+  "externalSymbolLinkMappings": {
+    "typescript": {
+      "AbortSignal": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal"
+    }
+  },
+  "intentionallyNotExported": [
+    "CameraHost",
+    "World3DReadout",
+    "DebugLine3DRenderer",
+    "MeshRenderer",
+    "TextureInspector",
+    "TextureSource",
+    "GltfDoc",
+    "GfxDevice",
+    "Texture",
+    "RenderTarget"
+  ],
+  "cleanJsdocTheme": {
+    "siteName": "Stargazer",
+    "docs": "src/docs",
+    "docGroups": ["Getting started", "Features", "3D", "Internals"],
+    "copyPage": true
+  },
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": true
+  },
+  "requiredToBeDocumented": [
+    "Enum",
+    "EnumMember",
+    "Variable",
+    "Function",
+    "Class",
+    "Interface",
+    "Method",
+    "CallSignature",
+    "GetSignature",
+    "TypeAlias"
+  ]
+}

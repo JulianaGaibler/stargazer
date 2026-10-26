@@ -210,6 +210,7 @@ export interface PostDataPass {
    */
   readonly compute?: {
     readonly wgsl: string
+    /** How many workgroups to dispatch, as `[x, y, z]`. */
     readonly workgroups: (
       ctx: PostPassContext,
     ) => readonly [number, number, number]

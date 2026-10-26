@@ -1,3 +1,4 @@
+import type { Diagnostic } from '../diagnostics/Diagnostics'
 import type { PointerEvent2D } from '../input/PointerState'
 import type { QualityTier } from '../render/AdaptiveQuality'
 import type { AoPreset, AoResolution } from '../render/gfx/ao/AmbientOcclusion'
@@ -79,6 +80,12 @@ export interface EngineEvents {
     steps: QualityTier['kind'][]
     frameMs: number
   }
+  /**
+   * The engine reported a warning, an error or other diagnostic. Fires for the
+   * first report of each problem and again at 10, 100, 1000 and 10000 repeats.
+   * Diagnostics are shared by all engines on the page.
+   */
+  diagnostic: Diagnostic
   /** The engine was destroyed. */
   destroyed: void
 }

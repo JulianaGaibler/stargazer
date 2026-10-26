@@ -1,3 +1,5 @@
+import { diagnostics, reportThrown } from '../diagnostics/Diagnostics'
+import { DEV } from 'esm-env'
 import type { Vec2 } from '../math/Vec2'
 import type { Engine } from '../engine/Engine'
 import type { CameraView2D } from '../camera/CameraView2D'
@@ -60,7 +62,8 @@ function warnOnCameraWorldMisuse(node: Node2D, x: number, y: number): void {
   const layer = layerOf(node)
   if (!layer) return
   warnedMisuse.add(node)
-  console.warn(
+  diagnostics.report(
+    'SG5004',
     `A stage event's pointer.world was passed to ${node.id}.worldToLocal, but ${node.id} is placed by layer ${layer.id}, not the camera. Use event.localTo(${node.id}) to get the position in its space.`,
   )
 }
@@ -110,13 +113,14 @@ export class InputSystem {
       PointerStateSnapshot
     >
     this.#attachListeners()
-    if (import.meta.env.DEV) setWorldToLocalCheck(warnOnCameraWorldMisuse)
+    if (DEV) setWorldToLocalCheck(warnOnCameraWorldMisuse)
   }
 
   /** Screen-space slop in CSS px. Default 30 (roughly a fingertip). */
   get touchSlopScreen(): number {
     return this.#touchSlopScreenPx
   }
+  /** Set how far a press may move, in CSS pixels, before it counts as a drag. */
   setTouchSlopScreen(cssPx: number): void {
     this.#touchSlopScreenPx = Math.max(0, cssPx)
   }
@@ -277,6 +281,7 @@ export class InputSystem {
     record.capturedBy = null
   }
 
+  /** Remove the canvas listeners. Safe to call twice. */
   destroy(): void {
     if (this.#disposed) return
     this.#disposed = true
@@ -305,9 +310,10 @@ export class InputSystem {
     canvas.addEventListener('pointerup', onUp)
     canvas.addEventListener('pointercancel', onCancel)
     canvas.addEventListener('lostpointercapture', onLost)
-    // Prevent the browser context menu on long-press / right-click so the
-    // kiosk can't be interrupted by a system menu appearing over the game.
-    const onContextMenu = (e: MouseEvent): void => e.preventDefault()
+    // A long-press or right-click menu would cover the game.
+    const onContextMenu = (e: MouseEvent): void => {
+      if (this.#stage.lockInteraction) e.preventDefault()
+    }
     canvas.addEventListener('contextmenu', onContextMenu)
     this.#disposeCallbacks.push(() => {
       canvas.removeEventListener('pointerdown', onDown)
@@ -386,7 +392,13 @@ export class InputSystem {
       record.destroyUnsub = hit.events.on('destroy', () => {
         this.#dispatchCancel(record.id, 'synthetic')
       })
-      hit.onPointerDown?.(this.#makeEvent(record, 0, 0, 'down', 'native', true))
+      try {
+        hit.onPointerDown?.(
+          this.#makeEvent(record, 0, 0, 'down', 'native', true),
+        )
+      } catch (error) {
+        reportThrown('SG4004', 'onPointerDown', error, hit.id)
+      }
     }
     this.#emitStage(
       'pointerDown',
@@ -428,9 +440,13 @@ export class InputSystem {
     toNode: boolean,
   ): void {
     if (toNode && record.capturedBy && !record.capturedBy.isDestroyed) {
-      record.capturedBy.onPointerMove?.(
-        this.#makeEvent(record, moved.ndx, moved.ndy, 'move', source, true),
-      )
+      try {
+        record.capturedBy.onPointerMove?.(
+          this.#makeEvent(record, moved.ndx, moved.ndy, 'move', source, true),
+        )
+      } catch (error) {
+        reportThrown('SG4004', 'onPointerMove', error, record.capturedBy.id)
+      }
     }
     if (toStage) {
       this.#emitStage(
@@ -450,9 +466,13 @@ export class InputSystem {
     const moved = this.#project(record)
 
     if (record.capturedBy && !record.capturedBy.isDestroyed) {
-      record.capturedBy.onPointerUp?.(
-        this.#makeEvent(record, moved.ndx, moved.ndy, 'up', 'native', true),
-      )
+      try {
+        record.capturedBy.onPointerUp?.(
+          this.#makeEvent(record, moved.ndx, moved.ndy, 'up', 'native', true),
+        )
+      } catch (error) {
+        reportThrown('SG4004', 'onPointerUp', error, record.capturedBy.id)
+      }
     }
     this.#emitStage(
       'pointerUp',
@@ -478,9 +498,13 @@ export class InputSystem {
     const record = this.#recordsMap.get(pointerId)
     if (!record) return
     if (record.capturedBy && !record.capturedBy.isDestroyed) {
-      record.capturedBy.onPointerCancel?.(
-        this.#makeEvent(record, 0, 0, 'cancel', source, true),
-      )
+      try {
+        record.capturedBy.onPointerCancel?.(
+          this.#makeEvent(record, 0, 0, 'cancel', source, true),
+        )
+      } catch (error) {
+        reportThrown('SG4004', 'onPointerCancel', error, record.capturedBy.id)
+      }
     }
     this.#emitStage(
       'pointerCancel',

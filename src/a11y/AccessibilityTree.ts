@@ -20,6 +20,7 @@ import {
   nearestComposite,
   refocusNode,
 } from './focus'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /**
  * Optional accessibility layer for a canvas scene graph. Reached lazily as
@@ -113,7 +114,10 @@ export class AccessibilityTree {
    */
   attach(node: Node2D, semantics: Semantics): SemanticsHandle {
     if (this.#disposed)
-      throw new Error('stargazer: attach after a11y dispose()')
+      throw new StargazerError(
+        'SG5009',
+        'stargazer: attach after a11y dispose()',
+      )
     const existing = this.#entries.get(node)
     if (existing) {
       existing.semantics = semantics

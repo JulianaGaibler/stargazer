@@ -313,6 +313,23 @@ export type { RetainedCacheStats } from './render/gfx/RetainedCache'
 export { parseColor, mixColor, withAlpha } from './render/gfx/parseColor'
 export type { RGBA } from './render/gfx/parseColor'
 
+// diagnostics
+export { diagnostics, Diagnostics } from './diagnostics/Diagnostics'
+export type {
+  Diagnostic,
+  DiagnosticHandler,
+  DiagnosticLevel,
+  DiagnosticsConfig,
+  ReportOptions,
+} from './diagnostics/Diagnostics'
+export { DIAGNOSTIC_CODES } from './diagnostics/codes'
+export type {
+  DiagnosticArea,
+  DiagnosticCode,
+  DiagnosticSpec,
+} from './diagnostics/codes'
+export { StargazerError } from './diagnostics/StargazerError'
+
 // debug (dev-only surface, production code sees `host.debug === null`)
 export { DebugController } from './debug/DebugController'
 export type {
@@ -325,6 +342,8 @@ export type {
   StageChip,
   DebugGpuStatsReadout,
   PhysicsWorldReadout,
+  DebugCameraMode,
+  MeshRenderMode,
 } from './debug/DebugController'
 export type { PhysicsOverlayFlags } from './debug/DebugPhysicsRenderer'
 export type { DebugRenderMode } from './render/gfx/GpuGfx'
@@ -337,6 +356,7 @@ export { Node2D } from './scene/Node2D'
 export { Layer } from './scene/Layer'
 export type {
   LayerCache,
+  LayerFrame,
   LayerOptions,
   LayerRegion,
   LayerSpace,
@@ -553,6 +573,7 @@ export { bindRegionGesture } from './input/RegionGesture'
 export type { RegionGestureOptions } from './input/RegionGesture'
 export type {
   PointerEvent2D,
+  PointerTarget,
   PointerStateSnapshot,
   PointerPhase,
 } from './input/PointerState'

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 
 const out = fileURLToPath(
-  new URL('../src/stargazer/render/gfx/squircleField.bin', import.meta.url),
+  new URL('../src/render/gfx/squircleField.bin', import.meta.url),
 )
 
 // Vite loads the TypeScript module with the project's aliases and resolution.
@@ -23,7 +23,7 @@ const server = await createServer({
 })
 try {
   const field = await server.ssrLoadModule(
-    '/src/stargazer/render/gfx/squircleField.ts',
+    '/src/render/gfx/squircleField.ts',
   )
   const started = performance.now()
   const data = field.buildField()

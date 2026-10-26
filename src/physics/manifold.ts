@@ -92,11 +92,8 @@ export function collide(a: Collider, b: Collider, m: Manifold): boolean {
 }
 
 /** Overridable hook so the polygon module can extend the dispatch. */
-export let polygonDispatch: (
-  a: Collider,
-  b: Collider,
-  m: Manifold,
-) => boolean = () => false
+let polygonDispatch: (a: Collider, b: Collider, m: Manifold) => boolean = () =>
+  false
 
 /** Register the polygon narrow-phase (called once by the polygon module). */
 export function setPolygonDispatch(

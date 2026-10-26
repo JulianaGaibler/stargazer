@@ -77,7 +77,7 @@ function set(
  * Reverse a path in place, keeping its first vertex first. Each vertex swaps
  * its in and out tangents.
  */
-export function reversePath(p: PathData): void {
+function reversePath(p: PathData): void {
   const n = p.count
   if (n < 2) return
   const { v, i, o } = p

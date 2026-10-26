@@ -1,3 +1,4 @@
+import { diagnostics } from '../diagnostics/Diagnostics'
 import { readable, type Readable } from 'svelte/store'
 import type { Emitter } from '../events/Emitter'
 
@@ -13,8 +14,9 @@ const HIGH_FREQUENCY_EVENT_KEYS = new Set<string>(['frame', 'pointerMove'])
 function warnIfHighFrequency(key: PropertyKey): void {
   if (typeof key !== 'string') return
   if (!HIGH_FREQUENCY_EVENT_KEYS.has(key)) return
-  console.warn(
-    `[stargazer] emitterStore('${key}'): this event is HIGH FREQUENCY. ` +
+  diagnostics.report(
+    'SG5005',
+    `emitterStore('${key}'): this event is HIGH FREQUENCY. ` +
       `Binding it to a Svelte store fires the reactivity graph on every ` +
       `emission and will crush the framerate. Subscribe with ` +
       `\`emitter.on('${key}', …)\` in a \`$effect\` instead.`,

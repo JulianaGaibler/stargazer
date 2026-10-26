@@ -5,6 +5,7 @@
 
   interface Props {
     text: string
+    /** The color of the pill. */
     tone?: Tone
     tip?: TipSpec | string
   }

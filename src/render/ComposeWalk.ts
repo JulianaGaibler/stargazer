@@ -4,6 +4,8 @@
 // own scratch state, independent of `Stage`'s pass dispatch, camera resolution,
 // and resize handling.
 
+import { diagnostics } from '../diagnostics/Diagnostics'
+import { DEV } from 'esm-env'
 import type { Affine2x3, CameraView2D } from '../camera/CameraView2D'
 import type { Vec2 } from '../math/Vec2'
 import type { SceneTree } from '../scene/SceneTree'
@@ -178,7 +180,7 @@ export class ComposeWalk {
    * ones kept, to catch a node whose picture went stale without being marked.
    * On in development, off otherwise. A mismatch logs once per node.
    */
-  stalenessSamples = import.meta.env.DEV ? 2 : 0
+  stalenessSamples = DEV ? 2 : 0
   readonly #canvas = new Canvas()
   readonly #scratch = new Picture()
   readonly #clean: { node: Node2D; scale: number; view: CameraView2D }[] = []
@@ -629,9 +631,10 @@ export class ComposeWalk {
    */
   #uncacheable(sig: LayerSignature, layer: Layer, why: string): void {
     sig.push(this.totals.frames + 0.5)
-    if (!import.meta.env.DEV || this.#warnedUncached.has(layer)) return
+    if (!DEV || this.#warnedUncached.has(layer)) return
     this.#warnedUncached.add(layer)
-    console.warn(
+    diagnostics.report(
+      'SG2020',
       `Layer ${layer.id} is cached but ${why}, so it renders every frame.`,
     )
   }
@@ -668,9 +671,10 @@ export class ComposeWalk {
    * neither can anything inside an inset.
    */
   #warnNoEffects(layer: Layer, insideInset: boolean): void {
-    if (!import.meta.env.DEV || this.#warnedLayers.has(layer)) return
+    if (!DEV || this.#warnedLayers.has(layer)) return
     this.#warnedLayers.add(layer)
-    console.warn(
+    diagnostics.report(
+      'SG2021',
       insideInset
         ? `Layer ${layer.id} has effects but sits inside an InsetViewNode, so it draws without them.`
         : `Layer ${layer.id} has effects but holds an InsetViewNode, so it draws without them.`,
@@ -1021,7 +1025,8 @@ export class ComposeWalk {
         this.#warned.add(c.node)
         this.totals.stale++
         const op = OP_NAMES[this.#scratch.ops[at] ?? kept.ops[at]] ?? 'end'
-        console.warn(
+        diagnostics.report(
+          'SG2022',
           `stale picture: ${c.node.id} paints differently now than when it last painted (first difference at call ${at}, ${op}). It changed without a paint property, a versioned resource or markNeedsPaint().`,
         )
       }

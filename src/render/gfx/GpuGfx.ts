@@ -15,6 +15,7 @@
  * reference.
  */
 
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import type {
   Gfx2D,
   GfxBlend,
@@ -269,7 +270,7 @@ interface SurfaceEffectsJob {
  * pixels. Without `units`, one local unit is one device pixel and the origin is
  * the surface's own corner.
  */
-export function placementOf(
+function placementOf(
   units: GfxSurfaceEffects['units'],
   x0: number,
   y0: number,
@@ -1125,7 +1126,12 @@ export class GpuGfx implements Gfx2D {
     const job = fx ? this.#prepareSurfaceEffects(fx) : null
     if (job && fx) job.placement = placementOf(fx.units, x0, y0)
     if (opts.effects && !fx) opts.effects.applied = opts.retain !== true
-    const alpha = this.#ctx.stateStack.getAlpha() * (opts.opacity ?? 1)
+    // A layer that must not show unprocessed is composited invisibly until its
+    // pipelines are ready.
+    const held = fx !== null && job === null && fx.hold === true
+    const alpha = held
+      ? 0
+      : this.#ctx.stateStack.getAlpha() * (opts.opacity ?? 1)
     const blend = opts.blend ?? this.#ctx.stateStack.getBlend()
     if (job && fx?.cache) {
       const kept = this.#checkLayerCache(fx, fx.cache, job, x0, y0, w, h)
@@ -1515,8 +1521,9 @@ export class GpuGfx implements Gfx2D {
     if (!COMPOSITE_BLENDS.has(blend)) {
       if (!this.#warnedBlends.has(blend)) {
         this.#warnedBlends.add(blend)
-        console.warn(
-          `GpuGfx: offscreen blend '${blend}' is not supported, compositing with 'source-over'`,
+        diagnostics.report(
+          'SG2001',
+          `offscreen blend '${blend}' is not supported, compositing with 'source-over'`,
         )
       }
       blend = 'source-over'
@@ -1700,7 +1707,8 @@ export class GpuGfx implements Gfx2D {
    */
   rebuildResources(): void {
     if (this.#device.isContextLost()) {
-      console.warn(
+      diagnostics.report(
+        'SG1003',
         'GpuGfx.rebuildResources: called while context is still lost; skipping. Stage will retry on the next contextrestored event.',
       )
       return
@@ -1767,8 +1775,9 @@ export class GpuGfx implements Gfx2D {
     if (!this.#stencilEnabled) {
       if (!this.#warnedNoStencil) {
         this.#warnedNoStencil = true
-        console.warn(
-          'GpuGfx: this surface has no stencil buffer, so clipPath is ignored',
+        diagnostics.report(
+          'SG2002',
+          'this surface has no stencil buffer, so clipPath is ignored',
         )
       }
       return
@@ -1776,8 +1785,9 @@ export class GpuGfx implements Gfx2D {
     if (this.#ctx.clipDepth >= MAX_CLIP_DEPTH) {
       if (!this.#warnedClipDepth) {
         this.#warnedClipDepth = true
-        console.warn(
-          `GpuGfx: clip paths nest at most ${MAX_CLIP_DEPTH} deep, extra clips are ignored`,
+        diagnostics.report(
+          'SG2003',
+          `clip paths nest at most ${MAX_CLIP_DEPTH} deep, extra clips are ignored`,
         )
       }
       // Keep restore balanced.
@@ -1849,8 +1859,9 @@ export class GpuGfx implements Gfx2D {
     if (mode !== 'source-over' && mode !== 'lighter') {
       if (!this.#warnedBlends.has(mode)) {
         this.#warnedBlends.add(mode)
-        console.warn(
-          `GpuGfx: blend '${mode}' is not supported, drawing with 'source-over'`,
+        diagnostics.report(
+          'SG2001',
+          `blend '${mode}' is not supported, drawing with 'source-over'`,
         )
       }
       mode = 'source-over'
@@ -2362,8 +2373,9 @@ export class GpuGfx implements Gfx2D {
     }
     if (rule === 'nonzero' && flat.contourCount >= 16 && !this.#warnedWinding) {
       this.#warnedWinding = true
-      console.warn(
-        'GpuGfx: a nonzero fill with 16 or more contours can lose coverage where 16 contours wind the same way over one point',
+      diagnostics.report(
+        'SG2004',
+        'a nonzero fill with 16 or more contours can lose coverage where 16 contours wind the same way over one point',
       )
     }
     this.#coloredTri.fillStencilPath(
@@ -2503,8 +2515,9 @@ export class GpuGfx implements Gfx2D {
   #fillPathWithoutStencil(flat: FlatPath, fill: GfxFill): void {
     if (!this.#warnedNoStencil) {
       this.#warnedNoStencil = true
-      console.warn(
-        'GpuGfx: this surface has no stencil buffer, so fillPath fills even-odd and ignores the nonzero rule',
+      diagnostics.report(
+        'SG2005',
+        'this surface has no stencil buffer, so fillPath fills even-odd and ignores the nonzero rule',
       )
     }
     const contours: Float32Array[] = []
@@ -2560,7 +2573,8 @@ export class GpuGfx implements Gfx2D {
     if (w <= 0 || h <= 0) return
     if (!this.#warnedQuadClipMask && this.#ctx.stateStack.getClipMask()) {
       this.#warnedQuadClipMask = true
-      console.warn(
+      diagnostics.report(
+        'SG2006',
         'drawShaderQuad ignores setClipMask. Sample a mask inside the shader, or use setClip.',
       )
     }

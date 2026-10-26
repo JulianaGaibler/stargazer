@@ -62,9 +62,11 @@ export class ParticlePool {
     }
   }
 
+  /** How many particles are alive. */
   get aliveCount(): number {
     return this.#slots.aliveCount
   }
+  /** How many more particles the pool can hold. */
   get availableCount(): number {
     return this.#slots.availableCount
   }

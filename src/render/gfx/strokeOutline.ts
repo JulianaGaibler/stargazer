@@ -20,27 +20,28 @@
  * the recorded coverage-pass follow-up.
  */
 
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import earcut from 'earcut'
 
 /** Border position relative to the source path. */
 export type StrokeAlign = 'center' | 'inside' | 'outside'
 
 /** Pixel tolerance for adaptive arc flattening (round joins/caps). */
-export const ARC_TOL_PX = 0.25
+const ARC_TOL_PX = 0.25
 /** Angular step clamp for arc flattening, radians. */
-export const ARC_STEP_MIN = (3 * Math.PI) / 180
-export const ARC_STEP_MAX = (90 * Math.PI) / 180
+const ARC_STEP_MIN = (3 * Math.PI) / 180
+const ARC_STEP_MAX = (90 * Math.PI) / 180
 /** SVG `stroke-miterlimit` default. `CanvasRenderingContext2D` defaults to 10. */
 export const DEFAULT_MITER_LIMIT = 4
 /** AA ramp width in device px, resolved per vertex against the local scale. */
-export const FRINGE_PX = 1.0
+const FRINGE_PX = 1.0
 /**
  * Half-octave cache-key bucketing for a device scale: a bin spans a factor of
  * `2**(1/SCALE_KEY_OCTAVE_STEPS)`. Tessellating at the bin's geometric center
  * (not the scale that first missed) bounds the in-bin error to
  * `2**(0.5/SCALE_KEY_OCTAVE_STEPS)`, about 1.19x at the default of 2.
  */
-export const SCALE_KEY_OCTAVE_STEPS = 2
+const SCALE_KEY_OCTAVE_STEPS = 2
 
 /** The half-octave bucket index for `scale` (device px per local unit). */
 export function scaleBucketIndex(scale: number): number {
@@ -177,7 +178,8 @@ function resolveAlign(
   if (closed && Math.abs(area) > EPS) return align
   if (!warnedNonCenterAlign) {
     warnedNonCenterAlign = true
-    console.warn(
+    diagnostics.report(
+      'SG2009',
       `strokeOutline: '${align}' alignment needs a closed contour with a well-defined winding; falling back to 'center'`,
     )
   }

@@ -1,13 +1,9 @@
+import { DEV } from 'esm-env'
 import { Transform2D } from '../math/Transform2D'
 import type { Rect } from '../math/Rect'
 import type { Affine2x3 } from '../math/Affine2D'
 import type { Vec2 } from '../math/Vec2'
-import {
-  Node,
-  type NodeEvents,
-  type NodeKind,
-  type PointerHandlers,
-} from './Node'
+import { Node, type NodeKind, type PointerHandlers } from './Node'
 import type { SceneTree } from './SceneTree'
 import type { CameraView2D } from '../camera/CameraView2D'
 import type { Gfx2D, GfxBlend, GfxMatteMode } from '../render/gfx/Gfx2D'
@@ -19,8 +15,9 @@ import { checkWorldToLocal } from './worldSpaceGuard'
 import type { TweenOptions } from '../anim/Animator'
 import { ignoreAbort } from '../anim/abortSignal'
 import type { Semantics, SemanticsHandle } from '../a11y/types'
+import { StargazerError } from '../diagnostics/StargazerError'
 
-export type { NodeEvents, PointerHandlers }
+export type { PointerHandlers }
 
 // Reused across calls, hit-testing is synchronous, so there's no reentrancy.
 const HIT_TEST_SCRATCH: Vec2 = { x: 0, y: 0 }
@@ -278,7 +275,7 @@ export class Node2D extends Node {
    * mutations. Returns `{x, y}` unchanged if the matrix is degenerate.
    */
   worldToLocal(worldX: number, worldY: number, out?: Vec2): Vec2 {
-    if (import.meta.env.DEV) checkWorldToLocal(this, worldX, worldY)
+    if (DEV) checkWorldToLocal(this, worldX, worldY)
     this.ensureWorldTransform()
     const w = this.transform.world
     const det = w.a * w.d - w.b * w.c
@@ -392,8 +389,10 @@ export class Node2D extends Node {
    * state the node owns and changes without them.
    */
   markNeedsPaint(): void {
-    if (import.meta.env.DEV && paintingNode() !== null) {
-      throw new Error(
+    if (DEV && paintingNode() !== null) {
+      throw new StargazerError(
+        'SG5007',
+
         `markNeedsPaint() on ${this.id} while ${(paintingNode() as Node2D).id} paints. paint must not dirty a node.`,
       )
     }

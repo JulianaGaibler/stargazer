@@ -2,6 +2,7 @@
   interface Props {
     label: string
     value: string | number
+    /** The color of the value. */
     tone?: 'default' | 'warning' | 'error' | 'accent' | 'muted'
   }
 

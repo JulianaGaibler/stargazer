@@ -5,6 +5,7 @@
 
 import { parseProp, type ValueProp } from '../anim/props'
 import type { LottieAnimation } from '../model/types'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** A keyframe in a rule, in frames of the animation. */
 export interface LottieRuleKeyframe {
@@ -56,7 +57,10 @@ export function parseTheme(source: unknown): LottieTheme {
     json === null ||
     !Array.isArray((json as { rules?: unknown }).rules)
   ) {
-    throw new Error('parseTheme: a theme needs a rules array')
+    throw new StargazerError(
+      'SG6007',
+      'parseTheme: a theme needs a rules array',
+    )
   }
   return { rules: (json as { rules: LottieThemeRule[] }).rules }
 }

@@ -86,7 +86,7 @@ const POS_INF = Infinity
  * @example
  *   // A 3x3 tic-tac-toe adapter. The board is a 9-cell array (`0` empty,
  *   // `1`/`2` players), `turn` is the side to move.
- *   import { searchBestMove, type AdversarialGame } from '@src/stargazer'
+ *   import { searchBestMove, type AdversarialGame } from 'stargazer'
  *
  *   interface TTT {
  *     cells: Int8Array

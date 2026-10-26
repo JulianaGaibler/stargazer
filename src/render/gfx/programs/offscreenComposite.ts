@@ -30,8 +30,7 @@ import offscreenCompositeFragSrc from '../shaders/offscreenComposite.gen.frag.gl
 import offscreenCompositeReflect from '../shaders/offscreenComposite.reflect.json'
 
 /** How a matte surface scales the composited content. */
-export type MatteMode =
-  'none' | 'alpha' | 'inverted-alpha' | 'luma' | 'inverted-luma'
+type MatteMode = 'none' | 'alpha' | 'inverted-alpha' | 'luma' | 'inverted-luma'
 
 const MATTE_CODE: Record<MatteMode, number> = {
   none: 0,

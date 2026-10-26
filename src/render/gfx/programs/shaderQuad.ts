@@ -4,6 +4,7 @@
 // bind group, uploaded textures) is built lazily on first draw and keyed on the
 // `ShaderQuad` object, so it dies with it.
 
+import { diagnostics } from '../../../diagnostics/Diagnostics'
 import { RingStream } from '../RingStream'
 import {
   LOC_QUAD_AXISY_ALPHA,
@@ -277,7 +278,9 @@ export class ShaderQuadProgram implements GpuProgram {
       },
       (err) => {
         // Left pending so a broken shader reports once instead of every frame.
-        console.error('ShaderQuad: pipeline creation failed', err)
+        diagnostics.report('SG3001', 'ShaderQuad: pipeline creation failed', {
+          cause: err,
+        })
       },
     )
     return null

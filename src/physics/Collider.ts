@@ -6,7 +6,8 @@
  * own any number of colliders.
  */
 
-import { rect, type Rect } from '../math/Rect'
+import { DEV } from 'esm-env'
+import type { Rect } from '../math/Rect'
 import { vec2, vec2Rotate, type Vec2 } from '../math/Vec2'
 import {
   polygonArea,
@@ -16,6 +17,7 @@ import {
 } from '../math/polygon'
 import type { Body } from './Body'
 import type { Material } from './types'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /** A circle of the given radius, centered on the collider offset. */
 export interface CircleShape {
@@ -70,12 +72,17 @@ export function aabbShape(halfW: number, halfH: number): AABBShape {
 export function polygonShape(
   vertices: readonly Readonly<Vec2>[],
 ): PolygonShape {
-  if (import.meta.env?.DEV) {
+  if (DEV) {
     if (vertices.length < 3) {
-      throw new Error('polygonShape: need at least 3 vertices')
+      throw new StargazerError(
+        'SG5007',
+        'polygonShape: need at least 3 vertices',
+      )
     }
     if (polygonArea(vertices) <= 0) {
-      throw new Error(
+      throw new StargazerError(
+        'SG5007',
+
         'polygonShape: vertices must be wound counter-clockwise (positive area)',
       )
     }
@@ -95,14 +102,6 @@ export function shapeArea(shape: Shape): number {
     case 'polygon':
       return Math.abs(polygonArea(shape.vertices))
   }
-}
-
-/** Centroid of a shape in its own local space (before the collider offset). */
-export function shapeCentroid(shape: Shape, out: Vec2): Vec2 {
-  if (shape.kind === 'polygon') return polygonCentroid(out, shape.vertices)
-  out.x = 0
-  out.y = 0
-  return out
 }
 
 /**
@@ -261,38 +260,3 @@ export function aabbCorners(shape: AABBShape): Vec2[] {
   AABB_CORNERS[3].y = halfH
   return AABB_CORNERS
 }
-
-/** Local AABB (offset applied, no rotation) for internal use. */
-export function colliderLocalBounds(c: Collider, out: Rect): Rect {
-  const shape = c.shape
-  if (shape.kind === 'circle') {
-    out.x = c.offset.x - shape.radius
-    out.y = c.offset.y - shape.radius
-    out.width = 2 * shape.radius
-    out.height = 2 * shape.radius
-  } else if (shape.kind === 'aabb') {
-    out.x = c.offset.x - shape.halfW
-    out.y = c.offset.y - shape.halfH
-    out.width = 2 * shape.halfW
-    out.height = 2 * shape.halfH
-  } else {
-    let minX = Infinity
-    let minY = Infinity
-    let maxX = -Infinity
-    let maxY = -Infinity
-    for (const v of shape.vertices) {
-      if (v.x < minX) minX = v.x
-      if (v.y < minY) minY = v.y
-      if (v.x > maxX) maxX = v.x
-      if (v.y > maxY) maxY = v.y
-    }
-    out.x = c.offset.x + minX
-    out.y = c.offset.y + minY
-    out.width = maxX - minX
-    out.height = maxY - minY
-  }
-  return out
-}
-
-/** A reusable zero rect for callers that just need the type. */
-export const SCRATCH_RECT: Rect = rect()

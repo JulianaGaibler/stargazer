@@ -1,8 +1,6 @@
-// Shared debug UI styles, dark, dense, monospace. Adapted from
-// mozilla/fx-retro/src/components/debugui/debug-ui.sass. Loaded once via
-// a side-effect import from `debug/DebugController.ts` (which itself is
-// only pulled in when `EngineHost` is imported), so these are plain
-// global CSS selectors, no Svelte `:global(...)` wrapping.
+// Styles for the debug UI components: dark, dense and monospace. `ui/index.ts`
+// imports this file once. The selectors are global, so no `:global(...)` is
+// needed.
 
 .debug-panel
   position: fixed
@@ -142,9 +140,7 @@
     overflow-x: hidden
     box-sizing: border-box
     width: 100%
-    // Flex column with a small gap so direct children (status lines, banners,
-    // meta text, action clusters, list containers) breathe without each
-    // consumer having to hand-tune margins.
+    // A flex column with a small gap, so direct children need no margins.
     display: flex
     flex-direction: column
     gap: 6px
@@ -195,11 +191,8 @@
         color: rgba(148, 163, 184, 0.5)
         font-weight: 400
 
-  // Shared control-stack layout, used inside any DebugSection that groups
-  // interactive elements (ToggleButton / DebugSelect / custom controls).
-  // Column, small consistent gap, faint separator below when followed by
-  // read-only rows in the same section. Kept here so consumers don't
-  // reinvent per-section spacing.
+  // A column of controls inside a `DebugSection`, with a faint separator below
+  // when read-only rows follow.
   .debug-controls
     display: flex
     flex-direction: column
@@ -222,9 +215,7 @@
     font-family: inherit
 
   button.debug-btn
-    // Sized for finger taps on the 4K booth kiosk. The debug HUD is also
-    // used with a mouse on dev laptops, but the extra padding doesn't hurt
-    // there, and it's better than maintaining two separate "touch" and "dev" scales.
+    // Sized for finger taps. It is also fine with a mouse.
     padding: 8px 14px
     background: rgba(255, 255, 255, 0.1)
     border: 1px solid rgba(255, 255, 255, 0.3)

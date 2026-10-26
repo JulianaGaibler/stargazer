@@ -21,6 +21,7 @@
  * for an implementation that fits in one file.
  */
 
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import type {
   BindGroup,
   BindGroupLayout,
@@ -60,13 +61,13 @@ export const MASK_EVICT_FRAMES = 240
  * still covers the gap between a bake in the pre-pass and the draw it was
  * queued for.
  */
-export const MASK_EVICT_FRAMES_UNUSED = 2
+const MASK_EVICT_FRAMES_UNUSED = 2
 /**
  * How far, in octaves of blur radius, a same-shape mask may stand in for one
  * that is not cached. Half an octave is the scale bucket's own width, so a
  * substitution is the same order of approximation as the adjacent-bucket hit.
  */
-export const MASK_SUBSTITUTE_BLUR_OCTAVES = 0.5
+const MASK_SUBSTITUTE_BLUR_OCTAVES = 0.5
 /**
  * Consecutive frames of substituting a nearby blur before warning once. Long
  * enough to sit out a short deliberate blur animation, short enough to catch a
@@ -628,8 +629,9 @@ export class PathShadowCache {
     this.#churnFrame = this.#frame
     if (this.#churnFrames < BLUR_CHURN_WARN_FRAMES) return
     this.#warnedBlurChurn = true
-    console.warn(
-      'PathShadowCache: a path shadow has asked for a new blur radius on ' +
+    diagnostics.report(
+      'SG2014',
+      'a path shadow has asked for a new blur radius on ' +
         `each of the last ${BLUR_CHURN_WARN_FRAMES} frames, so its mask ` +
         'rebakes every frame and a nearby blur is standing in meanwhile. ' +
         'Past half an octave there is nothing to stand in and the shadow ' +

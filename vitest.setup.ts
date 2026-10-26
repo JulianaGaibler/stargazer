@@ -1,0 +1,100 @@
+// Vitest setup: minimal shims for browser APIs happy-dom doesn't ship
+// but that stargazer needs at construction time. The shims are structural
+// no-ops. Anything that actually rasterises (isPointInPath, getImageData) is
+// verified visually in `?demo=…` sandbox scenes, not here.
+
+import { vi } from 'vitest'
+
+// There is no server to fetch the smooth-corner field from, so it is never
+// loaded and smoothed corners draw circular. A test that needs the field mocks
+// `loadField` itself.
+vi.mock('./src/render/gfx/squircleField', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./src/render/gfx/squircleField')>()),
+  loadField: () => Promise.resolve(null),
+}))
+
+// happy-dom does not always attach `localStorage` in the current Node
+// version. Install a tiny in-memory shim so tests that persist scores /
+// locale work without --localstorage-file.
+if (
+  typeof (globalThis as { localStorage?: unknown }).localStorage === 'undefined'
+) {
+  const store = new Map<string, string>()
+  const shim: Storage = {
+    get length() {
+      return store.size
+    },
+    clear() {
+      store.clear()
+    },
+    getItem(key: string) {
+      return store.has(key) ? store.get(key)! : null
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null
+    },
+    removeItem(key: string) {
+      store.delete(key)
+    },
+    setItem(key: string, value: string) {
+      store.set(key, String(value))
+    },
+  }
+  ;(globalThis as unknown as { localStorage: Storage }).localStorage = shim
+}
+
+// happy-dom's `HTMLCanvasElement.getContext('2d')` returns null (no real
+// rasterizer). `getParticleSprite` (and anything else that bakes a sprite to
+// an offscreen canvas at construction/first-use time) needs SOME context back
+// or it throws before a test even reaches the assertion. This stub only
+// implements the handful of calls sprite-baking makes. It draws nothing real,
+// so pixel-level rasterization is still verified visually in `?demo=…`.
+if (typeof HTMLCanvasElement !== 'undefined') {
+  const originalGetContext = HTMLCanvasElement.prototype.getContext
+  HTMLCanvasElement.prototype.getContext = function (
+    this: HTMLCanvasElement,
+    contextId: string,
+    ...args: unknown[]
+  ) {
+    if (contextId !== '2d') {
+      return (originalGetContext as (...a: unknown[]) => unknown).apply(this, [
+        contextId,
+        ...args,
+      ])
+    }
+    const stub2D = {
+      fillStyle: '',
+      beginPath() {},
+      moveTo() {},
+      lineTo() {},
+      closePath() {},
+      fill() {},
+      fillRect() {},
+      drawImage() {},
+      createRadialGradient() {
+        return { addColorStop() {} }
+      },
+    }
+    return stub2D as unknown as CanvasRenderingContext2D
+  } as typeof HTMLCanvasElement.prototype.getContext
+}
+
+if (typeof (globalThis as { Path2D?: unknown }).Path2D === 'undefined') {
+  class Path2DStub {
+    constructor(_d?: string | Path2DStub) {
+      // Intentionally empty. Construction is all the tests exercise.
+    }
+    addPath(): void {}
+    closePath(): void {}
+    moveTo(): void {}
+    lineTo(): void {}
+    bezierCurveTo(): void {}
+    quadraticCurveTo(): void {}
+    arc(): void {}
+    arcTo(): void {}
+    ellipse(): void {}
+    rect(): void {}
+    roundRect(): void {}
+  }
+  ;(globalThis as unknown as { Path2D: typeof Path2DStub }).Path2D = Path2DStub
+}

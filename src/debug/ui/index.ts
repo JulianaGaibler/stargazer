@@ -1,6 +1,4 @@
-// Shared debug UI primitives. Reused across every engine debug HUD so the
-// visual language stays consistent. Adapted from
-// `mozilla/fx-retro/src/components/debugui/`.
+import './debug-ui.sass'
 
 export { default as DebugPanel } from './DebugPanel.svelte'
 export { default as DraggableWindow } from './DraggableWindow.svelte'
@@ -34,3 +32,7 @@ export type {
   DebugSelectDivider,
   DebugSelectItem,
 } from './DebugSelect.svelte'
+export { TONE_COLORS, toneFor } from '../thresholds'
+export type { Threshold, Tone } from '../thresholds'
+export { placeNextTo } from './windowRegistry'
+export type { PlaceNextToOptions } from './windowRegistry'

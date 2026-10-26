@@ -78,6 +78,10 @@ export class RingSeries {
 export interface SeriesSource {
   readonly capacity: number
   readonly count: number
+  /**
+   * Copy the held samples into `out`, oldest first. Returns how many were
+   * written.
+   */
   readOrdered(out: Float32Array): number
 }
 

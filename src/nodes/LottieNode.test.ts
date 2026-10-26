@@ -8,14 +8,14 @@ import type { Renderer } from '../render/Renderer'
 import { ComposeWalk } from '../render/ComposeWalk'
 import { SceneTree } from '../scene/SceneTree'
 
-const fixtures = import.meta.glob('../dev/fixtures/lottie/*.json', {
+const fixtures = import.meta.glob('../../fixtures/lottie/*.json', {
   eager: true,
   query: '?raw',
   import: 'default',
 }) as Record<string, string>
 
 const load = (name: string) =>
-  parseLottie(fixtures[`../dev/fixtures/lottie/${name}.json`])
+  parseLottie(fixtures[`../../fixtures/lottie/${name}.json`])
 
 async function setup(): Promise<{ gfx: GpuGfx; device: MockGfxDevice }> {
   const canvas = document.createElement('canvas')

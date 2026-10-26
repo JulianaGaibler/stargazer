@@ -2,6 +2,7 @@ import { rect, type Rect } from '../math/Rect'
 import type { GeometryHandle } from '../render/gfx/GeometryHandle'
 import { registerPathTessellation } from '../render/gfx/PathTessellationRegistry'
 import { flattenSvgPath, tessellateContours } from './SvgPathContours'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /**
  * One entry in a {@link SvgPathMap}: the parsed `Path2D` plus its bounds and,
@@ -91,11 +92,14 @@ export function parseSvgPaths(
   const doc = new DOMParser().parseFromString(raw, 'image/svg+xml')
   const parseError = doc.querySelector('parsererror')
   if (parseError) {
-    throw new Error(`parseSvgPaths: XML parse error, ${parseError.textContent}`)
+    throw new StargazerError(
+      'SG6007',
+      `parseSvgPaths: XML parse error, ${parseError.textContent}`,
+    )
   }
   const root = doc.documentElement
   if (!root || root.nodeName.toLowerCase() !== 'svg') {
-    throw new Error('parseSvgPaths: no <svg> root element')
+    throw new StargazerError('SG6007', 'parseSvgPaths: no <svg> root element')
   }
 
   const scale = opts.scale ?? 1

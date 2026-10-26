@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
-  _resetFontMetricsCacheForTests,
+  clearFontMetricsCache,
   _setSharedLabelCanvasForTests,
   clampLabelScale,
   fontMetrics,
@@ -155,7 +155,7 @@ describe('measureLabel ink metrics', () => {
 })
 
 describe('fontMetrics', () => {
-  afterEach(() => _resetFontMetricsCacheForTests())
+  afterEach(() => clearFontMetricsCache())
 
   // happy-dom has no text engine, so this exercises the fallback path, which is
   // the one that has to stay finite: a NaN line height silently poisons every

@@ -1,3 +1,4 @@
+import { diagnostics } from '../diagnostics/Diagnostics'
 import { Node3D } from '../scene/Node3D'
 import {
   MeshNode,
@@ -29,6 +30,7 @@ import {
   type GltfAccessor,
   type GltfBufferView,
 } from './gltfAccessors'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /**
  * Loads glTF 2.0 models into a {@link Node3D} hierarchy for the 3D pass.
@@ -271,7 +273,8 @@ function warnUnsupportedExtensions(ctx: GltfContext): void {
     const required = ctx.doc.extensionsRequired?.includes(ext)
       ? ' (required)'
       : ''
-    console.warn(
+    diagnostics.report(
+      'SG6001',
       `loadGltf: unsupported extension ${ext}${required}; loading without it.`,
     )
   }
@@ -384,7 +387,8 @@ function geometryFor(
     !ctx.warned.has('texcoord1')
   ) {
     ctx.warned.add('texcoord1')
-    console.warn(
+    diagnostics.report(
+      'SG6002',
       'loadGltf: TEXCOORD_1 present but only TEXCOORD_0 is read; secondary UV set ignored.',
     )
   }
@@ -653,7 +657,7 @@ const GLB_BIN = 0x004e4942
 function parseGlb(data: ArrayBuffer): { doc: GltfDoc; buffers: ArrayBuffer[] } {
   const dv = new DataView(data)
   if (dv.getUint32(0, true) !== GLB_MAGIC)
-    throw new Error('loadGltf: not a .glb (bad magic)')
+    throw new StargazerError('SG6007', 'loadGltf: not a .glb (bad magic)')
   const total = dv.getUint32(8, true)
   let offset = 12
   let doc: GltfDoc | null = null
@@ -672,7 +676,8 @@ function parseGlb(data: ArrayBuffer): { doc: GltfDoc; buffers: ArrayBuffer[] } {
     }
     offset = chunkStart + chunkLen
   }
-  if (!doc) throw new Error('loadGltf: .glb missing JSON chunk')
+  if (!doc)
+    throw new StargazerError('SG6007', 'loadGltf: .glb missing JSON chunk')
   return { doc, buffers: bin ? [bin] : [] }
 }
 

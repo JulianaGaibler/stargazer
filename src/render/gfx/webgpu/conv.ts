@@ -121,7 +121,7 @@ const BLEND_FACTORS = {
  * premultiplied end-to-end, so `'source-over'` uses a `'one'` source factor
  * (the shader already multiplied rgb by alpha) rather than `'src-alpha'`.
  */
-export function blendToGPU(mode: GfxBlendMode): GPUBlendState | undefined {
+function blendToGPU(mode: GfxBlendMode): GPUBlendState | undefined {
   if (mode === 'none') return undefined
   if (mode === 'lighter') {
     // Additive: src + dst for both color and alpha.
@@ -204,12 +204,12 @@ export function compareFnToGPU(c: CompareFn): GPUCompareFunction {
 }
 
 /** Stencil op -> WebGPU stencil operation. The names line up one-to-one. */
-export function stencilOpToGPU(op: StencilOp): GPUStencilOperation {
+function stencilOpToGPU(op: StencilOp): GPUStencilOperation {
   return op
 }
 
 /** One facing's stencil state -> WebGPU, filling in the pass-through defaults. */
-export function stencilFaceToGPU(f: StencilFaceState): GPUStencilFaceState {
+function stencilFaceToGPU(f: StencilFaceState): GPUStencilFaceState {
   return {
     compare: compareFnToGPU(f.compare ?? 'always'),
     failOp: stencilOpToGPU(f.failOp ?? 'keep'),

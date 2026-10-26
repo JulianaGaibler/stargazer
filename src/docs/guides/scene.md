@@ -15,7 +15,7 @@ Each {@link Stage} owns one tree. `engine.tree` is the primary stage's tree, and
 A scene builder passed to `host.loadScene` adds a camera and some content to the root. The host comes from {@link createEngineHost}, see [Setup](/guides/setup).
 
 ```ts
-import { CameraNode2D, ShapeNode } from '@src/stargazer'
+import { CameraNode2D, ShapeNode } from 'stargazer'
 
 await host.loadScene((scene) => {
   const cam = new CameraNode2D()
@@ -71,7 +71,7 @@ To animate a transform, use `node.tween(...)` instead of changing fields every f
 A {@link Behavior} attaches logic to a node. Extend it, override the hooks you need, and attach an instance with `addBehavior`:
 
 ```ts
-import { Behavior } from '@src/stargazer'
+import { Behavior } from 'stargazer'
 
 class Spin extends Behavior {
   radPerSec: number
@@ -98,7 +98,7 @@ The node spins half a radian per second. A behavior reaches its node through `th
 Destroying a node aborts `node.abortSignal`. Every `node.tween(...)` and `node.wait(...)` is tied to that signal, so it rejects with an `AbortError` when the node dies. Pass {@link ignoreAbort} to `.catch` to ignore that rejection:
 
 ```ts
-import { easings, ignoreAbort } from '@src/stargazer'
+import { easings, ignoreAbort } from 'stargazer'
 
 await node
   .tween({ alpha: 0 }, { duration: 0.5, easing: easings.outCubic })
@@ -122,7 +122,7 @@ To draw a node under nodes added before it, insert it at a position with `parent
 A custom node overrides `paint(canvas)` to record what it looks like. The engine keeps the recording, a picture, and replays it every frame under the node's transform and alpha. Moving, scaling, rotating or fading the node does not run `paint` again.
 
 ```ts
-import { Node2D, definePaintProps, type Canvas } from '@src/stargazer'
+import { Node2D, definePaintProps, type Canvas } from 'stargazer'
 
 class Eye extends Node2D {
   declare openAmount: number
@@ -198,7 +198,7 @@ A node added during the pass first updates on the next frame. A node destroyed d
 {@link PointerBehavior} is a base class for a behavior that handles pointer input. Return the handlers from `handlers()`. The base class binds them with `bindPointer` on attach and unbinds them on detach.
 
 ```ts
-import { PointerBehavior, type PointerHandlers } from '@src/stargazer'
+import { PointerBehavior, type PointerHandlers } from 'stargazer'
 
 class DragToMove extends PointerBehavior {
   protected handlers(): PointerHandlers {
@@ -306,7 +306,7 @@ The compose walk skips a painted node when its bounds lie fully outside the visi
 The stroked nodes ({@link ShapeNode}, {@link Path2DNode}, {@link PolylineNode}) treat `lineWidth` as CSS pixels by default (`strokeSpace: 'screen'`). The stroke keeps its thickness on screen when the camera zooms. To make a stroke scale with the world, set `strokeSpace: 'world'`:
 
 ```ts
-import { Path2DNode } from '@src/stargazer'
+import { Path2DNode } from 'stargazer'
 
 const track = new Path2DNode({
   path,
@@ -335,7 +335,7 @@ The clip follows the node's transform, so a rotated or scaled panel clips correc
 An `InsetViewNode` shows a separate 2D world inside a rounded rect, with a view of its own, like picture-in-picture. Build the inner world under `inset.content` in its own units. Set `inset.viewport` to the rect of that world to show. The rect is fitted into the inset at a uniform scale and centered. Setting it every frame pans and zooms like a camera.
 
 ```ts
-import { InsetViewNode } from '@src/stargazer'
+import { InsetViewNode } from 'stargazer'
 
 const inset = new InsetViewNode({ width: 392, height: 516, radius: 40 })
 inset.content.add(ship)
@@ -363,7 +363,7 @@ An inset has these limits:
 A {@link Layer} gives its subtree a placement of its own. The stage camera moves and scales everything in the tree, which is wrong for a heads-up display that should stay put while the camera pans. Put such nodes under a layer whose `space` is not `'world'`, and the camera does not move them.
 
 ```ts
-import { Layer, TextNode } from '@src/stargazer'
+import { Layer, TextNode } from 'stargazer'
 
 // One unit is one CSS pixel, origin at the top left of the canvas.
 const hud = new Layer({ space: 'screen' })
@@ -382,6 +382,21 @@ The {@link LayerSpace} values are:
 - `'world'`, the default, uses the view in effect where the layer sits.
 - `'screen'` maps one unit to one CSS pixel, with the origin at the top left of the canvas.
 - `{ frame }` fits the rect into the canvas at a uniform scale and centers it, the way a camera fits its viewport. The design keeps its proportions at any canvas shape.
+
+`frame` can also be a function of the canvas size in CSS pixels. The layer calls it every time it reads the canvas size, so it can switch designs when the canvas changes shape, such as when a phone turns:
+
+```ts
+const ui = new Layer({
+  space: {
+    frame: (w, h) =>
+      w >= h
+        ? { x: 0, y: 0, width: 1920, height: 1080 }
+        : { x: 0, y: 0, width: 1080, height: 1920 },
+  },
+})
+```
+
+The function must return the same rect for the same size. [`layer.frame`](/module/scene/layer#frame) is the rect in effect. For a function, that is the rect it returned last, and `null` until the layer is first drawn or resolved with {@link viewFor}.
 
 A layer with a space of its own is the root of that space. Its own `transform` places the subtree inside the view, so a screen layer can be offset, scaled or rotated in CSS pixels. Every `transform.world` under it is in layer space, so `localToWorld`, hit testing and layout work as usual. `alpha` and `visible` still cascade from above.
 

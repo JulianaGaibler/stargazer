@@ -14,6 +14,7 @@ export { bindRegionGesture } from '../input/RegionGesture'
 export type { RegionGestureOptions } from '../input/RegionGesture'
 export type {
   PointerEvent2D,
+  PointerTarget,
   PointerStateSnapshot,
   PointerPhase,
 } from '../input/PointerState'

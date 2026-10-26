@@ -20,6 +20,8 @@
  * mangling. (`batchLayout.ts` assigns the flat numbers.)
  */
 
+import { diagnostics } from '../../../diagnostics/Diagnostics'
+import { DEV } from 'esm-env'
 import type {
   BindGroup,
   BindGroupEntry,
@@ -74,6 +76,7 @@ import {
   getSourceHeight,
   resolveUploadFlipY,
 } from '../imageSource'
+import { StargazerError } from '../../../diagnostics/StargazerError'
 
 // --- concrete backing structs (kept private, exposed as branded handles) ----
 
@@ -368,7 +371,10 @@ export class WebGL2Device implements GfxDevice {
       preserveDrawingBuffer: false,
     })
     if (!gl) {
-      throw new Error('WebGL2Device: failed to acquire WebGL2 context')
+      throw new StargazerError(
+        'SG1008',
+        'WebGL2Device: failed to acquire WebGL2 context',
+      )
     }
     this.#gl = gl
     this.maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number
@@ -405,8 +411,9 @@ export class WebGL2Device implements GfxDevice {
     if (samples <= this.maxSamples) return Math.floor(samples)
     if (!this.#warnedMaxSamplesClamp) {
       this.#warnedMaxSamplesClamp = true
-      console.warn(
-        `WebGL2Device: requested MSAA ${samples}× exceeds driver MAX_SAMPLES ${this.maxSamples}; clamping.`,
+      diagnostics.report(
+        'SG2017',
+        `requested MSAA ${samples}× exceeds driver MAX_SAMPLES ${this.maxSamples}; clamping.`,
       )
     }
     return this.maxSamples
@@ -417,8 +424,9 @@ export class WebGL2Device implements GfxDevice {
     if (w <= cap && h <= cap) return [w, h]
     if (!this.#warnedMaxTextureClamp) {
       this.#warnedMaxTextureClamp = true
-      console.warn(
-        `WebGL2Device: requested texture ${w}×${h} exceeds MAX_TEXTURE_SIZE ${cap}; clamping. Renders continue at the clamped size with GPU upscaling on present.`,
+      diagnostics.report(
+        'SG2018',
+        `requested texture ${w}×${h} exceeds MAX_TEXTURE_SIZE ${cap}; clamping. Renders continue at the clamped size with GPU upscaling on present.`,
       )
     }
     return [Math.min(w, cap), Math.min(h, cap)]
@@ -454,18 +462,24 @@ export class WebGL2Device implements GfxDevice {
   createShaderModule(desc: ShaderModuleDesc): ShaderModule {
     const gl = this.#gl
     if (!desc.glsl) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createShaderModule: no GLSL source in the shader module',
       )
     }
     const { vertex, fragment } = desc.glsl
     if (!vertex.startsWith('#version 300 es\n')) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createShaderModule: vertex shader must start with `#version 300 es\\n`',
       )
     }
     if (!fragment.startsWith('#version 300 es\n')) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createShaderModule: fragment shader must start with `#version 300 es\\n`',
       )
     }
@@ -473,7 +487,9 @@ export class WebGL2Device implements GfxDevice {
     const fs = compileShader(gl, gl.FRAGMENT_SHADER, fragment)
     const program = gl.createProgram()
     if (!program)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createShaderModule: gl.createProgram returned null',
       )
     gl.attachShader(program, vs)
@@ -489,7 +505,9 @@ export class WebGL2Device implements GfxDevice {
       gl.deleteProgram(program)
       gl.deleteShader(vs)
       gl.deleteShader(fs)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `WebGL2Device.createShaderModule: link failed (${desc.label ?? 'shader'}):\n${info}`,
       )
     }
@@ -503,13 +521,14 @@ export class WebGL2Device implements GfxDevice {
       const idx = gl.getUniformBlockIndex(program, b.glslName)
       if (idx !== gl.INVALID_INDEX) {
         gl.uniformBlockBinding(program, idx, b.binding)
-      } else if (import.meta.env?.DEV) {
+      } else if (DEV) {
         // A reflection block that doesn't resolve reads all-zeros silently. That
         // is the catastrophic-but-invisible failure mode of a block-name typo.
         // Surface it in dev (a genuinely-unused block optimized out is the only
         // false positive, rare for a declared-and-referenced block).
-        console.warn(
-          `WebGL2Device: shader '${desc.label ?? '?'}' declares no active uniform block '${b.glslName}'`,
+        diagnostics.report(
+          'SG3002',
+          `shader '${desc.label ?? '?'}' declares no active uniform block '${b.glslName}'`,
         )
       }
     }
@@ -579,22 +598,30 @@ export class WebGL2Device implements GfxDevice {
   // --- compute (unsupported) ------------------------------------------------
 
   createComputePipeline(_desc: ComputePipelineDesc): Promise<ComputePipeline> {
-    throw new Error(
+    throw new StargazerError(
+      'SG2024',
+
       'WebGL2Device: compute is unsupported (check device.supportsCompute)',
     )
   }
   beginComputePass(): void {
-    throw new Error(
+    throw new StargazerError(
+      'SG2024',
+
       'WebGL2Device: compute is unsupported (check device.supportsCompute)',
     )
   }
   dispatchCompute(_dispatch: ComputeDispatch): void {
-    throw new Error(
+    throw new StargazerError(
+      'SG2024',
+
       'WebGL2Device: compute is unsupported (check device.supportsCompute)',
     )
   }
   endComputePass(): void {
-    throw new Error(
+    throw new StargazerError(
+      'SG2024',
+
       'WebGL2Device: compute is unsupported (check device.supportsCompute)',
     )
   }
@@ -615,7 +642,9 @@ export class WebGL2Device implements GfxDevice {
     const bindings: ResolvedBinding[] = entries.map((e) => {
       const le = l.entries.find((x) => x.binding === e.binding)
       if (!le)
-        throw new Error(
+        throw new StargazerError(
+          'SG2024',
+
           `WebGL2Device.createBindGroup: binding ${e.binding} not in layout`,
         )
       const r: ResolvedBinding = {
@@ -664,7 +693,9 @@ export class WebGL2Device implements GfxDevice {
     const gl = this.#gl
     const buf = gl.createBuffer()
     if (!buf)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createVertexBuffer: createBuffer returned null',
       )
     this.#bindArrayBuffer(buf)
@@ -716,7 +747,9 @@ export class WebGL2Device implements GfxDevice {
     const gl = this.#gl
     const buf = gl.createBuffer()
     if (!buf)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createUniformBuffer: createBuffer returned null',
       )
     gl.bindBuffer(gl.UNIFORM_BUFFER, buf)
@@ -750,14 +783,18 @@ export class WebGL2Device implements GfxDevice {
 
   createDataTable(vec4Count: number): DataTable {
     if (vec4Count > this.limits.maxDataTableVec4) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `WebGL2Device.createDataTable: ${vec4Count} elements exceed the limit ${this.limits.maxDataTableVec4}`,
       )
     }
     const gl = this.#gl
     const tex = gl.createTexture()
     if (!tex) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createDataTable: createTexture returned null',
       )
     }
@@ -788,7 +825,10 @@ export class WebGL2Device implements GfxDevice {
     const t = table as WebGL2DataTable
     const count = data.length >> 2
     if (firstVec4 + count > t.capacity) {
-      throw new Error('WebGL2Device.updateDataTable: range past the capacity')
+      throw new StargazerError(
+        'SG2024',
+        'WebGL2Device.updateDataTable: range past the capacity',
+      )
     }
     const gl = this.#gl
     gl.bindTexture(gl.TEXTURE_2D, t.gl)
@@ -832,7 +872,9 @@ export class WebGL2Device implements GfxDevice {
     const gl = this.#gl
     const buf = gl.createBuffer()
     if (!buf)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createIndexBuffer: createBuffer returned null',
       )
     this.#detachVaoForElementOp()
@@ -869,14 +911,18 @@ export class WebGL2Device implements GfxDevice {
 
   createTexture2D(opts: Texture2DOpts): Texture {
     if (opts.storage) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createTexture2D: storage textures are unsupported (no compute)',
       )
     }
     const gl = this.#gl
     const tex = gl.createTexture()
     if (!tex)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createTexture2D: createTexture returned null',
       )
     const [clampedW, clampedH] = this.#clampTextureDim(opts.width, opts.height)
@@ -1073,13 +1119,17 @@ export class WebGL2Device implements GfxDevice {
     const samples = this.#clampSamples(opts.samples ?? 1)
     const pixelFormat: TargetPixelFormat = opts.pixelFormat ?? 'rgba8'
     if (pixelFormat !== 'rgba8' && samples > 1) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `WebGL2Device.createRenderTarget: pixelFormat '${pixelFormat}' is single-sample only (no renderable multisample R8/RG8 target)`,
       )
     }
     const fbo = gl.createFramebuffer()
     if (!fbo)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createRenderTarget: createFramebuffer returned null',
       )
     const [clampedW, clampedH] = this.#clampTextureDim(opts.width, opts.height)
@@ -1095,7 +1145,9 @@ export class WebGL2Device implements GfxDevice {
       const rb = gl.createRenderbuffer()
       if (!rb) {
         gl.deleteFramebuffer(fbo)
-        throw new Error(
+        throw new StargazerError(
+          'SG2024',
+
           'WebGL2Device.createRenderTarget: createRenderbuffer returned null',
         )
       }
@@ -1175,7 +1227,9 @@ export class WebGL2Device implements GfxDevice {
       const drb = gl.createRenderbuffer()
       if (!drb) {
         this.deleteRenderTarget(rt)
-        throw new Error(
+        throw new StargazerError(
+          'SG2024',
+
           'WebGL2Device.createRenderTarget: depth createRenderbuffer returned null',
         )
       }
@@ -1213,7 +1267,9 @@ export class WebGL2Device implements GfxDevice {
     this.#curFbo = previousFbo
     if (status !== gl.FRAMEBUFFER_COMPLETE) {
       this.deleteRenderTarget(rt)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `WebGL2Device.createRenderTarget: framebuffer incomplete (status 0x${status.toString(16)})`,
       )
     }
@@ -1335,7 +1391,9 @@ export class WebGL2Device implements GfxDevice {
   colorTexture(rt: RenderTarget): Texture {
     const r = rt as WebGL2RenderTarget
     if (r.color === undefined) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.colorTexture: target is multisample (not sampleable); resolve it first',
       )
     }
@@ -1345,7 +1403,9 @@ export class WebGL2Device implements GfxDevice {
   depthTexture(rt: RenderTarget): Texture {
     const r = rt as WebGL2RenderTarget
     if (r.depthTex === undefined) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.depthTexture: target has no sampleable depth attachment (allocate with depthSampled: true)',
       )
     }
@@ -1361,7 +1421,9 @@ export class WebGL2Device implements GfxDevice {
     const gl = this.#gl
     const tex = gl.createTexture()
     if (!tex)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.#createDepthTexture: createTexture returned null',
       )
     gl.bindTexture(gl.TEXTURE_2D, tex)
@@ -1406,7 +1468,9 @@ export class WebGL2Device implements GfxDevice {
     const gl = this.#gl
     const tex = gl.createTexture()
     if (!tex)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createShadowArray: createTexture returned null',
       )
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex)
@@ -1436,7 +1500,9 @@ export class WebGL2Device implements GfxDevice {
     const gl = this.#gl
     const tex = gl.createTexture()
     if (!tex)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.createShadowCube: createTexture returned null',
       )
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, tex)
@@ -1474,7 +1540,10 @@ export class WebGL2Device implements GfxDevice {
     if (!this.#shadowFbo) {
       const fbo = this.#gl.createFramebuffer()
       if (!fbo)
-        throw new Error('WebGL2Device: shadow createFramebuffer returned null')
+        throw new StargazerError(
+          'SG2024',
+          'WebGL2Device: shadow createFramebuffer returned null',
+        )
       this.#shadowFbo = fbo
     }
     return this.#shadowFbo
@@ -1537,7 +1606,9 @@ export class WebGL2Device implements GfxDevice {
     // Color pass (optionally with depth on the same FBO).
     const color = desc.color
     if (!color) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.beginRenderPass: a non-shadow pass requires a color attachment',
       )
     }
@@ -1608,7 +1679,9 @@ export class WebGL2Device implements GfxDevice {
       // must match (the caller allocates the resolve target at the source's
       // size).
       if (s.width !== d.width || s.height !== d.height) {
-        throw new Error(
+        throw new StargazerError(
+          'SG2024',
+
           `WebGL2Device.endRenderPass: resolve target ${d.width}×${d.height} must match source ${s.width}×${s.height}`,
         )
       }
@@ -1651,7 +1724,9 @@ export class WebGL2Device implements GfxDevice {
     const gl = this.#gl
     const source = target as WebGL2RenderTarget
     if (source.fbo === null || source.samples > 1) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGL2Device.beginReadback: the target must be a single-sample render target',
       )
     }
@@ -1830,7 +1905,11 @@ export class WebGL2Device implements GfxDevice {
   #createVao(p: WebGL2Pipeline, call: DrawCall): WebGL2Vao {
     const gl = this.#gl
     const glVao = gl.createVertexArray()
-    if (!glVao) throw new Error('WebGL2Device: createVertexArray returned null')
+    if (!glVao)
+      throw new StargazerError(
+        'SG2024',
+        'WebGL2Device: createVertexArray returned null',
+      )
     gl.bindVertexArray(glVao)
     this.#curVaoGl = glVao
     const slotOffsets: number[] = []
@@ -1946,7 +2025,9 @@ export class WebGL2Device implements GfxDevice {
             // unpadded ring slice) that would otherwise fail as GL_INVALID_VALUE.
             const align = this.limits.minUniformBufferOffsetAlignment
             if (off % align !== 0) {
-              throw new Error(
+              throw new StargazerError(
+                'SG2024',
+
                 `WebGL2Device: uniform buffer offset ${off} (binding ${b.binding}) is not a multiple of ${align}`,
               )
             }
@@ -2412,14 +2493,21 @@ function compileShader(
   src: string,
 ): WebGLShader {
   const s = gl.createShader(kind)
-  if (!s) throw new Error('WebGL2Device: createShader returned null')
+  if (!s)
+    throw new StargazerError(
+      'SG2024',
+      'WebGL2Device: createShader returned null',
+    )
   gl.shaderSource(s, src)
   gl.compileShader(s)
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
     const info = gl.getShaderInfoLog(s) ?? '<no info log>'
     gl.deleteShader(s)
     const stage = kind === gl.VERTEX_SHADER ? 'vertex' : 'fragment'
-    throw new Error(`WebGL2Device: ${stage} shader compile failed:\n${info}`)
+    throw new StargazerError(
+      'SG3003',
+      `WebGL2Device: ${stage} shader compile failed:\n${info}`,
+    )
   }
   return s
 }

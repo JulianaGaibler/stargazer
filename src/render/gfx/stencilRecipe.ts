@@ -22,13 +22,13 @@ import type { StencilState } from './GfxDevice'
 /** Bit position of the clip depth within the stencil value. */
 export const CLIP_DEPTH_SHIFT = 5
 /** Mask of the clip depth bits. */
-export const CLIP_DEPTH_MASK = 0xe0
+const CLIP_DEPTH_MASK = 0xe0
 /** The deepest clip nesting the stencil can hold. */
 export const MAX_CLIP_DEPTH = 7
 /** Mask of the winding count bits. */
-export const WINDING_MASK = 0x0f
+const WINDING_MASK = 0x0f
 /** The stroke de-duplication flag bit. */
-export const FLAG_BIT = 0x10
+const FLAG_BIT = 0x10
 
 /** How a path's winding count decides coverage. */
 export type FillRule = 'nonzero' | 'evenodd'

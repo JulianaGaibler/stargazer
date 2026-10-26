@@ -47,6 +47,7 @@ import type {
 } from '../GfxDevice'
 import { depthStencilFormatOf, resolveDepthStencil } from '../depthStencil'
 import { getSourceHeight, getSourceWidth } from '../imageSource'
+import { StargazerError } from '../../../diagnostics/StargazerError'
 
 /**
  * The extent an upload covers, measured the same way both real backends measure
@@ -248,7 +249,10 @@ export class MockGfxDevice implements GfxDevice {
   }
   createComputePipeline(desc: ComputePipelineDesc): Promise<ComputePipeline> {
     if (!this.supportsCompute) {
-      throw new Error('MockGfxDevice: compute unsupported on this backend')
+      throw new StargazerError(
+        'SG2024',
+        'MockGfxDevice: compute unsupported on this backend',
+      )
     }
     const p = {
       __gfxComputePipeline: undefined as never,
@@ -374,7 +378,10 @@ export class MockGfxDevice implements GfxDevice {
   deletedDataTables = 0
   createDataTable(vec4Count: number): DataTable {
     if (vec4Count > this.limits.maxDataTableVec4) {
-      throw new Error('MockGfxDevice.createDataTable: over the limit')
+      throw new StargazerError(
+        'SG2024',
+        'MockGfxDevice.createDataTable: over the limit',
+      )
     }
     const t = { __gfxDataTable: undefined as never, capacity: vec4Count }
     this.dataTables.push(t)
@@ -551,13 +558,19 @@ export class MockGfxDevice implements GfxDevice {
   }
   colorTexture(rt: RenderTarget): Texture {
     const c = (rt as { color?: Texture }).color
-    if (!c) throw new Error('MockGfxDevice.colorTexture: target is multisample')
+    if (!c)
+      throw new StargazerError(
+        'SG2024',
+        'MockGfxDevice.colorTexture: target is multisample',
+      )
     return c
   }
   depthTexture(rt: RenderTarget): Texture {
     const d = (rt as { depthTex?: Texture }).depthTex
     if (!d)
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'MockGfxDevice.depthTexture: target has no sampleable depth attachment',
       )
     return d
@@ -641,7 +654,9 @@ export class MockGfxDevice implements GfxDevice {
       const passFormat = passDepthStencil(this.#curPass.desc)
       const pipelineFormat = resolveDepthStencil(desc)
       if (passFormat !== pipelineFormat) {
-        throw new Error(
+        throw new StargazerError(
+          'SG2024',
+
           `MockGfxDevice.draw: pass attachment is '${passFormat}' but pipeline ` +
             `declares '${pipelineFormat}' (label ${desc.label ?? '<none>'})`,
         )

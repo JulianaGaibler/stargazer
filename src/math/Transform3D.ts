@@ -75,10 +75,12 @@ export class Transform3D {
     this.markDirty()
   }
 
+  /** Whether a field changed since the matrix was last rebuilt. */
   get dirty(): boolean {
     return this.#_dirty
   }
 
+  /** Flag the matrix for a rebuild after changing a field in place. */
   markDirty(): void {
     if (!this.#_dirty) {
       this.#_dirty = true

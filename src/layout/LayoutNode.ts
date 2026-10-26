@@ -8,6 +8,7 @@
 import type { Node } from '../scene/Node'
 import { Node2D } from '../scene/Node2D'
 import { BoxConstraints, type Size } from './constraints'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /**
  * A node that takes part in layout. A parent calls `measure` to learn a child's
@@ -142,7 +143,9 @@ export function isMeasurable(n: Node): n is Node2D & Measurable {
  */
 export function assertFiniteSize(node: Node2D, size: Size): void {
   if (!Number.isFinite(size.w) || !Number.isFinite(size.h)) {
-    throw new Error(
+    throw new StargazerError(
+      'SG5007',
+
       `[stargazer] layout: ${node.constructor.name}('${node.id}') produced a ` +
         `non-finite size { w: ${size.w}, h: ${size.h} }. A node measured on an ` +
         `unbounded axis must size to its content, not to maxW/maxH.`,

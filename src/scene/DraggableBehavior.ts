@@ -38,9 +38,11 @@ export interface DraggableOptions<T = unknown> {
    * references/primitives).
    */
   equals?: (a: T, b: T) => boolean
+  /** Called when the pointer has moved past the drag threshold. */
   onDragStart?: (e: PointerEvent2D) => void
   /** The hovered target changed (null when the pointer left every target). */
   onDragMove?: (target: T | null, e: PointerEvent2D) => void
+  /** Called when the node is released over a target. */
   onDrop?: (target: T, e: PointerEvent2D) => void
   /**
    * Released off any target, or a system cancel (`e` undefined). Fires at

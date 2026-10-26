@@ -35,7 +35,12 @@ export interface DomAnchorParams extends DomAttachOptions {
 export function domAnchor(
   element: HTMLElement,
   params: DomAnchorParams,
-): { update(next: DomAnchorParams): void; destroy(): void } {
+): {
+  /** Move to the new node or push the new options. */
+  update(next: DomAnchorParams): void
+  /** Stop syncing and release the element. */
+  destroy(): void
+} {
   let node = params.node
   let handle: DomAttachment = params.engine.dom.attach(node, element, params)
   return {
@@ -85,7 +90,12 @@ export interface DomAnchor3dParams extends Dom3DAttachOptions {
 export function domAnchor3d(
   element: HTMLElement,
   params: DomAnchor3dParams,
-): { update(next: DomAnchor3dParams): void; destroy(): void } {
+): {
+  /** Move to the new node or push the new options. */
+  update(next: DomAnchor3dParams): void
+  /** Stop syncing and release the element. */
+  destroy(): void
+} {
   let node = params.node
   let camera = params.camera
   let handle: Dom3DAttachment = params.engine.dom.attachWorld3d(

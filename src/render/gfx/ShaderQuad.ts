@@ -1,4 +1,5 @@
 import type { ShaderReflection } from './GfxDevice'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /**
  * A shader quad's compiled sources: WGSL (the source of truth, for WebGPU), the
@@ -27,11 +28,12 @@ export function quadShader(
 }
 
 /** Textures one {@link ShaderQuad} can bind, at bindings 0 to 3. */
-export const MAX_QUAD_TEXTURES = 4
+const MAX_QUAD_TEXTURES = 4
 
 /** Largest `Params` block a {@link ShaderQuad} can declare, in bytes. */
 export const MAX_QUAD_PARAMS_BYTES = 256
 
+/** Options for creating a {@link DataTexture}. */
 export interface DataTextureOptions {
   /** Sampling filter. Default `'nearest'`. */
   filter?: 'nearest' | 'linear'
@@ -85,6 +87,7 @@ export class DataTexture {
   }
 }
 
+/** Options for creating a {@link ShaderQuad}. */
 export interface ShaderQuadOptions {
   shader: QuadShaderSource
   /** Byte size of the shader's `Params` block, std140. `0` for none. */
@@ -112,13 +115,17 @@ export class ShaderQuad {
   constructor(opts: ShaderQuadOptions) {
     const textures = opts.textures ?? []
     if (textures.length > MAX_QUAD_TEXTURES) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `ShaderQuad: ${textures.length} textures, the limit is ${MAX_QUAD_TEXTURES}`,
       )
     }
     const paramsBytes = Math.ceil((opts.paramsBytes ?? 0) / 16) * 16
     if (paramsBytes > MAX_QUAD_PARAMS_BYTES) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `ShaderQuad: ${paramsBytes} bytes of params, the limit is ${MAX_QUAD_PARAMS_BYTES}`,
       )
     }

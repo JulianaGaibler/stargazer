@@ -115,6 +115,7 @@ export class Picture {
   readonly deps: Versioned[] = []
   readonly depVersions: number[] = []
 
+  /** Remove every recorded call. */
   clear(): void {
     this.ops.length = 0
     this.args.length = 0

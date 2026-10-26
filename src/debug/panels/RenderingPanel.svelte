@@ -2,7 +2,7 @@
   import type {
     DebugController,
     DebugStatsSnapshot,
-    DebugRenderMode as MeshRenderMode,
+    MeshRenderMode,
   } from '../DebugController'
   import type { DebugRenderMode } from '../../render/gfx/GpuGfx'
   import {

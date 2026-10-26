@@ -9,6 +9,7 @@
 import type { Node2D } from '../../scene/Node2D'
 import { BoxConstraints, type Size } from '../constraints'
 import { LayoutNode, isMeasurable, type MeasurableNode } from '../LayoutNode'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** Layout direction of a {@link Flex}. */
 export type Axis = 'row' | 'column'
@@ -223,7 +224,9 @@ export class Flex extends LayoutNode {
     // Pass 2: divide the leftover main space among flex children.
     if (totalFlex > 0) {
       if (!Number.isFinite(mainMax)) {
-        throw new Error(
+        throw new StargazerError(
+          'SG5007',
+
           `[stargazer] layout: ${this.direction} has flex children under an ` +
             `unbounded main axis. Give it a bounded size (or remove the flex).`,
         )

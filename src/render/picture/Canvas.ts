@@ -12,6 +12,7 @@ import type {
 } from '../gfx/Gfx2D'
 import { textMetrics } from '../gfx/textLayout'
 import { Op, Picture, type CanvasStrokeStyle, type Versioned } from './Picture'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** Extra local units around a text label for the bitmap's transparent padding. */
 const TEXT_PAD = 2
@@ -75,7 +76,8 @@ export class Canvas {
 
   #open(): Picture {
     const pic = this.#pic
-    if (!pic) throw new Error('Canvas: used outside of paint')
+    if (!pic)
+      throw new StargazerError('SG2024', 'Canvas: used outside of paint')
     return pic
   }
 
@@ -139,11 +141,13 @@ export class Canvas {
 
   // --- transform and state --------------------------------------------------
 
+  /** {@inheritDoc render!Gfx2D.save} */
   save(): void {
     this.#rec(Op.save)
     this.#stack.push(this.#a, this.#b, this.#c, this.#d, this.#e, this.#f)
   }
 
+  /** {@inheritDoc render!Gfx2D.restore} */
   restore(): void {
     this.#rec(Op.restore)
     const s = this.#stack
@@ -156,22 +160,26 @@ export class Canvas {
     this.#a = s.pop()!
   }
 
+  /** {@inheritDoc render!Gfx2D.translate} */
   translate(x: number, y: number): void {
     this.#rec(Op.translate, x, y)
     this.#e += this.#a * x + this.#c * y
     this.#f += this.#b * x + this.#d * y
   }
 
+  /** {@inheritDoc render!Gfx2D.rotate} */
   rotate(rad: number): void {
     this.#rec(Op.rotate, rad)
     this.#mul(Math.cos(rad), Math.sin(rad), -Math.sin(rad), Math.cos(rad), 0, 0)
   }
 
+  /** {@inheritDoc render!Gfx2D.scale} */
   scale(sx: number, sy: number): void {
     this.#rec(Op.scale, sx, sy)
     this.#mul(sx, 0, 0, sy, 0, 0)
   }
 
+  /** {@inheritDoc render!Gfx2D.transform} */
   transform(
     a: number,
     b: number,
@@ -204,18 +212,22 @@ export class Canvas {
     this.#rec(Op.setAlpha, alpha)
   }
 
+  /** {@inheritDoc render!Gfx2D.setBlend} */
   setBlend(mode: GfxBlend): void {
     this.#rec(Op.setBlend, mode)
   }
 
+  /** {@inheritDoc render!Gfx2D.setClipMask} */
   setClipMask(mask: Parameters<Gfx2D['setClipMask']>[0]): void {
     this.#rec(Op.setClipMask, mask)
   }
 
+  /** {@inheritDoc render!Gfx2D.setClip} */
   setClip(shape: GfxClipShape | null): void {
     this.#rec(Op.setClip, shape && { ...shape })
   }
 
+  /** {@inheritDoc render!Gfx2D.clipPath} */
   clipPath(
     path: Parameters<Gfx2D['clipPath']>[0],
     rule?: Parameters<Gfx2D['clipPath']>[1],
@@ -272,11 +284,13 @@ export class Canvas {
 
   // --- shapes ---------------------------------------------------------------
 
+  /** {@inheritDoc render!Gfx2D.fillRect} */
   fillRect(x: number, y: number, w: number, h: number, fill: Fill): void {
     this.#rec(Op.fillRect, x, y, w, h, snapFill(fill))
     this.#box(x, y, x + w, y + h)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillRoundRect} */
   fillRoundRect(
     x: number,
     y: number,
@@ -299,6 +313,7 @@ export class Canvas {
     this.#box(x, y, x + w, y + h)
   }
 
+  /** {@inheritDoc render!Gfx2D.strokeRoundRect} */
   strokeRoundRect(
     x: number,
     y: number,
@@ -322,6 +337,7 @@ export class Canvas {
     this.#box(x - r, y - r, x + w + r, y + h + r)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillAndStrokeRoundRect} */
   fillAndStrokeRoundRect(
     x: number,
     y: number,
@@ -347,11 +363,13 @@ export class Canvas {
     this.#box(x - r, y - r, x + w + r, y + h + r)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillCircle} */
   fillCircle(cx: number, cy: number, r: number, fill: Fill): void {
     this.#rec(Op.fillCircle, cx, cy, r, snapFill(fill))
     this.#box(cx - r, cy - r, cx + r, cy + r)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillAndStrokeCircle} */
   fillAndStrokeCircle(
     cx: number,
     cy: number,
@@ -371,6 +389,7 @@ export class Canvas {
     this.#box(cx - reach, cy - reach, cx + reach, cy + reach)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillEllipse} */
   fillEllipse(
     cx: number,
     cy: number,
@@ -382,6 +401,7 @@ export class Canvas {
     this.#box(cx - rx, cy - ry, cx + rx, cy + ry)
   }
 
+  /** {@inheritDoc render!Gfx2D.strokeEllipse} */
   strokeEllipse(
     cx: number,
     cy: number,
@@ -399,6 +419,7 @@ export class Canvas {
     )
   }
 
+  /** {@inheritDoc render!Gfx2D.fillAndStrokeEllipse} */
   fillAndStrokeEllipse(
     cx: number,
     cy: number,
@@ -425,6 +446,7 @@ export class Canvas {
     )
   }
 
+  /** {@inheritDoc render!Gfx2D.strokeCircle} */
   strokeCircle(
     cx: number,
     cy: number,
@@ -436,6 +458,7 @@ export class Canvas {
     this.#box(cx - reach, cy - reach, cx + reach, cy + reach)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillConvexPoly} */
   fillConvexPoly(pts: ArrayLike<number>, count: number, fill: Fill): void {
     this.#rec(Op.fillConvexPoly, copyPoints(pts, count), count, snapFill(fill))
     this.#points(pts, count, 0)
@@ -460,11 +483,13 @@ export class Canvas {
 
   // --- paths ----------------------------------------------------------------
 
+  /** {@inheritDoc render!Gfx2D.fillPath2D} */
   fillPath2D(path: Path2D, fill: Fill): void {
     this.#rec(Op.fillPath2D, path, snapFill(fill))
     this.#unbounded()
   }
 
+  /** {@inheritDoc render!Gfx2D.fillPath} */
   fillPath(
     path: Parameters<Gfx2D['fillPath']>[0],
     fill: Fill,
@@ -475,6 +500,7 @@ export class Canvas {
     this.#pathBox(path, 0)
   }
 
+  /** {@inheritDoc render!Gfx2D.strokePath} */
   strokePath(
     path: Parameters<Gfx2D['strokePath']>[0],
     style: CanvasStrokeStyle,
@@ -484,6 +510,7 @@ export class Canvas {
     this.#pathBox(path, this.#reach(style))
   }
 
+  /** {@inheritDoc render!Gfx2D.strokePath2D} */
   strokePath2D(path: Path2D, style: CanvasStrokeStyle): void {
     this.#rec(Op.strokePath2D, path, snapStroke(style))
     this.#unbounded()
@@ -502,6 +529,7 @@ export class Canvas {
 
   // --- strokes --------------------------------------------------------------
 
+  /** {@inheritDoc render!Gfx2D.strokeLine} */
   strokeLine(
     x0: number,
     y0: number,
@@ -519,6 +547,7 @@ export class Canvas {
     )
   }
 
+  /** {@inheritDoc render!Gfx2D.strokeQuadratic} */
   strokeQuadratic(
     x0: number,
     y0: number,
@@ -539,6 +568,7 @@ export class Canvas {
     )
   }
 
+  /** {@inheritDoc render!Gfx2D.strokePolyline} */
   strokePolyline(
     pts: ArrayLike<number>,
     count: number,
@@ -555,6 +585,7 @@ export class Canvas {
 
   // --- gradients ------------------------------------------------------------
 
+  /** {@inheritDoc render!Gfx2D.fillCircleRadialGradient} */
   fillCircleRadialGradient(
     cx: number,
     cy: number,
@@ -565,6 +596,7 @@ export class Canvas {
     this.#box(cx - r, cy - r, cx + r, cy + r)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillMaskedRadialGradient} */
   fillMaskedRadialGradient(
     mask: CanvasImageSource,
     dx: number,
@@ -591,6 +623,7 @@ export class Canvas {
     this.#box(dx, dy, dx + dw, dy + dh)
   }
 
+  /** {@inheritDoc render!Gfx2D.fillPolyLinearGradient} */
   fillPolyLinearGradient(
     pts: ArrayLike<number>,
     count: number,
@@ -617,6 +650,7 @@ export class Canvas {
 
   // --- shader quads, shadows, images, text ----------------------------------
 
+  /** {@inheritDoc render!Gfx2D.drawShaderQuad} */
   drawShaderQuad(
     quad: Parameters<Gfx2D['drawShaderQuad']>[0],
     x: number,
@@ -649,6 +683,7 @@ export class Canvas {
     this.#box(x0 - reach, y0 - reach, x1 + reach, y1 + reach)
   }
 
+  /** {@inheritDoc render!Gfx2D.shadowRoundRect} */
   shadowRoundRect(
     x: number,
     y: number,
@@ -671,16 +706,19 @@ export class Canvas {
     this.#shadowBox(x, y, x + w, y + h, style)
   }
 
+  /** {@inheritDoc render!Gfx2D.shadowCircle} */
   shadowCircle(cx: number, cy: number, r: number, style: GfxShadowStyle): void {
     this.#rec(Op.shadowCircle, cx, cy, r, { ...style })
     this.#shadowBox(cx - r, cy - r, cx + r, cy + r, style)
   }
 
+  /** {@inheritDoc render!Gfx2D.shadowPath2D} */
   shadowPath2D(path: Path2D, style: GfxShadowStyle): void {
     this.#rec(Op.shadowPath2D, path, { ...style })
     this.#unbounded()
   }
 
+  /** {@inheritDoc render!Gfx2D.drawImage} */
   drawImage(
     img: CanvasImageSource,
     dx: number,

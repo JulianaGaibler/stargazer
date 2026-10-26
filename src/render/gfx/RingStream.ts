@@ -1,5 +1,6 @@
 // Double-buffered CPU->GPU vertex/instance streaming for one draw program.
 
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import type { GfxDevice, VBuffer } from './GfxDevice'
 import { RING_SIZE } from './batchLayout'
 
@@ -7,7 +8,7 @@ import { RING_SIZE } from './batchLayout'
 const MAX_STREAM_BYTES = 256 * 1024 * 1024
 
 /** Frames a stream must stay under a quarter full before it halves. */
-export const STREAM_DECAY_FRAMES = 60
+const STREAM_DECAY_FRAMES = 60
 
 /**
  * CPU staging plus one GPU vertex buffer per ring slot. Dual views (float,
@@ -179,8 +180,9 @@ export class RingStream {
     if (bytes > MAX_STREAM_BYTES) {
       if (!this.#warned) {
         this.#warned = true
-        console.warn(
-          `GpuGfx: '${this.label}' stream reached ${MAX_STREAM_BYTES >> 20} MB, dropping records for the remainder of this frame`,
+        diagnostics.report(
+          'SG2012',
+          `'${this.label}' stream reached ${MAX_STREAM_BYTES >> 20} MB, dropping records for the remainder of this frame`,
         )
       }
       return false

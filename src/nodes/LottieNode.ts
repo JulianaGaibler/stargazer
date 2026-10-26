@@ -23,6 +23,7 @@ import {
   type LottieTheme,
 } from '../lottie/dotlottie/theme'
 import type { Node } from '../scene/Node'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /** What a `LottieNode` does while it is not being drawn. */
 export type LottieOffscreenMode = 'advance' | 'freeze'
@@ -444,7 +445,11 @@ async function defaultImageDecoder(
   let blob: Blob
   if (typeof source === 'string') {
     const res = await fetch(source)
-    if (!res.ok) throw new Error(`image ${source} returned ${res.status}`)
+    if (!res.ok)
+      throw new StargazerError(
+        'SG6006',
+        `image ${source} returned ${res.status}`,
+      )
     blob = await res.blob()
   } else if (source instanceof Blob) {
     blob = source

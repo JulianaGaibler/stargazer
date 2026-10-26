@@ -29,7 +29,7 @@ export interface AccessorSource {
   bufferViews?: GltfBufferView[]
 }
 
-export const COMPONENT = {
+const COMPONENT = {
   BYTE: 5120,
   UNSIGNED_BYTE: 5121,
   SHORT: 5122,

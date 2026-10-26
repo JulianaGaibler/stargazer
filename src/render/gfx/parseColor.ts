@@ -1,3 +1,4 @@
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import { evictOldest } from './evictOldest'
 
 /** A color with each channel in `0..1`. Not premultiplied. */
@@ -96,7 +97,8 @@ export function withAlpha(color: string, alpha: number): string {
 function warnFallback(css: string): RGBA {
   if (!warned.has(css)) {
     warned.add(css)
-    console.warn(
+    diagnostics.report(
+      'SG6004',
       `parseColor: unsupported color '${css}', falling back to black`,
     )
   }

@@ -388,8 +388,8 @@ beforeEach(() => {
 // Stroke, SDF, gradient, and tessellation coverage.
 // -----------------------------------------------------------------------------
 
-import * as SvgPathContours from '@src/stargazer/assets/SvgPathContours'
-import { registerPathTessellation } from '@src/stargazer/render/gfx/PathTessellationRegistry'
+import * as SvgPathContours from '../../assets/SvgPathContours'
+import { registerPathTessellation } from './PathTessellationRegistry'
 
 describe('GpuGfx Phase 2. SDF batching', () => {
   it('T1: 400 fillCircles collapse into a single SDF instanced draw', async () => {

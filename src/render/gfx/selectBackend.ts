@@ -1,6 +1,7 @@
 import type { GfxDevice } from './GfxDevice'
 import { WebGL2Device } from './webgl2/WebGL2Device'
 import { WebGPUDevice } from './webgpu/WebGPUDevice'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /**
  * Which backend to use. `'auto'` prefers WebGPU where it works and falls back
@@ -90,7 +91,9 @@ export async function selectGfxDevice(
     return { device: await WebGPUDevice.create(canvas), backend: 'webgpu' }
   }
   if (prefer === 'webgpu') {
-    throw new Error(
+    throw new StargazerError(
+      'SG1008',
+
       'selectGfxDevice: WebGPU was requested but is unavailable on this device',
     )
   }

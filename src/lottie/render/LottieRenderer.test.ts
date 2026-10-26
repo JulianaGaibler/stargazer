@@ -5,7 +5,7 @@ import { parseLottie } from '../model/parse'
 import { LottieRenderer } from './LottieRenderer'
 import { paintAll } from './paintAll.testutil'
 
-const fixtures = import.meta.glob('../../dev/fixtures/lottie/*.json', {
+const fixtures = import.meta.glob('../../../fixtures/lottie/*.json', {
   eager: true,
   query: '?raw',
   import: 'default',
@@ -13,7 +13,7 @@ const fixtures = import.meta.glob('../../dev/fixtures/lottie/*.json', {
 
 /** Bounds of everything drawn, in composition space. */
 function drawnBounds(name: string, frameFraction: number) {
-  const anim = parseLottie(fixtures[`../../dev/fixtures/lottie/${name}.json`])
+  const anim = parseLottie(fixtures[`../../../fixtures/lottie/${name}.json`])
   const r = new LottieRenderer(anim)
   r.evaluate(anim.inPoint + anim.totalFrames * frameFraction)
   const stack: number[][] = []

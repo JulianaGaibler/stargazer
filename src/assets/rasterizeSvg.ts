@@ -1,3 +1,4 @@
+import { diagnostics } from '../diagnostics/Diagnostics'
 /**
  * Rasterise SVG source to a canvas that {@link Gfx2D.drawImage} can paint.
  *
@@ -128,7 +129,9 @@ export async function rasterizeSvg(
     // A blank canvas keeps the caller safe, but reaching here in a browser
     // means the artwork is missing, so it must not pass in silence.
     markBlank(canvas)
-    console.warn('[stargazer] rasterizeSvg failed, drawing nothing', err)
+    diagnostics.report('SG6003', 'rasterizeSvg failed, drawing nothing', {
+      cause: err,
+    })
   } finally {
     URL.revokeObjectURL(url)
   }

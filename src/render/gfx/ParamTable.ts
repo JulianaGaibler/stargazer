@@ -8,7 +8,7 @@ import { clipEquals, type ResolvedClip } from './StateStack'
  * record as a `u32` attribute, and the vertex shader reads the record from the
  * table at `index * PARAM_RECORD_VEC4`.
  */
-export const PARAM_RECORD_VEC4 = 4
+const PARAM_RECORD_VEC4 = 4
 
 const RECORD_FLOATS = PARAM_RECORD_VEC4 * 4
 
@@ -122,7 +122,7 @@ export class ParamTable {
 }
 
 /** Write `clip` as a record at `at` in `out`. */
-export function writeClipRecord(
+function writeClipRecord(
   out: Float32Array,
   at: number,
   clip: ResolvedClip,

@@ -11,6 +11,7 @@ import { lerp, lerpAngle } from '../math/scalar'
 import { Body, type BodyDef } from './Body'
 import type { PhysicsWorld } from './PhysicsWorld'
 import { PhysicsWorldBehavior } from './PhysicsWorldBehavior'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /** Options for {@link RigidBodyBehavior}. */
 export interface RigidBodyBehaviorOptions {
@@ -101,7 +102,9 @@ export class RigidBodyBehavior extends Behavior {
     // given body and skip world resolution + registration.
     if (!this.#manageBody) {
       if (!this.#explicitBody) {
-        throw new Error(
+        throw new StargazerError(
+          'SG5007',
+
           'RigidBodyBehavior: manageBody:false requires an explicit `body`.',
         )
       }
@@ -114,7 +117,9 @@ export class RigidBodyBehavior extends Behavior {
       this.node.scene?.engine?.physics ??
       null
     if (!world) {
-      throw new Error(
+      throw new StargazerError(
+        'SG5007',
+
         'RigidBodyBehavior: no physics world. Add a PhysicsWorldBehavior to an ancestor, enable stage physics, or pass `world`.',
       )
     }

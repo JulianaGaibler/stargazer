@@ -17,7 +17,7 @@ You need a stage with a scene first. See [Setup](/guides/setup) and [Scene graph
 The smallest drawing is a built-in node added to the scene.
 
 ```ts
-import { ShapeNode } from '@src/stargazer'
+import { ShapeNode } from 'stargazer'
 
 const card = new ShapeNode({
   geometry: { kind: 'rect', width: 240, height: 140, radii: 16 },
@@ -37,8 +37,8 @@ This draws a rounded rectangle centered on `(200, 120)`, filled dark blue with a
 Override `paint` on a `Node2D` subclass and call drawing methods on the `Canvas` it receives. Declare the values `paint` reads with {@link definePaintProps}, so that writing one repaints the node.
 
 ```ts
-import { Node2D, definePaintProps } from '@src/stargazer'
-import type { Canvas } from '@src/stargazer'
+import { Node2D, definePaintProps } from 'stargazer'
+import type { Canvas } from 'stargazer'
 
 class Gauge extends Node2D {
   declare value: number
@@ -126,7 +126,7 @@ The image shows only inside the rounded rectangle. A rounded rectangle clip take
 A rounded rectangle can have smooth corners instead of circular ones, as with the corner smoothing setting in Figma. A smooth corner eases from the straight side into its curve, so the shape reads as one continuous outline. `smoothing` runs from 0, a circular corner, to 1. {@link IOS_CORNER_SMOOTHING}, 0.6, matches the iOS app icon shape.
 
 ```ts
-import { IOS_CORNER_SMOOTHING, ShapeNode } from '@src/stargazer'
+import { IOS_CORNER_SMOOTHING, ShapeNode } from 'stargazer'
 
 const icon = new ShapeNode({
   geometry: {
@@ -145,7 +145,7 @@ The icon draws in the same single instance as any rounded rectangle. A smooth co
 To mask other content, such as a photo, to a smooth-cornered shape, use a squircle {@link ShapeNode} as the content's [`matte`](/module/scene/node2d#matte), which gives an anti-aliased edge. For a cheaper hard-edged clip, set the parent's [`clip`](/module/scene/node2d#clip) to an outline from {@link squirclePath}.
 
 ```ts
-import { GfxPath, IOS_CORNER_SMOOTHING, squirclePath } from '@src/stargazer'
+import { GfxPath, IOS_CORNER_SMOOTHING, squirclePath } from 'stargazer'
 
 card.clip = squirclePath(
   new GfxPath(),
@@ -165,7 +165,7 @@ Everything under `card` is clipped to the 200 by 120 shape. {@link squircleSvgPa
 An {@link ImageNode} draws a loaded image, such as an `<img>` element, an `ImageBitmap`, or a canvas, as a rectangle.
 
 ```ts
-import { ImageNode } from '@src/stargazer'
+import { ImageNode } from 'stargazer'
 
 const logo = new Image()
 logo.src = '/logo.png'
@@ -248,8 +248,8 @@ Inside `paint` these calls change the recorded geometry, not the node's `transfo
 A {@link GfxPath} is a path you build in code and can edit at any time. It needs no registration, and `clear()` keeps its storage, so refilling it allocates nothing. Every edit increases its `version`. `fillPath` and `strokePath` record the path as a dependency, so editing it repaints the node that drew it.
 
 ```ts
-import { GfxPath, Node2D } from '@src/stargazer'
-import type { Canvas } from '@src/stargazer'
+import { GfxPath, Node2D } from 'stargazer'
+import type { Canvas } from 'stargazer'
 
 const blob = new GfxPath()
 blob.moveTo(0, 0)
@@ -303,7 +303,7 @@ A radial gradient works on `fillRect`, `fillPath`, `fillConvexPoly`, `fillPath2D
 {@link cssLinearGradient} builds the linear gradient that CSS `linear-gradient(<angle>, ...)` paints over a box, so a design given in CSS carries over directly.
 
 ```ts
-import { cssLinearGradient } from '@src/stargazer'
+import { cssLinearGradient } from 'stargazer'
 
 // linear-gradient(75deg, #ffeb49 -30%, #ff6600 120%) on a 330 by 330 box
 const fill = cssLinearGradient(330, 330, 75, [
@@ -406,7 +406,7 @@ A subtree that must fade as one flat image sets [`compositeGroup`](/module/scene
 [`matte`](/module/scene/node2d#matte) takes another node whose drawing scales this one's, as a track matte. The engine draws the node and its subtree into one surface, and the matte node and its subtree into another over the same area. The node then composites through the matte by [`matteMode`](/module/scene/node2d#mattemode): `'alpha'`, `'inverted-alpha'`, `'luma'` or `'inverted-luma'`.
 
 ```ts
-import { ShapeNode } from '@src/stargazer'
+import { ShapeNode } from 'stargazer'
 
 const reveal = new ShapeNode({
   geometry: { kind: 'circle', radius: 80 },
@@ -428,7 +428,7 @@ These groups use the renderer-level {@link Gfx2D} calls `beginOffscreen` and `en
 A {@link Layer} is a node that gives its subtree its own placement, its own post-processing effects, or a kept render. It draws through the same kind of surface a group uses.
 
 ```ts
-import { Layer } from '@src/stargazer'
+import { Layer } from 'stargazer'
 
 const hud = new Layer({
   space: { frame: { x: 0, y: 0, width: 1920, height: 1080 } },
@@ -437,7 +437,7 @@ scene.root.add(hud)
 hud.add(scoreLabel)
 ```
 
-The layer fits a 1920 by 1080 frame into the canvas and ignores the camera, so `scoreLabel` stays put while the camera pans. [`space`](/module/scene/layer#space) is `'world'` (the default), `'screen'`, or `{ frame }`.
+The layer fits a 1920 by 1080 frame into the canvas and ignores the camera, so `scoreLabel` stays put while the camera pans. [`space`](/module/scene/layer#space) is `'world'` (the default), `'screen'`, or `{ frame }`. A frame can be a function of the canvas size, see [Scene graph](/guides/scene#layers).
 
 [`effects`](/module/scene/layer#effects) runs post-processing over the layer's subtree only. See [Post-processing](/guides/post-processing). A layer draws without its effects while their pipelines compile, and when it holds an inset view or sits inside one.
 
@@ -448,8 +448,8 @@ The layer fits a 1920 by 1080 frame into the canvas and ignores the camera, so `
 [`canvas.drawShaderQuad(quad, x, y, w, h)`](/module/scene/canvas#drawshaderquad) draws a rectangle with your own shader. Use it when one fragment shader can stand in for many shapes, such as a field of dots or a procedural fill. Drawing each shape separately would cost a draw record each.
 
 ```ts
-import { DataTexture, Node2D, ShaderQuad, quadShader } from '@src/stargazer'
-import type { Canvas } from '@src/stargazer'
+import { DataTexture, Node2D, ShaderQuad, quadShader } from 'stargazer'
+import type { Canvas } from 'stargazer'
 
 const shader = quadShader(vertGlsl, fragGlsl, wgsl, reflection)
 const cells = new DataTexture(cols, rows)
@@ -517,7 +517,7 @@ A node's [`bounds`](/module/scene/node2d#bounds) is the local box of what its pi
 A picture whose extent is unknown has no bounds, and it draws every frame wherever the camera is. `fillPath2D`, `strokePath2D` and `shadowPath2D` make a picture unbounded, because a `Path2D` has no bounds of its own. This is a common reason a scene stays slow after zooming in. Set [`boundsOverride`](/module/scene/node2d#boundsoverride) to the local box to fix it.
 
 ```ts
-import { Node2D } from '@src/stargazer'
+import { Node2D } from 'stargazer'
 
 class Panel extends Node2D {
   constructor() {

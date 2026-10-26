@@ -20,6 +20,7 @@
  * sampler entries at `+16` for every texture and shadow entry.
  */
 
+import { diagnostics } from '../../../diagnostics/Diagnostics'
 import type {
   BindGroup,
   BindGroupEntry,
@@ -92,6 +93,7 @@ import {
   resolveUploadFlipY,
   packUploadRGBA,
 } from '../imageSource'
+import { StargazerError } from '../../../diagnostics/StargazerError'
 
 // --- concrete backing structs (kept private, exposed as branded handles) ----
 
@@ -295,11 +297,17 @@ export class WebGPUDevice implements GfxDevice {
    */
   static async create(canvas: HTMLCanvasElement): Promise<WebGPUDevice> {
     if (!navigator.gpu) {
-      throw new Error('WebGPUDevice: navigator.gpu is unavailable (no WebGPU)')
+      throw new StargazerError(
+        'SG1008',
+        'WebGPUDevice: navigator.gpu is unavailable (no WebGPU)',
+      )
     }
     const adapter = await navigator.gpu.requestAdapter()
     if (!adapter) {
-      throw new Error('WebGPUDevice: requestAdapter returned null')
+      throw new StargazerError(
+        'SG1008',
+        'WebGPUDevice: requestAdapter returned null',
+      )
     }
     // Timestamps time the GPU work of each frame, for the benchmark and the
     // quality panel. Some browsers keep the feature behind a setting.
@@ -308,11 +316,17 @@ export class WebGPUDevice implements GfxDevice {
       timestamps ? { requiredFeatures: ['timestamp-query'] } : undefined,
     )
     if (!device) {
-      throw new Error('WebGPUDevice: requestDevice returned null')
+      throw new StargazerError(
+        'SG1008',
+        'WebGPUDevice: requestDevice returned null',
+      )
     }
     const context = canvas.getContext('webgpu')
     if (!context) {
-      throw new Error('WebGPUDevice: failed to acquire a webgpu context')
+      throw new StargazerError(
+        'SG1008',
+        'WebGPUDevice: failed to acquire a webgpu context',
+      )
     }
     const format = navigator.gpu.getPreferredCanvasFormat()
     context.configure({
@@ -352,8 +366,9 @@ export class WebGPUDevice implements GfxDevice {
       // A WebGPU loss is terminal and there is no fallback, so the only trace
       // it leaves is whatever is said here. Silence made a lost device
       // indistinguishable from a rendering bug.
-      console.error(
-        `[stargazer] WebGPU device lost (${info.reason}): ${info.message}`,
+      diagnostics.report(
+        'SG1002',
+        `WebGPU device lost (${info.reason}): ${info.message}`,
       )
       for (const cb of this.#lostCbs) cb()
     })
@@ -363,7 +378,9 @@ export class WebGPUDevice implements GfxDevice {
 
   createShaderModule(desc: ShaderModuleDesc): ShaderModule {
     if (!desc.wgsl) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGPUDevice.createShaderModule: no WGSL source in the shader module',
       )
     }
@@ -371,6 +388,7 @@ export class WebGPUDevice implements GfxDevice {
       code: desc.wgsl.code,
       label: desc.label,
     })
+    reportWgslErrors(module, desc.label ?? 'unnamed', desc.wgsl.code)
     return {
       __gfxShader: undefined as never,
       module,
@@ -456,7 +474,9 @@ export class WebGPUDevice implements GfxDevice {
     const device = this.#device
     const shader = desc.shader as WebGPUShader
     if (!shader.computeEntry) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGPUDevice.createComputePipeline: shader has no compute entry point',
       )
     }
@@ -588,7 +608,9 @@ export class WebGPUDevice implements GfxDevice {
     for (const e of entries) {
       const le = l.entries.find((x) => x.binding === e.binding)
       if (!le) {
-        throw new Error(
+        throw new StargazerError(
+          'SG2024',
+
           `WebGPUDevice.createBindGroup: binding ${e.binding} not in layout`,
         )
       }
@@ -848,7 +870,9 @@ export class WebGPUDevice implements GfxDevice {
 
   createDataTable(vec4Count: number): DataTable {
     if (vec4Count > this.limits.maxDataTableVec4) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `WebGPUDevice.createDataTable: ${vec4Count} elements exceed the limit ${this.limits.maxDataTableVec4}`,
       )
     }
@@ -869,7 +893,10 @@ export class WebGPUDevice implements GfxDevice {
     data: Float32Array,
   ): void {
     if (firstVec4 + (data.length >> 2) > table.capacity) {
-      throw new Error('WebGPUDevice.updateDataTable: range past the capacity')
+      throw new StargazerError(
+        'SG2024',
+        'WebGPUDevice.updateDataTable: range past the capacity',
+      )
     }
     this.#device.queue.writeBuffer(
       (table as WebGPUDataTable).gpu,
@@ -1076,9 +1103,10 @@ export class WebGPUDevice implements GfxDevice {
       )
     } catch (err) {
       this.#copyExternalBroken = true
-      console.warn(
-        '[stargazer] copyExternalImageToTexture failed; using a writeTexture fallback for the rest of the session:',
-        err,
+      diagnostics.report(
+        'SG2016',
+        'copyExternalImageToTexture failed; using a writeTexture fallback for the rest of the session:',
+        { cause: err },
       )
       this.#uploadViaBytes(gpu, x, y, source, opts)
     }
@@ -1143,7 +1171,9 @@ export class WebGPUDevice implements GfxDevice {
     const colorSpace: ColorFormat = opts.colorSpace ?? 'linear'
     const pixelFormat: TargetPixelFormat = opts.pixelFormat ?? 'rgba8'
     if (pixelFormat !== 'rgba8' && samples > 1) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `WebGPUDevice.createRenderTarget: pixelFormat '${pixelFormat}' is single-sample only (no renderable multisample R8/RG8 target)`,
       )
     }
@@ -1308,7 +1338,9 @@ export class WebGPUDevice implements GfxDevice {
   colorTexture(rt: RenderTarget): Texture {
     const r = rt as WebGPURenderTarget
     if (r.samples > 1 || !r.color || r.isCanvas) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGPUDevice.colorTexture: target is multisample or the canvas (not sampleable); resolve it first',
       )
     }
@@ -1332,7 +1364,9 @@ export class WebGPUDevice implements GfxDevice {
   depthTexture(rt: RenderTarget): Texture {
     const r = rt as WebGPURenderTarget
     if (!r.depthTex || !r.depthSampled) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGPUDevice.depthTexture: target has no sampleable depth attachment (allocate with depthSampled: true)',
       )
     }
@@ -1514,7 +1548,9 @@ export class WebGPUDevice implements GfxDevice {
       aspects === 'stencil' ? target.stencilTex : target.depthTex
     )?.createView()
     if (!view) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `WebGPUDevice.beginRenderPass: target reports '${aspects}' but has no matching attachment`,
       )
     }
@@ -1542,7 +1578,9 @@ export class WebGPUDevice implements GfxDevice {
     if ('renderTarget' in target) {
       const rt = target.renderTarget as WebGPURenderTarget
       if (!rt.depthTex) {
-        throw new Error(
+        throw new StargazerError(
+          'SG2024',
+
           'WebGPUDevice.beginRenderPass: depth target has no depth attachment',
         )
       }
@@ -1583,7 +1621,10 @@ export class WebGPUDevice implements GfxDevice {
   dispatchCompute(dispatch: ComputeDispatch): void {
     const pass = this.#computePass
     if (!pass) {
-      throw new Error('WebGPUDevice.dispatchCompute: no open compute pass')
+      throw new StargazerError(
+        'SG2024',
+        'WebGPUDevice.dispatchCompute: no open compute pass',
+      )
     }
     const p = dispatch.pipeline as WebGPUComputePipeline
     pass.setPipeline(p.gpu)
@@ -1609,17 +1650,25 @@ export class WebGPUDevice implements GfxDevice {
   }
 
   beginReadback(_target: RenderTarget): Readback {
-    throw new Error(
+    throw new StargazerError(
+      'SG2024',
+
       'WebGPUDevice: pixel readback is unsupported (check device.supportsReadback)',
     )
   }
 
   pollReadback(_readback: Readback): Uint8Array | null {
-    throw new Error('WebGPUDevice: pixel readback is unsupported')
+    throw new StargazerError(
+      'SG2024',
+      'WebGPUDevice: pixel readback is unsupported',
+    )
   }
 
   cancelReadback(_readback: Readback): void {
-    throw new Error('WebGPUDevice: pixel readback is unsupported')
+    throw new StargazerError(
+      'SG2024',
+      'WebGPUDevice: pixel readback is unsupported',
+    )
   }
 
   /**
@@ -1753,7 +1802,10 @@ export class WebGPUDevice implements GfxDevice {
   draw(call: DrawCall): void {
     const pass = this.#pass
     if (!pass) {
-      throw new Error('WebGPUDevice.draw: no open render pass')
+      throw new StargazerError(
+        'SG2024',
+        'WebGPUDevice.draw: no open render pass',
+      )
     }
     const p = call.pipeline as WebGPUPipeline
     if (this.#lastPipeline !== p.gpu) {
@@ -1845,7 +1897,9 @@ export class WebGPUDevice implements GfxDevice {
     void dstHeight
     const r = source as WebGPURenderTarget
     if (!r.color) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'WebGPUDevice.present: source is multisample (not sampleable); resolve it first',
       )
     }
@@ -1913,4 +1967,30 @@ export class WebGPUDevice implements GfxDevice {
     this.#device.destroy()
     this.#lost = true
   }
+}
+
+/**
+ * Reports the compiler's errors for a WGSL module with the line they point at.
+ * The pipeline that uses a bad module fails later with a generic message, so
+ * this is where the cause is visible.
+ */
+function reportWgslErrors(
+  module: GPUShaderModule,
+  label: string,
+  code: string,
+): void {
+  if (typeof module.getCompilationInfo !== 'function') return
+  void module.getCompilationInfo().then((info) => {
+    const lines = code.split('\n')
+    for (const m of info.messages) {
+      if (m.type !== 'error') continue
+      const excerpt = lines[m.lineNum - 1]?.trim()
+      diagnostics.report(
+        'SG3001',
+        `WGSL shader '${label}' has an error at line ${m.lineNum}, column ${m.linePos}: ${m.message}` +
+          (excerpt ? `\n    ${m.lineNum} | ${excerpt}` : ''),
+        { key: `wgsl|${label}|${m.lineNum}|${m.message}` },
+      )
+    }
+  })
 }

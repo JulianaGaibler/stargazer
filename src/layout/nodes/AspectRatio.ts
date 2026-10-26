@@ -7,6 +7,7 @@
 import { BoxConstraints, type Size } from '../constraints'
 import { LayoutNode, type MeasurableNode } from '../LayoutNode'
 import { alignOffset, type Align1D } from '../align'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** Options for {@link AspectRatio}. */
 export interface AspectRatioOptions {
@@ -53,7 +54,9 @@ export class AspectRatio extends LayoutNode {
 
   measure(c: BoxConstraints): Size {
     if (!c.hasBoundedW && !c.hasBoundedH) {
-      throw new Error(
+      throw new StargazerError(
+        'SG5007',
+
         `[stargazer] layout: AspectRatio('${this.id}') has no bounded axis to ` +
           `fit its ratio into. Give it a bounded width or height.`,
       )

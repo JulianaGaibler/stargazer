@@ -236,7 +236,7 @@ export interface ShaderModuleDesc {
  * and how the bytes are read (`unorm8x4` normalizes 4 bytes to `[0,1]` floats,
  * matching packed colors). `location` is the shader's attribute slot.
  */
-export interface VertexAttribute {
+interface VertexAttribute {
   location: number
   format: VertexFormat
   /** Byte offset of this attribute within the buffer's stride. */
@@ -317,7 +317,7 @@ export interface BindGroupLayoutEntry {
  * per-draw offset selects the slice, and `size` fixes its extent). `offset`
  * binds a static sub-range when the entry is not dynamic.
  */
-export type BindingResource =
+type BindingResource =
   | { uniformBuffer: UBuffer; offset?: number; size?: number }
   | { texture: Texture }
   | { dataTable: DataTable }
@@ -670,15 +670,15 @@ export type IndexType = 'u16' | 'u32'
 
 // --- render passes & draw ---------------------------------------------------
 
-export type LoadOp = 'clear' | 'load'
-export type StoreOp = 'store' | 'discard'
+type LoadOp = 'clear' | 'load'
+type StoreOp = 'store' | 'discard'
 
 /**
  * The color attachment of a render pass. `resolveTarget` (a single-sample
  * target) receives the MSAA resolve of `target` when `target.samples > 1`. This
  * matches WebGPU, where resolve is part of the pass that produced the samples.
  */
-export interface ColorAttachment {
+interface ColorAttachment {
   target: RenderTarget
   loadOp: LoadOp
   storeOp?: StoreOp
@@ -700,7 +700,7 @@ export type DepthTarget =
   | { shadowArray: ShadowArray; layer: number }
   | { shadowCube: ShadowCube; face: number }
 
-export interface DepthAttachment {
+interface DepthAttachment {
   target: DepthTarget
   loadOp: LoadOp
   storeOp?: StoreOp
@@ -718,7 +718,7 @@ export interface DepthAttachment {
  * field on it, because the 2D renderer wants stencil with no depth at all. On a
  * packed depth-stencil target both are given, pointing at the same target.
  */
-export interface StencilAttachment {
+interface StencilAttachment {
   target: RenderTarget
   loadOp: LoadOp
   storeOp?: StoreOp
@@ -738,7 +738,7 @@ export interface BlitOpts {
 }
 
 /** A vertex/instance buffer bound to a draw, with a byte offset into it. */
-export interface VertexBinding {
+interface VertexBinding {
   buffer: VBuffer
   /**
    * Byte offset where this buffer's data starts for the draw. Carries a

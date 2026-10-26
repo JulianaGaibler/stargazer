@@ -21,6 +21,7 @@ import {
 import type { CameraView3D } from './CameraView3D'
 import type { CameraHost } from './CameraHost'
 import { rejectDetached } from '../anim/abortSignal'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /**
  * A 3D camera as a scene-tree node. Its view is the inverse of the node's world
@@ -290,11 +291,19 @@ export class CameraNode3D extends Node3D implements CameraView3D {
     if (host && host.isCurrent3D(this) && enableNext) host.reevaluateCurrent3D()
   }
 
-  /** @internal */
+  /**
+   * Whether the camera asked to become current before the stage picked one.
+   *
+   * @internal
+   */
   get wantsCurrent(): boolean {
     return this.#wantsCurrent
   }
-  /** @internal */
+  /**
+   * Clear the request set by {@link CameraNode3D.wantsCurrent}.
+   *
+   * @internal
+   */
   consumeWantsCurrent(): void {
     this.#wantsCurrent = false
   }
@@ -308,7 +317,9 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   protected override _onAttach(): void {
     const host = this.#host()
     if (!host) {
-      throw new Error(
+      throw new StargazerError(
+        'SG5007',
+
         `CameraNode3D '${this.id}' was attached to a tree with no camera host ` +
           `(SceneTree.stage is null). Camera nodes must live under a Stage's tree.`,
       )
@@ -325,6 +336,9 @@ export class CameraNode3D extends Node3D implements CameraView3D {
   // --- leaf-only -------------------------------------------------------------
 
   override add(..._children: Node[]): this {
-    throw new Error('CameraNode3D is a leaf node and cannot have children')
+    throw new StargazerError(
+      'SG5007',
+      'CameraNode3D is a leaf node and cannot have children',
+    )
   }
 }

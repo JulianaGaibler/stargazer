@@ -116,6 +116,43 @@ describe('Layer', () => {
     expect(rect.height).toBe(1620)
   })
 
+  it('reports its frame, and none outside a frame space', () => {
+    const frame = { x: 0, y: 0, width: 1920, height: 1080 }
+    const layer = new Layer({ space: { frame } })
+    expect(layer.frame).toBe(frame)
+    layer.space = 'screen'
+    expect(layer.frame).toBeNull()
+    expect(new Layer().frame).toBeNull()
+  })
+
+  it('picks its frame from the canvas size each time it syncs', () => {
+    const wide = { x: 0, y: 0, width: 1920, height: 1080 }
+    const tall = { x: 0, y: 0, width: 1080, height: 1920 }
+    const layer = new Layer({
+      space: { frame: (w, h) => (w >= h ? wide : tall) },
+    })
+    expect(layer.frame).toBeNull()
+
+    layer._syncView(960, 540)
+    expect(layer.frame).toBe(wide)
+    expect(layer.view!.screenPxPerWorldUnit()).toBe(0.5)
+
+    layer._syncView(540, 960)
+    expect(layer.frame).toBe(tall)
+    expect(layer.view!.screenPxPerWorldUnit()).toBe(0.5)
+    expect(layer.view!.worldToScreen(1080, 1920)).toEqual({ x: 540, y: 960 })
+  })
+
+  it('forgets a picked frame when its space changes', () => {
+    const layer = new Layer({
+      space: { frame: () => ({ x: 0, y: 0, width: 100, height: 100 }) },
+    })
+    layer._syncView(100, 100)
+    expect(layer.frame).not.toBeNull()
+    layer.space = { frame: () => ({ x: 0, y: 0, width: 50, height: 50 }) }
+    expect(layer.frame).toBeNull()
+  })
+
   it('keeps alpha and visibility cascading from above', () => {
     const scene = makeScene()
     const layer = new Layer({ space: 'screen' })
@@ -150,6 +187,11 @@ describe('Layer effects', () => {
     expect(layer.clearColor).toBeNull()
     expect(layer._hasEffects()).toBe(false)
     expect(layer.effectsApplied).toBe(true)
+  })
+
+  it('hands the renderer whether to hold the layer until its effects are ready', () => {
+    expect(new Layer()._fx.hold).toBe(false)
+    expect(new Layer({ holdUntilEffects: true })._fx.hold).toBe(true)
   })
 
   it('has effects while one enabled effect has a pass', () => {

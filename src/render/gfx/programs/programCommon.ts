@@ -2,6 +2,7 @@
 // building shader reflection from name->binding maps, a dynamic-offset uniform
 // ring for per-run/per-object data, and the instanced draw-run replay.
 
+import { diagnostics } from '../../../diagnostics/Diagnostics'
 import type {
   BindGroup,
   BindGroupLayout,
@@ -15,41 +16,12 @@ import type {
   Pipeline,
   PrimitiveTopology,
   ShaderModule,
-  ShaderReflection,
   UBuffer,
   VertexBufferLayout,
 } from '../GfxDevice'
 import type { RingStream } from '../RingStream'
 import type { DrawRun, GpuBatchContext } from '../GpuBatchContext'
 import { CLIP_DEPTH_SHIFT, STENCIL_ROWS } from '../stencilRecipe'
-
-/**
- * Build {@link ShaderReflection} from name->number maps, mirroring the old
- * `ProgramOpts` shape: attribute name -> location, uniform-block name ->
- * binding, sampler name -> binding. WebGL2 uses these to wire the linked
- * program, and WebGPU ignores them.
- */
-export function reflection(spec: {
-  attribs: Record<string, number>
-  uniformBlocks?: Record<string, number>
-  samplers?: Record<string, number>
-}): ShaderReflection {
-  return {
-    attributes: Object.entries(spec.attribs).map(([glslName, location]) => ({
-      location,
-      glslName,
-    })),
-    uniformBlocks: Object.entries(spec.uniformBlocks ?? {}).map(
-      ([glslName, binding]) => ({ binding, glslName }),
-    ),
-    samplers: Object.entries(spec.samplers ?? {}).map(
-      ([glslName, binding]) => ({
-        binding,
-        glslName,
-      }),
-    ),
-  }
-}
 
 /**
  * A dynamic-offset uniform ring: many small per-draw uniform slices packed into
@@ -171,8 +143,9 @@ export class UboRing {
       if (!this.#growable) {
         if (!this.#warned) {
           this.#warned = true
-          console.warn(
-            `GpuGfx: '${this.#label}' uniform ring overflow, dropping per-draw uniforms for the remainder of this frame`,
+          diagnostics.report(
+            'SG2013',
+            `'${this.#label}' uniform ring overflow, dropping per-draw uniforms for the remainder of this frame`,
           )
         }
         return -1
@@ -245,10 +218,10 @@ export class UboRing {
 }
 
 /** Frames a ring must stay under a quarter full before it halves. */
-export const UBO_RING_DECAY_FRAMES = 60
+const UBO_RING_DECAY_FRAMES = 60
 
 /** The blend variants a 2D program needs (source-over fills, lighter additive). */
-export const BLEND_VARIANTS: GfxBlendMode[] = ['source-over', 'lighter']
+const BLEND_VARIANTS: GfxBlendMode[] = ['source-over', 'lighter']
 
 /** What {@link warmupBlendPipelines} builds a program's pipelines from. */
 export type BlendPipelineOptions = Parameters<typeof warmupBlendPipelines>[2]

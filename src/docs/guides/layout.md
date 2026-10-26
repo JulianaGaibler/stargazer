@@ -17,7 +17,7 @@ Each parent tells its children the minimum and maximum size they may take. Each 
 This example fills the screen with a column: a title bar at the top, a footer at the bottom, and a body that takes the height left over.
 
 ```ts
-import { LayoutRoot, Column, Expanded } from '@src/stargazer'
+import { LayoutRoot, Column, Expanded } from 'stargazer'
 
 const root = new LayoutRoot()
 root.setContent(
@@ -96,7 +96,7 @@ new Row({
 {@link SizedBox} is a box of a fixed size. Without a child, it reserves empty space. {@link Padding} adds space around a child.
 
 ```ts
-import { Box, SizedBox, Padding, edgeInsets } from '@src/stargazer'
+import { Box, SizedBox, Padding, edgeInsets } from 'stargazer'
 
 new Box({ width: 480, padding: edgeInsets(24), child: content })
 new SizedBox({ width: 96, height: 96, child: icon })
@@ -217,7 +217,7 @@ The first way is to add a node that does not implement {@link Measurable} to a `
 The second way is {@link LayoutBuilder}. It takes a place in the layout like any other child, and reports the rect it gets to an `onLayout` callback. The rect is in world coordinates, so content anywhere in the scene can use it.
 
 ```ts
-import { LayoutBuilder, Center, AspectRatio } from '@src/stargazer'
+import { LayoutBuilder, Center, AspectRatio } from 'stargazer'
 
 const field = new LayoutBuilder({ onLayout: (rect) => board.fit(rect) })
 root.setContent(
@@ -234,7 +234,7 @@ A `LayoutBuilder` fills a box only when its parent gives it an exact size, as a 
 {@link alignWithin} places a box inside a rect without any layout tree. It returns the top-left point. Use it for a node, a rect of your own, or an HTML overlay.
 
 ```ts
-import { alignWithin } from '@src/stargazer'
+import { alignWithin } from 'stargazer'
 
 const { x, y } = alignWithin(rightMargin, 120, 48, 'center', 'center')
 badge.transform.x = x
@@ -254,7 +254,7 @@ A node takes part in layout when it implements {@link Measurable}. That means th
 Extend {@link LayoutNode} for a container. It creates `measuredSize` and adds `markLayoutDirty()`, which walks up to the root and schedules a pass.
 
 ```ts
-import { LayoutNode, BoxConstraints, type Size } from '@src/stargazer'
+import { LayoutNode, BoxConstraints, type Size } from 'stargazer'
 
 class FixedBox extends LayoutNode {
   constructor(

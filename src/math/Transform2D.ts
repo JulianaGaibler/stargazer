@@ -160,10 +160,12 @@ export class Transform2D {
     }
   }
 
+  /** Whether a field changed since the matrix was last rebuilt. */
   get dirty(): boolean {
     return this.#_dirty
   }
 
+  /** Flag the matrix for a rebuild after changing a field in place. */
   markDirty(): void {
     this.#_dirty = true
   }

@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { parseLottie } from './parse'
 
-const fixtures = import.meta.glob('../../dev/fixtures/lottie/*.json', {
+const fixtures = import.meta.glob('../../../fixtures/lottie/*.json', {
   eager: true,
   query: '?raw',
   import: 'default',
 }) as Record<string, string>
 
 const byName = (name: string): string =>
-  fixtures[`../../dev/fixtures/lottie/${name}.json`]
+  fixtures[`../../../fixtures/lottie/${name}.json`]
 
 describe('parseLottie', () => {
   it('parses every fixture and reports timing consistently', () => {

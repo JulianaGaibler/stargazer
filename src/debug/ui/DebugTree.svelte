@@ -13,9 +13,13 @@
   import type { Snippet } from 'svelte'
 
   interface Props {
+    /** The rows in display order. `depth` sets the indent. */
     nodes: TreeNode[]
+    /** Called with the id of a row that has children when it is activated. */
     onToggle: (id: string) => void
+    /** The indent per depth level in CSS px. */
     indentSize?: number
+    /** Draws a row. The default shows `label`. */
     renderContent?: Snippet<[TreeNode]>
   }
 

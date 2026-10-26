@@ -67,7 +67,7 @@ describe('toHalf', () => {
 describe('squircleField.bin', () => {
   // Read from disk: vitest runs from the web package root.
   const shipped = new Uint16Array(
-    readFileSync('src/stargazer/render/gfx/squircleField.bin').buffer.slice(0),
+    readFileSync('src/render/gfx/squircleField.bin').buffer.slice(0),
   )
 
   it('holds every tile', () => {

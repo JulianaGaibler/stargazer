@@ -49,6 +49,7 @@ export interface LottiePlayerEvents {
  * state machine uses it to seek, change segments or start and stop playback.
  */
 export interface PlaybackController {
+  /** Advance `player` by `dtMs` milliseconds. */
   update(player: LottiePlayer, dtMs: number): void
 }
 
@@ -190,14 +191,17 @@ export class LottiePlayer {
     return this.#durationMs
   }
 
+  /** Whether the animation is advancing. */
   get isPlaying(): boolean {
     return this.#state === 'playing'
   }
 
+  /** Whether the animation is held mid-way. */
   get isPaused(): boolean {
     return this.#state === 'paused'
   }
 
+  /** Whether the animation is at rest at its start or end. */
   get isStopped(): boolean {
     return this.#state === 'stopped'
   }
@@ -223,18 +227,22 @@ export class LottiePlayer {
     }
   }
 
+  /** The play direction. */
   get mode(): PlaybackMode {
     return this.#mode
   }
 
+  /** The playback rate, where 1 is normal speed. */
   get speed(): number {
     return this.#speed
   }
 
+  /** Whether the animation restarts at the end. */
   get looping(): boolean {
     return this.#looping
   }
 
+  /** How many playthroughs before it completes. 0 loops forever. */
   get loopCount(): number {
     return this.#loopCount
   }
@@ -244,6 +252,7 @@ export class LottiePlayer {
     return this.#completedLoops
   }
 
+  /** Whether frames between keyframes are blended. */
   get useFrameInterpolation(): boolean {
     return this.#useInterpolation
   }
@@ -439,6 +448,7 @@ export class LottiePlayer {
     this.#loopCount = next
   }
 
+  /** Turn blending between frames on or off. */
   setUseFrameInterpolation(enabled: boolean): void {
     this.#useInterpolation = enabled
   }

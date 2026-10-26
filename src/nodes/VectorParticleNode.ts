@@ -146,6 +146,7 @@ export abstract class VectorParticleNode extends Node2D {
     this.abortSignal.addEventListener('abort', () => this.#forceEmpty())
   }
 
+  /** How many particles are alive. */
   get aliveCount(): number {
     return this.#slots.aliveCount
   }

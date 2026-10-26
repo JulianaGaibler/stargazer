@@ -16,8 +16,8 @@ This Svelte component mounts the engine, builds a scene with a camera and one ci
 
 ```svelte
 <script lang="ts">
-  import { mountEngine, CameraNode2D, ShapeNode } from '@src/stargazer'
-  import type { EngineHost } from '@src/stargazer'
+  import { mountEngine, CameraNode2D, ShapeNode } from 'stargazer'
+  import type { EngineHost } from 'stargazer'
 
   async function onReady(host: EngineHost): Promise<void> {
     await host.loadScene((scene) => {
@@ -60,7 +60,7 @@ The first camera added to a stage becomes current. [`makeCurrent`](/module/camer
 Outside Svelte, pass the canvas to {@link createEngineHost} and call `destroy` yourself.
 
 ```ts
-import { createEngineHost, CameraNode2D } from '@src/stargazer'
+import { createEngineHost, CameraNode2D } from 'stargazer'
 
 const canvas = document.querySelector('canvas')!
 const host = createEngineHost({ canvas, clearColor: '#0d1a2c' })
@@ -86,7 +86,7 @@ The engine sizes the canvas backing store from the canvas's CSS size and the dev
 `loadScene` destroys every child of the scene root, then calls your builder with the empty scene and the engine. The builder can be async, so it can wait for assets before it adds nodes.
 
 ```ts
-import { CameraNode2D, Path2DNode, parseSvgPaths } from '@src/stargazer'
+import { CameraNode2D, Path2DNode, parseSvgPaths } from 'stargazer'
 
 await host.loadScene(async (scene, engine) => {
   const cam = new CameraNode2D()
@@ -134,7 +134,7 @@ A canvas keeps the context type it gets first, so the choice is made once, befor
 Outside Svelte, call {@link selectGfxDevice} first and pass the device to the host:
 
 ```ts
-import { selectGfxDevice, createEngineHost } from '@src/stargazer'
+import { selectGfxDevice, createEngineHost } from 'stargazer'
 
 const { device, backend } = await selectGfxDevice(canvas, 'auto')
 console.info('rendering backend:', backend)
@@ -272,4 +272,6 @@ An error thrown while a stage renders stops that stage. It logs the error once a
 - [Camera](/guides/camera): viewport framing and zoom
 - [Stages](/guides/stages): more canvases on the same clock
 - [Debugging](/guides/debugging): the HUD and its panels
+- [Diagnostics](/guides/diagnostics): the codes the engine reports
+- [Testing](/guides/testing): running nodes and games without a GPU
 - [Getting started](/): the short version in the README

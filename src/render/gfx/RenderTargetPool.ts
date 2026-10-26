@@ -10,6 +10,7 @@ import type {
   RenderTarget,
   TargetPixelFormat,
 } from './GfxDevice'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 function poolKey(
   w: number,
@@ -132,7 +133,9 @@ export class RenderTargetPool {
   release(rt: RenderTarget): void {
     const i = this.#entries.findIndex((e) => e.rt === rt)
     if (i < 0) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         'RenderTargetPool.release: target not tracked by this pool (double release, or a target from a different pool)',
       )
     }
@@ -146,7 +149,10 @@ export class RenderTargetPool {
       return
     }
     if (!e.inUse) {
-      throw new Error('RenderTargetPool.release: target already released')
+      throw new StargazerError(
+        'SG5009',
+        'RenderTargetPool.release: target already released',
+      )
     }
     e.inUse = false
   }

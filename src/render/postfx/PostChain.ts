@@ -1,3 +1,4 @@
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import type {
   ColorFormat,
   GfxDevice,
@@ -27,6 +28,7 @@ import {
   POST_U_TEX,
   type PostProgramCache,
 } from './PostProgramCache'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** The texture a chain reads, with the size of the region that holds the image. */
 export interface PostChainSource {
@@ -480,7 +482,10 @@ export class PostChain {
       for (const step of effect.passes) flat.push(step)
     }
     if (flat.length > 0 && isDataPass(flat[flat.length - 1])) {
-      throw new Error('The last step of a post chain must be a drawing pass')
+      throw new StargazerError(
+        'SG5008',
+        'The last step of a post chain must be a drawing pass',
+      )
     }
     const produced = this.#produced
     produced.clear()
@@ -512,7 +517,9 @@ export class PostChain {
       if (from >= 0) this.#lastUse[from] = Math.max(this.#lastUse[from], i)
       const extras = isDataPass(step) ? undefined : step.textures
       if (extras && extras.length > MAX_POST_TEXTURES) {
-        throw new Error(
+        throw new StargazerError(
+          'SG5008',
+
           `PostPass lists ${extras.length} textures, the most is ${MAX_POST_TEXTURES}`,
         )
       }
@@ -534,7 +541,10 @@ export class PostChain {
   #earlier(produced: Map<PostStep, number>, step: PostStep): number {
     const index = produced.get(step)
     if (index === undefined) {
-      throw new Error('A PostPass reads a pass that does not run before it')
+      throw new StargazerError(
+        'SG5008',
+        'A PostPass reads a pass that does not run before it',
+      )
     }
     return index
   }
@@ -694,7 +704,7 @@ export class PostChain {
   #warnOnce(pass: PostDataPass, message: string): void {
     if (this.#warned.has(pass)) return
     this.#warned.add(pass)
-    console.warn(message)
+    diagnostics.report('SG2023', message)
   }
 
   #paramsFor(pass: PostStep): PassParams | null {

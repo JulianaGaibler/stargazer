@@ -1,3 +1,5 @@
+import { diagnostics, type DiagnosticLevel } from '../diagnostics/Diagnostics'
+import { DEV } from 'esm-env'
 import { Engine, type EngineOptions } from './Engine'
 import type { Emitter } from '../events/Emitter'
 import type { EngineEvents } from '../events/EngineEvents'
@@ -36,6 +38,13 @@ export interface EngineHostOptions extends Omit<EngineOptions, 'canvas'> {
    * at runtime via `host.debug.setHudVisible`.
    */
   debug?: 'hidden' | 'hud' | 'perf'
+  /**
+   * The least serious diagnostic that is logged to the console: `'error'`,
+   * `'warn'`, `'info'` or `'debug'`, or `'off'`. If omitted, reads `?log=` from
+   * `window.location.search`, and falls back to `'warn'`. The setting is shared
+   * by every engine on the page. See [Diagnostics](/guides/diagnostics).
+   */
+  log?: DiagnosticLevel | 'off'
   /**
    * Fallback triggered when the retry ladder decides recovery isn't feasible
    * (≥3 context losses within 60 s, or the browser signaled the loss is
@@ -144,6 +153,19 @@ function applyQualityProfile(engine: Engine, enabled: boolean): void {
   engine.qualityControl.restore()
 }
 
+const LOG_LEVELS = new Set(['error', 'warn', 'info', 'debug', 'off'])
+
+function resolveLogLevel(
+  explicit?: DiagnosticLevel | 'off',
+): DiagnosticLevel | 'off' | null {
+  if (explicit) return explicit
+  if (typeof window === 'undefined') return null
+  const raw = new URLSearchParams(window.location.search).get('log')
+  return raw !== null && LOG_LEVELS.has(raw)
+    ? (raw as DiagnosticLevel | 'off')
+    : null
+}
+
 function resolveDebugMode(
   explicit?: 'hidden' | 'hud' | 'perf',
 ): 'hidden' | 'hud' | 'perf' {
@@ -203,6 +225,8 @@ export function resolveMsaaSamples(explicit?: number): number {
  *   host.start()
  */
 export function createEngineHost(opts: EngineHostOptions): EngineHost {
+  const logLevel = resolveLogLevel(opts.log)
+  if (logLevel) diagnostics.configure({ level: logLevel })
   const msaaSamples = resolveMsaaSamples(opts.msaaSamples)
   const engine = new Engine({
     ...opts,
@@ -212,14 +236,14 @@ export function createEngineHost(opts: EngineHostOptions): EngineHost {
   applyQualityProfile(engine, opts.qualityProfile ?? true)
 
   const debugMode = resolveDebugMode(opts.debug)
-  // Always instantiate, booth-side surfaces (menu, game-rules window)
-  // rely on `host.debug` being non-null so they can toggle HUD state at
+  // Always instantiate. App surfaces such as a settings menu
+  // rely on `host.debug` being non-null so they can toggle the HUD at
   // runtime. The URL flag only decides whether the HUD starts open.
   const debug = new DebugController(engine, {
     showHud: debugMode === 'hud' || debugMode === 'perf',
   })
   engine.debug = debug
-  if (debugMode !== 'hidden' || import.meta.env.DEV) {
+  if (debugMode !== 'hidden' || DEV) {
     // Lets a test run read the counters without the HUD on screen.
     ;(globalThis as { __stargazerDebug?: DebugController }).__stargazerDebug =
       debug

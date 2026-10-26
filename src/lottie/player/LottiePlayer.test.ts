@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import fixture from '../../dev/fixtures/lottie/playback_test.json'
+import fixture from '../../../fixtures/lottie/playback_test.json'
 import {
   LottiePlayer,
   type LottiePlayerOptions,

@@ -35,13 +35,6 @@ import type { Node } from '../scene/Node'
 import type { Node2D } from '../scene/Node2D'
 import { get, writable, type Readable } from 'svelte/store'
 import type { Component } from 'svelte'
-// Global debug UI styles, imported by the module that owns debug so we get
-// the debug chrome CSS in the bundle exactly when debug code is used. Since
-// this file is dynamically loaded only from `EngineHost` (which itself is
-// tree-shakeable to whatever imports `createEngineHost`), the styles ride
-// along automatically without polluting production bundles that never touch
-// the debug controller.
-import './ui/debug-ui.sass'
 import { debugFont } from './debugFont'
 
 /**
@@ -57,7 +50,7 @@ export type DebugCameraMode = 'active' | 'debug-2d' | 'debug-3d'
  * `wireframe` overlays triangle edges, `unshaded` shows flat albedo (no
  * lighting), and `normals` colors fragments by world normal.
  */
-export type DebugRenderMode =
+export type MeshRenderMode =
   'normal' | 'wireframe' | 'unshaded' | 'normals' | 'ao'
 
 /** Current on/off state of every debug toggle, emitted on the `toggle` event. */
@@ -69,7 +62,7 @@ export interface DebugToggleState {
   /** The selected camera mode (drives the HUD dropdown). */
   cameraMode: DebugCameraMode
   /** The selected 3D render view (drives the HUD dropdown). */
-  renderMode: DebugRenderMode
+  renderMode: MeshRenderMode
   outlines: boolean
   layoutOutlines: boolean
   follow: boolean
@@ -304,8 +297,8 @@ export class DebugController {
   readonly engine: Engine
 
   /**
-   * HUD visibility, backed by a Svelte writable so external components (like
-   * the booth menu) can subscribe to changes without wiring the `toggle` event
+   * HUD visibility, backed by a Svelte writable so external components (like a
+   * settings menu) can subscribe to changes without wiring the `toggle` event
    * by hand. `toggleHud()` / `setHudVisible()` both write here, and the
    * `hudVisible` getter reads `get(store)` synchronously for plain-JS callers.
    */
@@ -535,27 +528,35 @@ export class DebugController {
     }
   }
 
+  /** Whether the HUD is open. */
   get hudVisible(): boolean {
     return get(this.#hudVisibleStore)
   }
+  /** Whether the debug camera is the one drawing. */
   get cameraActive(): boolean {
     return this.#_cameraActive
   }
+  /** Whether node bounds are outlined. */
   get outlinesVisible(): boolean {
     return this.#_outlinesVisible
   }
+  /** Whether layout boxes are outlined. */
   get layoutOutlinesVisible(): boolean {
     return this.#_layoutOutlinesVisible
   }
+  /** Whether the debug camera follows the game camera. */
   get followGameCamera(): boolean {
     return this.#_followGameCamera
   }
+  /** Whether the world grid is drawn. */
   get gridVisible(): boolean {
     return this.#_gridVisible
   }
+  /** Whether active pointers are drawn on the canvas. */
   get pointerOverlayVisible(): boolean {
     return this.#_pointerOverlayVisible
   }
+  /** Whether the engine is paused. */
   get paused(): boolean {
     return this.engine.paused
   }
@@ -575,9 +576,11 @@ export class DebugController {
   get ambientOcclusionPeek(): AmbientOcclusion | null {
     return this.engine.primaryStage.peekAmbientOcclusion()
   }
+  /** Whether frame phases are recorded as `performance.measure` entries. */
   get perfMarks(): boolean {
     return this.engine.perfMarks
   }
+  /** Turn the `performance.measure` entries on or off. */
   setPerfMarks(enabled: boolean): void {
     this.engine.perfMarks = enabled
   }
@@ -597,6 +600,7 @@ export class DebugController {
   setSmoothTimestep(enabled: boolean): void {
     this.engine.ticker.setSmoothTimestep(enabled)
   }
+  /** The clip mask shown by the `clip-mask` render mode, or `null`. */
   get inspectedMask(): BitmapMask | null {
     return this.#_inspectedMask
   }
@@ -615,6 +619,7 @@ export class DebugController {
   get activeStage(): Stage {
     return this.#_activeStage ?? this.engine.primaryStage
   }
+  /** Whether the stage the HUD acts on is the primary stage. */
   get activeIsPrimary(): boolean {
     return this.#_activeStage === null
   }
@@ -659,6 +664,7 @@ export class DebugController {
     this.events.emit('stageChanged', { activeStageId: 'primary' })
   }
 
+  /** Open the HUD when it is closed, close it when it is open. */
   toggleHud(): void {
     this.setHudVisible(!this.hudVisible)
   }
@@ -705,19 +711,20 @@ export class DebugController {
     this.#emitToggle()
   }
 
+  /** Switch the debug camera between 2D and 3D. */
   toggleDebugSpace(): void {
     this.setDebugSpace(this.#_debugSpace === '2d' ? '3d' : '2d')
   }
 
-  #_renderMode: DebugRenderMode = 'normal'
+  #_renderMode: MeshRenderMode = 'normal'
 
-  /** The selected 3D render view. See {@link DebugRenderMode}. */
-  get renderMode(): DebugRenderMode {
+  /** The selected 3D render view. See {@link MeshRenderMode}. */
+  get renderMode(): MeshRenderMode {
     return this.#_renderMode
   }
 
   /** Select the 3D render view (the HUD dropdown's setter). */
-  setRenderMode(mode: DebugRenderMode): void {
+  setRenderMode(mode: MeshRenderMode): void {
     if (mode === this.#_renderMode) return
     this.#_renderMode = mode
     this.#emitToggle()
@@ -806,32 +813,38 @@ export class DebugController {
     else this.#debugCamera3d?.setKey(code, pressed)
   }
 
+  /** Turn the node bounds outlines on or off. */
   toggleOutlines(): void {
     this.#_outlinesVisible = !this.#_outlinesVisible
     this.#emitToggle()
   }
 
+  /** Turn the layout box outlines on or off. */
   toggleLayoutOutlines(): void {
     this.#_layoutOutlinesVisible = !this.#_layoutOutlinesVisible
     this.#emitToggle()
   }
 
+  /** Turn following of the game camera on or off. */
   toggleFollow(): void {
     this.#_followGameCamera = !this.#_followGameCamera
     this.camera.setFollow(this.#_followGameCamera)
     this.#emitToggle()
   }
 
+  /** Turn the world grid on or off. */
   toggleGrid(): void {
     this.#_gridVisible = !this.#_gridVisible
     this.#emitToggle()
   }
 
+  /** Pause the engine, or resume it when it is paused. */
   togglePause(): void {
     this.engine.setPaused(!this.engine.paused)
     this.#emitToggle()
   }
 
+  /** Turn the active pointer overlay on or off. */
   togglePointerOverlay(): void {
     this.#_pointerOverlayVisible = !this.#_pointerOverlayVisible
     this.#emitToggle()
@@ -911,6 +924,7 @@ export class DebugController {
     this.#emitToggle()
   }
 
+  /** Put the debug cameras back to their starting view. */
   resetDebugCamera(): void {
     this.camera.reset()
     this.#debugCamera3d?.reset()
@@ -951,10 +965,12 @@ export class DebugController {
   setHighlightedNode3d(node: Node3D | null): void {
     this.#highlightedNode3d = node
   }
+  /** The 3D node the HUD is highlighting, or `null`. */
   get highlightedNode3d(): Node3D | null {
     return this.#highlightedNode3d
   }
 
+  /** Read the frame times, counts and GPU numbers the HUD shows right now. */
   snapshotStats(): DebugStatsSnapshot {
     const p = this.frameStats.percentiles()
     const fi = this.#frameIntervalStats.percentiles()
@@ -1343,6 +1359,7 @@ export class DebugController {
     drawPointerOverlay(gfx, input)
   }
 
+  /** Remove the HUD listeners and overlays. Call it when the engine goes away. */
   destroy(): void {
     this.#exitPointerLock()
     for (const fn of this.#disposeCallbacks) fn()

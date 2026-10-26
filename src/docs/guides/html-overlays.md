@@ -16,7 +16,7 @@ In Svelte, add the `domAnchor` action to the element:
 
 ```svelte
 <script lang="ts">
-  import { domAnchor } from '@src/stargazer'
+  import { domAnchor } from 'stargazer'
 </script>
 
 <div
@@ -145,7 +145,7 @@ With `cull`, a camera move can be the whole transition between two views. Place 
 
 ```svelte
 <script lang="ts">
-  import { Node2D, domAnchor } from '@src/stargazer'
+  import { Node2D, domAnchor } from 'stargazer'
 
   const { engine } = $props()
 
@@ -181,7 +181,7 @@ Nothing coordinates the two overlays. During the pan, the menu moves off the lef
 An overlay follows the view that places its node. A node under a {@link Layer} with a `space` of `'screen'` or a frame is placed by the layer, not the camera. Its element stays still while the camera pans and zooms. Use this for HTML in a heads-up display: lay out the display for a fixed design rect and anchor each element to a node in it.
 
 ```ts
-import { Layer, Node2D } from '@src/stargazer'
+import { Layer, Node2D } from 'stargazer'
 
 const ui = new Layer({
   space: { frame: { x: 0, y: 0, width: 1920, height: 1080 } },
@@ -219,7 +219,7 @@ Each frame, the engine compares the new matrix with the last one it wrote, with 
 {@link projectWorldToCss} is the function behind the sync. It combines a camera's screen affine with a node's world matrix into the six values of a CSS `matrix()`. Use it when you place an element yourself.
 
 ```ts
-import { projectWorldToCss } from '@src/stargazer'
+import { projectWorldToCss } from 'stargazer'
 
 const m = projectWorldToCss(camera.getScreenAffine(), node.transform.world)
 element.style.transform = `matrix(${m.a},${m.b},${m.c},${m.d},${m.e},${m.f})`

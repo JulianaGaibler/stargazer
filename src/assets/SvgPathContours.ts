@@ -14,6 +14,7 @@
 import earcut from 'earcut'
 import type { GeometryHandle } from '../render/gfx/GeometryHandle'
 import { tokenizeSvgPath } from './SvgPathMap'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 // Cap subdivision depth so pathological curves don't hang. ~13 levels
 // covers a 4K screen at 0.5-px tolerance, 16 gives comfortable margin.
@@ -604,7 +605,9 @@ export function tessellateContours(contours: Float32Array[]): GeometryHandle {
   let totalPoints = 0
   for (const c of contours) totalPoints += c.length / 2
   if (totalPoints > 65_535) {
-    throw new Error(
+    throw new StargazerError(
+      'SG6007',
+
       `tessellateContours: ${totalPoints} vertices exceeds 65535 (Uint16 index limit)`,
     )
   }

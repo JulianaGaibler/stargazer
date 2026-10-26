@@ -40,11 +40,16 @@ export type TimelineStep = (signal?: AbortSignal) => Promise<void>
 export class Timeline {
   readonly #steps: TimelineStep[] = []
 
+  /** Append a step. It starts when the one before it has finished. */
   add(step: TimelineStep): this {
     this.#steps.push(step)
     return this
   }
 
+  /**
+   * Append several steps that start together. The next step waits for all of
+   * them.
+   */
   parallel(...steps: TimelineStep[]): this {
     if (steps.length === 0) return this
     this.#steps.push(async (signal) => {
@@ -53,6 +58,10 @@ export class Timeline {
     return this
   }
 
+  /**
+   * Run the steps in order. Rejects with an `AbortError` as soon as `signal`
+   * aborts.
+   */
   async run(signal?: AbortSignal): Promise<void> {
     for (const step of this.#steps) {
       if (signal?.aborted) throw abortError()

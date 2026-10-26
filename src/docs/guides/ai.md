@@ -15,7 +15,7 @@ The search is negamax with alpha-beta pruning. It knows nothing about scenes, re
 The example below describes tic-tac-toe and asks for the best move for the player to move.
 
 ```ts
-import { searchBestMove, type AdversarialGame } from '@src/stargazer'
+import { searchBestMove, type AdversarialGame } from 'stargazer'
 
 interface Board {
   cells: Int8Array // 0 empty, 1 or 2 for a player

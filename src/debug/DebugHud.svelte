@@ -22,6 +22,8 @@
   import InputPanel from './panels/InputPanel.svelte'
   import ScenePanel from './panels/ScenePanel.svelte'
   import PhysicsPanel from './panels/PhysicsPanel.svelte'
+  import DiagnosticsPanel from './panels/DiagnosticsPanel.svelte'
+  import { diagnostics } from '../diagnostics/Diagnostics'
   import { fmtMs, MISSING } from './panels/format'
   import { MetricHistory } from './MetricHistory'
 
@@ -31,19 +33,11 @@
 
   const { debug }: Props = $props()
 
-  /**
-   * Auto-subscribes to the controller's registered-panels store so any
-   * `registerPanel(...)` call from a consumer immediately shows up (or
-   * disappears on unregister). The IIFE silences Svelte's "prop read at module
-   * scope" warning, `debug` lives for the component's lifetime.
-   */
+  // Subscribes to the registered-panels store. The IIFE silences Svelte's
+  // "prop read at module scope" warning. `debug` lives as long as the component.
   const panels = (() => debug.panels)()
 
-  /**
-   * Hub window's persisted-position key. Matches the id `DebugPanel` derived
-   * from the title "stargazer debug", so operator window positions carry over
-   * from before the multi-panel refactor. Subpanels spawn relative to it.
-   */
+  // The hub window's storage key. The panel windows open next to it.
   const HUB_STORAGE_ID = 'stargazer-debug-panel-stargazer-debug'
 
   const EMPTY_PHYSICS_FLAGS = {
@@ -173,8 +167,17 @@
   let inputOpen = $state(false)
   let sceneOpen = $state(false)
   let physicsOpen = $state(false)
+  let diagnosticsOpen = $state(false)
   // Open consumer-registered panels, keyed by spec id.
   const consumerOpen = new SvelteSet<string>()
+
+  // The count in the hub button. It is read on each HUD tick.
+  const problemCount = $derived.by(() => {
+    void frameRevision
+    return diagnostics.recent.filter(
+      (d) => d.level === 'error' || d.level === 'warn',
+    ).length
+  })
 
   // --- windowing ------------------------------------------------------
 
@@ -186,6 +189,7 @@
       inputOpen ||
       sceneOpen ||
       physicsOpen ||
+      diagnosticsOpen ||
       consumerOpen.size > 0
     )
   }
@@ -387,6 +391,16 @@
           label="Physics"
         />
       {/if}
+      <ToggleButton
+        active={diagnosticsOpen}
+        onToggle={() => {
+          diagnosticsOpen = !diagnosticsOpen
+          ensureTicking()
+        }}
+        label={problemCount > 0
+          ? `Diagnostics (${problemCount})`
+          : 'Diagnostics'}
+      />
       {#each $panels as panel (panel.id)}
         <ToggleButton
           active={consumerOpen.has(panel.id)}
@@ -639,6 +653,17 @@
   onClose={() => (inputOpen = false)}
 >
   <InputPanel {debug} {stats} pointerOverlay={toggleState.pointerOverlay} />
+</DraggableWindow>
+
+<DraggableWindow
+  visible={diagnosticsOpen}
+  title="Diagnostics"
+  storageId="stargazer-debug-panel-diagnostics"
+  spawnedBy={HUB_STORAGE_ID}
+  side="left"
+  onClose={() => (diagnosticsOpen = false)}
+>
+  <DiagnosticsPanel revision={frameRevision} />
 </DraggableWindow>
 
 <DraggableWindow

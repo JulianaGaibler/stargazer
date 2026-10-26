@@ -1,3 +1,4 @@
+import { diagnostics } from '../diagnostics/Diagnostics'
 import type { RetainedCacheStats } from './gfx/RetainedCache'
 import { Renderer } from './Renderer'
 import { GpuGfx } from './gfx/GpuGfx'
@@ -45,6 +46,14 @@ export interface StageOptions {
    * `false` for secondary stages, primary is always `true`.
    */
   interactive?: boolean
+  /**
+   * Stop the browser from handling touches on the canvas itself. It turns off
+   * scrolling, pinch zoom, text selection, the long-press callout and the focus
+   * outline, and an interactive stage also blocks the context menu. Default
+   * true, which suits a game or a touch kiosk. Set `false` for a canvas that
+   * sits inside a page the visitor scrolls.
+   */
+  lockInteraction?: boolean
   /**
    * Fires on canvas CSS-size and dpr changes, AFTER `renderer.resize` and
    * `camera.setPixelSize`. Use to reshape viewport or reposition anchored
@@ -160,6 +169,8 @@ export class Stage implements CameraHost {
   readonly canvas: HTMLCanvasElement
   /** Optional label shown in the debug HUD's stage selector. */
   readonly name: string | undefined
+  /** Whether the stage blocks the browser's own touch handling. */
+  readonly lockInteraction: boolean
   /** Always constructed. Only fires on interactive stages. */
   readonly events: Emitter<StagePointerEvents> =
     createEmitter<StagePointerEvents>()
@@ -271,14 +282,17 @@ export class Stage implements CameraHost {
     // only the clear color.
     this.tree.stage = this
 
-    // Kiosk hygiene, touch/selection suppression on every canvas. Applied
-    // here so Svelte-mounted secondary canvases inherit it.
-    const style = canvas.style
-    style.touchAction = 'none'
-    style.userSelect = 'none'
-    style.webkitUserSelect = 'none'
-    style.setProperty('-webkit-touch-callout', 'none')
-    style.outline = 'none'
+    // Applied here so every canvas a stage owns gets it, including secondary
+    // ones mounted from Svelte components.
+    this.lockInteraction = opts.lockInteraction ?? true
+    if (this.lockInteraction) {
+      const style = canvas.style
+      style.touchAction = 'none'
+      style.userSelect = 'none'
+      style.webkitUserSelect = 'none'
+      style.setProperty('-webkit-touch-callout', 'none')
+      style.outline = 'none'
+    }
 
     this.#applyResize()
     if (!this.#fixedPixelSize) this.#watchCanvasSize()
@@ -387,19 +401,23 @@ export class Stage implements CameraHost {
       this.#current3d = cam
     }
   }
+  /** Forget a 3D camera that left the tree. */
   unregisterCamera3D(cam: CameraNode3D): void {
     const i = this.#cameras3d.indexOf(cam)
     if (i >= 0) this.#cameras3d.splice(i, 1)
     if (this.#current3d === cam) this.#current3d = this.#pickNext3D()
   }
+  /** Draw the 3D pass through `cam`. */
   makeCurrent3D(cam: CameraNode3D): void {
     cam.consumeWantsCurrent()
     for (const c of this.#cameras3d) c.consumeWantsCurrent()
     this.#current3d = cam
   }
+  /** Whether `cam` is the camera the 3D pass draws through. */
   isCurrent3D(cam: CameraNode3D): boolean {
     return this.#current3d === cam
   }
+  /** Pick another 3D camera when the current one is gone or disabled. */
   reevaluateCurrent3D(): void {
     if (!this.#current3d || !this.#current3d.enabled) {
       this.#current3d = this.#pickNext3D()
@@ -438,9 +456,10 @@ export class Stage implements CameraHost {
       this.#renderFrame(dt)
     } catch (err) {
       this.#faulted = true
-      console.error(
-        '[stargazer] Stage render faulted and was halted to avoid a busy loop:',
-        err,
+      diagnostics.report(
+        'SG1001',
+        'Stage render faulted and was halted to avoid a busy loop:',
+        { cause: err },
       )
     }
   }
@@ -497,7 +516,7 @@ export class Stage implements CameraHost {
 
     // Depth is attached for as long as the scene holds 3D content and released
     // when it stops. A stage outlives the scenes drawn on it, so holding the
-    // attachment after the last 3D node keeps it for the rest of the booth's
+    // attachment after the last 3D node keeps it for the rest of the app's
     // life. `has3D` is structural rather than visibility-based, so this does
     // not toggle while a scene hides its meshes.
     //
@@ -1006,6 +1025,7 @@ export class Stage implements CameraHost {
     return this.#active
   }
 
+  /** Mark the stage as drawing or idle. An idle stage is skipped. */
   setActive(value: boolean): void {
     this.#active = value
   }

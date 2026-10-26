@@ -82,10 +82,12 @@ export class PolylineNode extends Node2D {
     this.#data = new Float32Array(cap * 2)
   }
 
+  /** How many points the line has. */
   get pointCount(): number {
     return this.#count
   }
 
+  /** How many points fit before the buffer grows. */
   get capacity(): number {
     return this.#data.length / 2
   }
@@ -154,6 +156,10 @@ export class PolylineNode extends Node2D {
     return this
   }
 
+  /**
+   * Read point `i` into `out`, or a new vector. Throws a `RangeError` when `i`
+   * is out of range.
+   */
   pointAt(i: number, out?: Vec2): Vec2 {
     if (i < 0 || i >= this.#count)
       throw new RangeError(`Polyline index out of range: ${i}`)

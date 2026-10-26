@@ -1,3 +1,4 @@
+import { StargazerError } from '../../diagnostics/StargazerError'
 // A small zip reader for `.lottie` files. It reads the central directory and
 // extracts stored (method 0) and deflated (method 8) entries. ZIP64 and
 // encrypted archives are rejected.
@@ -45,12 +46,15 @@ export function readZip(bytes: Uint8Array): Map<string, ZipEntry> {
       break
     }
   }
-  if (eocd < 0) throw new Error('readZip: not a zip archive')
+  if (eocd < 0) throw new StargazerError('SG6007', 'readZip: not a zip archive')
   const count = view.getUint16(eocd + 10, true)
   const dirSize = view.getUint32(eocd + 12, true)
   const dirOffset = view.getUint32(eocd + 16, true)
   if (count === 0xffff || dirSize === 0xffffffff || dirOffset === 0xffffffff) {
-    throw new Error('readZip: ZIP64 archives are not supported')
+    throw new StargazerError(
+      'SG6007',
+      'readZip: ZIP64 archives are not supported',
+    )
   }
   const decoder = new TextDecoder()
   const entries = new Map<string, ZipEntry>()
@@ -60,11 +64,14 @@ export function readZip(bytes: Uint8Array): Map<string, ZipEntry> {
       p + 46 > bytes.length ||
       view.getUint32(p, true) !== CENTRAL_SIGNATURE
     ) {
-      throw new Error('readZip: corrupt central directory')
+      throw new StargazerError('SG6007', 'readZip: corrupt central directory')
     }
     const flags = view.getUint16(p + 8, true)
     if (flags & 1)
-      throw new Error('readZip: encrypted entries are not supported')
+      throw new StargazerError(
+        'SG6007',
+        'readZip: encrypted entries are not supported',
+      )
     const method = view.getUint16(p + 10, true)
     const compressedSize = view.getUint32(p + 20, true)
     const size = view.getUint32(p + 24, true)
@@ -89,21 +96,29 @@ export async function extractZipEntry(
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   const o = entry.offset
   if (o + 30 > bytes.length || view.getUint32(o, true) !== LOCAL_SIGNATURE) {
-    throw new Error(`readZip: corrupt local header for '${entry.name}'`)
+    throw new StargazerError(
+      'SG6007',
+      `readZip: corrupt local header for '${entry.name}'`,
+    )
   }
   const nameLen = view.getUint16(o + 26, true)
   const extraLen = view.getUint16(o + 28, true)
   const start = o + 30 + nameLen + extraLen
   const data = bytes.subarray(start, start + entry.compressedSize)
   if (entry.size > MAX_ENTRY_BYTES) {
-    throw new Error(`readZip: '${entry.name}' is too large`)
+    throw new StargazerError('SG6007', `readZip: '${entry.name}' is too large`)
   }
   if (entry.method === 0) return data.slice()
   if (entry.method !== 8) {
-    throw new Error(`readZip: unsupported compression method ${entry.method}`)
+    throw new StargazerError(
+      'SG6007',
+      `readZip: unsupported compression method ${entry.method}`,
+    )
   }
   if (typeof DecompressionStream === 'undefined') {
-    throw new Error(
+    throw new StargazerError(
+      'SG6007',
+
       'readZip: this browser has no DecompressionStream for deflate-raw',
     )
   }
@@ -112,7 +127,7 @@ export async function extractZipEntry(
     .pipeThrough(new DecompressionStream('deflate-raw'))
   const out = new Uint8Array(await new Response(stream).arrayBuffer())
   if (out.length > MAX_ENTRY_BYTES) {
-    throw new Error(`readZip: '${entry.name}' is too large`)
+    throw new StargazerError('SG6007', `readZip: '${entry.name}' is too large`)
   }
   return out
 }

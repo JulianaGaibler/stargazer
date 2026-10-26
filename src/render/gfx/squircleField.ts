@@ -21,6 +21,7 @@
  * `'rgba16f'`, tiles stacked from smoothing 0 at the top.
  */
 import { squircleCorner, squircleCornerCurves } from './squircle'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** Texels along each side of one tile. */
 export const FIELD_TILE_SIZE = 64
@@ -29,8 +30,7 @@ export const FIELD_TILE_COUNT = 21
 /** Inset range a tile covers, in units of the corner radius. */
 export const FIELD_PATCH_MIN = -1
 export const FIELD_PATCH_MAX = 2
-/** Texture width and height. */
-export const FIELD_WIDTH = FIELD_TILE_SIZE
+/** Texture height. The width is `FIELD_TILE_SIZE`. */
 export const FIELD_HEIGHT = FIELD_TILE_SIZE * FIELD_TILE_COUNT
 
 /** Points per cubic segment when flattening the corner for measuring. */
@@ -188,15 +188,33 @@ export function toHalf(value: number): number {
   return sign | ((exponent << 10) + ((mantissa + 0x1000) >> 13))
 }
 
-/** Every tile, as the half floats `squircleField.bin` holds. */
+/**
+ * Every tile, as the half floats `squircleField.bin` holds. The generator
+ * script calls it.
+ *
+ * @public
+ */
 export function buildField(): Uint16Array {
-  const out = new Uint16Array(FIELD_WIDTH * FIELD_HEIGHT * 4)
+  const out = new Uint16Array(FIELD_TILE_SIZE * FIELD_HEIGHT * 4)
   for (let tile = 0; tile < FIELD_TILE_COUNT; tile++) {
     const texels = buildFieldTile(tile / (FIELD_TILE_COUNT - 1))
     const offset = tile * texels.length
     for (let i = 0; i < texels.length; i++) out[offset + i] = toHalf(texels[i])
   }
   return out
+}
+
+let fieldLoader: (() => Promise<Uint16Array | null>) | null = null
+
+/**
+ * Replaces how {@link loadField} gets the field. A test served over HTTP can't
+ * fetch `squircleField.bin`, so it passes a loader that resolves to `null`.
+ * Pass `null` to restore the default. Exported through `stargazer/testing`.
+ */
+export function setSmoothCornerFieldLoader(
+  loader: (() => Promise<Uint16Array | null>) | null,
+): void {
+  fieldLoader = loader
 }
 
 let loading: Promise<Uint16Array | null> | null = null
@@ -207,11 +225,16 @@ let loading: Promise<Uint16Array | null> | null = null
  * from.
  */
 export function loadField(): Promise<Uint16Array | null> {
+  if (fieldLoader) return fieldLoader()
   const url = new URL('./squircleField.bin', import.meta.url)
   if (url.protocol === 'file:') return Promise.resolve(null)
   loading ??= fetch(url)
     .then((response) => {
-      if (!response.ok) throw new Error(`squircleField.bin: ${response.status}`)
+      if (!response.ok)
+        throw new StargazerError(
+          'SG6006',
+          `squircleField.bin: ${response.status}`,
+        )
       return response.arrayBuffer()
     })
     .then((buffer) => new Uint16Array(buffer))

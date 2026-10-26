@@ -45,6 +45,7 @@ export class FrameStats implements SeriesSource {
     return this.#series.readOrdered(out)
   }
 
+  /** The 50th, 95th and 99th percentile and the maximum of the held samples. */
   percentiles(): {
     p50: number
     p95: number

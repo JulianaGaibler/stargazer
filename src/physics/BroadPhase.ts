@@ -14,7 +14,9 @@ export type PairCallback = (a: Body, b: Body) => void
 
 /** Broad-phase index over the world's bodies. */
 export interface BroadPhase {
+  /** Start tracking `body`. */
   insert(body: Body): void
+  /** Stop tracking `body`. */
   remove(body: Body): void
   /** Refresh stored AABBs. Call once per step before {@link queryPairs}. */
   update(): void

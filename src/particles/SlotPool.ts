@@ -1,3 +1,4 @@
+import { StargazerError } from '../diagnostics/StargazerError'
 /**
  * Fixed-capacity index allocator with a freelist. Owns no per-slot data itself,
  * callers keep their own typed arrays sized to `capacity` and use the indices
@@ -27,7 +28,9 @@ export class SlotPool {
 
   constructor(capacity: number) {
     if (capacity <= 0 || !Number.isFinite(capacity)) {
-      throw new Error(
+      throw new StargazerError(
+        'SG2024',
+
         `SlotPool: capacity must be a positive integer (got ${capacity})`,
       )
     }

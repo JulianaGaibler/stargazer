@@ -1,4 +1,5 @@
 import type { QualityGroup, QualityValues } from '../render/qualityGroups'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 // What each quality option costs and what it changes, for the quality panel.
 // Memory and pixel counts are computed from the canvas as it is now. Frame time
@@ -172,7 +173,7 @@ export function impactOf<G extends QualityGroup>(
       }
     }
   }
-  throw new Error(`unknown quality group ${String(group)}`)
+  throw new StargazerError('SG5007', `unknown quality group ${String(group)}`)
 }
 
 /** Memory of every render target at `values`, for the panel's total. */
@@ -193,7 +194,7 @@ export function totalTargetBytes(
 // --- what is limiting the frame ---------------------------------------------
 
 /** What the frame is waiting on. */
-export type Limiter = 'gpu' | 'cpu' | 'none' | 'unknown'
+type Limiter = 'gpu' | 'cpu' | 'none' | 'unknown'
 
 export interface Headroom {
   /** Frames are arriving later than the display or the cap wants. */

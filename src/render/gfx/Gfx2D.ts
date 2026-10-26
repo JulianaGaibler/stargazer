@@ -109,8 +109,15 @@ export interface GfxSurfaceEffects {
    */
   units?: { a: number; b: number; c: number; d: number; e: number; f: number }
   /**
+   * Composite the surface invisibly while a pass is still compiling, instead of
+   * unprocessed. For a layer whose unprocessed picture would be wrong, such as
+   * a ground cleared to an opaque color that the effects turn into dots.
+   */
+  hold?: boolean
+  /**
    * Output. True when the surface will have the effects applied, false while a
-   * pass is still compiling and the surface composites unprocessed.
+   * pass is still compiling and the surface composites unprocessed, or is not
+   * shown when `hold` is set.
    */
   applied: boolean
 }
@@ -363,18 +370,18 @@ export interface GfxShadowStyle {
   inset?: boolean
 }
 
-/**
- * Immediate-mode 2D drawing facade. Coordinates are in the node's LOCAL space.
- * The Stage installs the `(DPR × camera × world)` base transform via
- * `setBaseTransform` before calling `draw`, and nodes may push nested local
- * transforms with `save`/`translate`/`rotate`/`scale`/`restore`.
- */
 /** Options for {@link Gfx2D.drawImage}. */
 export interface GfxImageOptions {
   /** Filter when scaling. Defaults to `true`. */
   smoothing?: boolean
 }
 
+/**
+ * Immediate-mode 2D drawing facade. Coordinates are in the node's LOCAL space.
+ * The Stage installs the `(DPR × camera × world)` base transform via
+ * `setBaseTransform` before calling `draw`, and nodes may push nested local
+ * transforms with `save`/`translate`/`rotate`/`scale`/`restore`.
+ */
 export interface Gfx2D {
   // --- transform + state ---------------------------------------------------
 
@@ -531,9 +538,9 @@ export interface Gfx2D {
    * CSS color or a gradient paint.
    *
    * `smoothing` is Figma's corner smoothing, from 0 for circular corners (the
-   * default) to 1. {@link IOS_CORNER_SMOOTHING} matches the iOS app icon shape.
-   * With smoothing, radii that don't fit are fitted the way Figma does (see
-   * {@link fitSquircleCorners}) instead of by the CSS rule.
+   * default) to 1. {@link render!IOS_CORNER_SMOOTHING} matches the iOS app icon
+   * shape. With smoothing, radii that don't fit are fitted the way Figma does
+   * (see {@link render!fitSquircleCorners}) instead of by the CSS rule.
    *
    * @example
    *   gfx.fillRoundRect(0, 0, 480, 320, 24, '#1c1c22') // uniform corners

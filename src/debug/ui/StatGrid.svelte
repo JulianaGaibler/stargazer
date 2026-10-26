@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte'
 
   interface Props {
+    /** The number of columns. */
     columns?: number
     children: Snippet
   }

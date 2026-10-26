@@ -78,7 +78,7 @@ export interface QualitySnapshot {
  * changes the look of a scene, so those come after the render scale has reached
  * 0.75.
  */
-export const ADAPTIVE_LADDER: readonly QualityTier[] = [
+const ADAPTIVE_LADDER: readonly QualityTier[] = [
   { kind: 'aoResolution', resolution: 'half' },
   { kind: 'msaa', samples: 2 },
   { kind: 'aoPreset', preset: 'low' },
@@ -96,7 +96,7 @@ export const ADAPTIVE_LADDER: readonly QualityTier[] = [
 const AO_PRESET_RANK: Record<AoPreset, number> = { low: 0, medium: 1, high: 2 }
 
 /** Whether `tier` would lower anything from `s`. */
-export function tierLowers(tier: QualityTier, s: QualitySnapshot): boolean {
+function tierLowers(tier: QualityTier, s: QualitySnapshot): boolean {
   if (s.pinned?.includes(tierGroup(tier.kind))) return false
   switch (tier.kind) {
     case 'msaa':

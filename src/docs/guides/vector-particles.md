@@ -17,8 +17,8 @@ Try [particles](/guides/particles) first. {@link ParticleEmitterNode} draws one 
 The example below is a burst of triangles and line shards that slows down, despawns, and then removes its node.
 
 ```ts
-import { VectorParticleNode } from '@src/stargazer'
-import type { Canvas, Vec2, VectorParticleSpawnInit } from '@src/stargazer'
+import { VectorParticleNode } from 'stargazer'
+import type { Canvas, Vec2, VectorParticleSpawnInit } from 'stargazer'
 
 const TRI = new Float32Array([0, -6, 5, 3, -5, 3])
 

@@ -14,22 +14,6 @@ export const COLORED_TRI_WORDS = COLORED_TRI_STRIDE / 4
  */
 export const STROKE_INSTANCE_STRIDE = 36
 /**
- * SDF instance layout: center.xy + (radius, strokeWidth) + colorFill(u8×4) +
- * colorStroke(u8×4) + (dashStart, dashPeriod) = 8 words = 32 B.
- */
-export const SDF_INSTANCE_STRIDE = 32
-/**
- * Round-rect instance layout: affine mCol0.xy + mCol1.xy + mTranslate.xy
- * (f32×6)
- *
- * - (halfW, halfH, feather, strokeWidth) (f32×4) + radii tl,tr,br,bl (f32×4) +
- *   colorFill(u8×4) + colorStroke(u8×4) = 16 words = 64 B. All extents/radii
- *   are in local units. The shader evaluates the signed-distance field in local
- *   space and anti-aliases with `fwidth`, so it stays crisp under any
- *   transform.
- */
-export const ROUNDRECT_INSTANCE_STRIDE = 64
-/**
  * Gradient-radial instance layout: center.xy + (radius, alpha) + rampRow + pad
  * = 6 words = 24 B. `rampRow` indexes the shared ramp atlas (see
  * `TextureManager.ensureStopsRow`).
@@ -112,8 +96,6 @@ export const SHAPE_TEX_LABEL = 1
  */
 export const COLORED_TRI_BUFFER_BYTES = 2 * 1024 * 1024 // 2 MB -> ~104k verts
 export const STROKE_BUFFER_BYTES = 1 * 1024 * 1024 // 1 MB -> ~29k instances
-export const SDF_BUFFER_BYTES = 128 * 1024 // 128 KB -> ~4k instances
-export const ROUNDRECT_BUFFER_BYTES = 128 * 1024 // 128 KB -> ~2k instances
 export const GRADIENT_BUFFER_BYTES = 16 * 1024 // 16 KB  -> ~682 instances
 export const MASKED_GRAD_BUFFER_BYTES = 16 * 1024 // 16 KB -> ~340 instances (a few clouds)
 export const TEXT_QUAD_BUFFER_BYTES = 128 * 1024 // 128 KB -> ~2.9k label instances
@@ -186,7 +168,6 @@ export const CLIP_UBO_BYTES = 48
  * WebGPU. The WebGL2 backend flattens to the binding numbers above.
  */
 export const GROUP_FRAME = 0
-export const GROUP_MATERIAL = 1
 
 /** Attribute locations. Matched to the shaders' `in` declarations. */
 export const LOC_COLORED_POS = 0
@@ -198,20 +179,6 @@ export const LOC_STROKE_P0 = 1
 export const LOC_STROKE_P1 = 2
 export const LOC_STROKE_COLOR = 3
 export const LOC_STROKE_WIDTHDASH = 4
-export const LOC_SDF_UNIT = 0
-export const LOC_SDF_CENTER = 1
-export const LOC_SDF_RADSTROKE = 2
-export const LOC_SDF_COLORFILL = 3
-export const LOC_SDF_COLORSTROKE = 4
-export const LOC_SDF_DASH = 5
-export const LOC_ROUNDRECT_UNIT = 0
-export const LOC_ROUNDRECT_MCOL0 = 1
-export const LOC_ROUNDRECT_MCOL1 = 2
-export const LOC_ROUNDRECT_TRANSLATE = 3
-export const LOC_ROUNDRECT_HALFFEATHER = 4
-export const LOC_ROUNDRECT_RADII = 5
-export const LOC_ROUNDRECT_COLORFILL = 6
-export const LOC_ROUNDRECT_COLORSTROKE = 7
 export const LOC_GRAD_UNIT = 0
 export const LOC_GRAD_CENTER = 1
 export const LOC_GRAD_RADALPHA = 2

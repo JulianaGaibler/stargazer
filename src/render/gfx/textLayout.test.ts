@@ -37,7 +37,7 @@ vi.mock('./rasterizeLabel', () => ({
 }))
 
 const {
-  _resetTextLayoutCacheForTests,
+  clearTextLayoutCaches,
   ellipsize,
   fitFontSize,
   fitRichTextBlock,
@@ -60,7 +60,7 @@ const chars = (n: number) => n * 10 + PAD
 const adv = (n: number) => n * 10
 
 describe('textLayout', () => {
-  beforeEach(() => _resetTextLayoutCacheForTests())
+  beforeEach(() => clearTextLayoutCaches())
 
   it('measures a longer string as wider', () => {
     expect(textWidth('mmmmmmmmmm', FONT)).toBeGreaterThan(textWidth('m', FONT))
@@ -149,7 +149,7 @@ describe('textLayout', () => {
 })
 
 describe('wrapTextInfo', () => {
-  beforeEach(() => _resetTextLayoutCacheForTests())
+  beforeEach(() => clearTextLayoutCaches())
 
   it('reports nothing dropped when the text fits', () => {
     expect(wrapTextInfo('alpha beta', FONT, chars(20), 2).truncated).toBe(false)
@@ -163,7 +163,7 @@ describe('wrapTextInfo', () => {
 })
 
 describe('fitTextBlock', () => {
-  beforeEach(() => _resetTextLayoutCacheForTests())
+  beforeEach(() => clearTextLayoutCaches())
 
   const make = (s: number) => `400 ${s}px sans-serif`
 
@@ -264,7 +264,7 @@ describe('textMetrics', () => {
   it('evicts the oldest entry rather than flushing the whole cache', () => {
     // The old behaviour cleared everything at the cap, so a working set one
     // over budget got a zero hit rate.
-    _resetTextLayoutCacheForTests()
+    clearTextLayoutCaches()
     for (let i = 0; i < 600; i++) textAdvance(`w${i}`, FONT)
     // The most recent entries survive an overflow that would have wiped them.
     expect(textAdvance('w599', FONT)).toBeCloseTo(textAdvance('w599', FONT))
@@ -285,7 +285,7 @@ const lineText = (line: { runs: RichRun[] }): string =>
   line.runs.map((r) => (r.kind === 'text' ? r.text : '')).join('')
 
 describe('wrapRichText', () => {
-  beforeEach(() => _resetTextLayoutCacheForTests())
+  beforeEach(() => clearTextLayoutCaches())
 
   it('coalesces one weight into a single run', () => {
     const lines = wrapRichText(
@@ -357,7 +357,7 @@ describe('wrapRichText', () => {
 const BOX: TextSpan = { box: 'badge', heightEm: 1, aspect: 2, alt: 'Design' }
 
 describe('inline boxes', () => {
-  beforeEach(() => _resetTextLayoutCacheForTests())
+  beforeEach(() => clearTextLayoutCaches())
 
   it('steps the pen by the box, and by its lead and trail', () => {
     const lines = wrapRichText(
@@ -451,7 +451,7 @@ describe('inline boxes', () => {
 })
 
 describe('fitRichTextBlock with inline boxes', () => {
-  beforeEach(() => _resetTextLayoutCacheForTests())
+  beforeEach(() => clearTextLayoutCaches())
 
   it('widens the line for a box that overhangs the font', () => {
     const tall: TextSpan = { box: 'badge', heightEm: 2, aspect: 1 }
@@ -514,7 +514,7 @@ describe('fitRichTextBlock with inline boxes', () => {
 })
 
 describe('fitRichTextBlock', () => {
-  beforeEach(() => _resetTextLayoutCacheForTests())
+  beforeEach(() => clearTextLayoutCaches())
 
   it('keeps the largest size that fits the box whole', () => {
     const block = fitRichTextBlock(

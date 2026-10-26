@@ -18,6 +18,7 @@ import type { SceneTree } from '../scene/SceneTree'
 import { Node2D } from '../scene/Node2D'
 import { CameraNode2D } from '../camera/CameraNode2D'
 import { copyCanvas } from './captureCopy'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 /** Seconds without a capture before the capture stage and its context go. */
 export const CAPTURE_IDLE_RELEASE_SEC = 30
@@ -25,6 +26,7 @@ export const CAPTURE_IDLE_RELEASE_SEC = 30
 /** Pipeline warm-ups and effect compiles a capture waits through, at most. */
 const MAX_WARMUPS = 3
 
+/** What to draw and how large, for an image of a scene. */
 export interface CaptureOptions {
   /** Image width in pixels. */
   width: number
@@ -52,6 +54,7 @@ export interface CaptureOptions {
   gpuDevice?: GfxDevice
 }
 
+/** {@link CaptureOptions} plus the encoding of the image file. */
 export interface CaptureBlobOptions extends CaptureOptions {
   /** Image MIME type. Default `'image/png'`. */
   type?: string
@@ -117,7 +120,10 @@ export class SceneCapture {
     encode: (surface: OffscreenCanvas) => T | Promise<T>,
   ): Promise<T> {
     if (this.#disposed) {
-      throw new Error('stargazer: capture after engine.destroy()')
+      throw new StargazerError(
+        'SG5009',
+        'stargazer: capture after engine.destroy()',
+      )
     }
     this.#cancelIdleRelease()
     const stage = this.#prepare(opts)
@@ -182,19 +188,26 @@ export class SceneCapture {
     for (let warmup = 0; warmup < MAX_WARMUPS; warmup++) {
       await stage.whenReady
       if (this.#stage !== stage) {
-        throw new Error('stargazer: capture stage released mid-capture')
+        throw new StargazerError(
+          'SG5009',
+          'stargazer: capture stage released mid-capture',
+        )
       }
       for (let i = 0; i < count; i++) {
         this.#host.runLayout(stage.tree)
         stage.updateTransforms()
         stage.render(0)
       }
-      if (stage.faulted) throw new Error('stargazer: capture render faulted')
+      if (stage.faulted)
+        throw new StargazerError('SG1009', 'stargazer: capture render faulted')
       if (!stage.ready) continue
       if (!stage.effectsCompiling) return
       await stage.whenEffectsCompiled()
     }
-    throw new Error('stargazer: capture pipelines did not settle')
+    throw new StargazerError(
+      'SG1009',
+      'stargazer: capture pipelines did not settle',
+    )
   }
 
   #scheduleIdleRelease(): void {

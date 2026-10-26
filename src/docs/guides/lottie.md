@@ -21,7 +21,7 @@ the features on this page.
 This example loads an animation and adds it to the scene as a 96 by 96 box.
 
 ```ts
-import { LottieNode, loadLottie } from '@src/stargazer'
+import { LottieNode, loadLottie } from 'stargazer'
 
 const spinner = new LottieNode({
   animation: await loadLottie('/spinner.json'),
@@ -71,7 +71,7 @@ A `.lottie` file is a zip archive with a manifest, one or more animations,
 themes, and the images and fonts they use.
 
 ```ts
-import { LottieNode, loadDotLottie } from '@src/stargazer'
+import { LottieNode, loadDotLottie } from 'stargazer'
 
 const file = await loadDotLottie('/mascot.lottie')
 const mascot = new LottieNode({
@@ -149,7 +149,7 @@ The node computes its placement with {@link computeLayout}. You can call it to
 place other content the same way:
 
 ```ts
-import { computeLayout } from '@src/stargazer'
+import { computeLayout } from 'stargazer'
 
 const { scaleX, scaleY, x, y } = computeLayout(
   anim.width,
@@ -347,7 +347,7 @@ node. It has no timers. Call `advance(dtMs)` once per frame and read the frame
 it returns.
 
 ```ts
-import { LottiePlayer, parseLottie } from '@src/stargazer'
+import { LottiePlayer, parseLottie } from 'stargazer'
 
 const anim = parseLottie(json)
 const player = new LottiePlayer(anim, { looping: true, autoplay: true })

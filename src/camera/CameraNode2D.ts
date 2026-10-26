@@ -7,6 +7,7 @@ import { Camera, type CameraAnimateOptions } from './Camera'
 import type { Affine2x3, CameraView2D } from './CameraView2D'
 import type { CameraHost } from './CameraHost'
 import { rejectDetached } from '../anim/abortSignal'
+import { StargazerError } from '../diagnostics/StargazerError'
 
 const DEFAULT_CAMERA_VIEWPORT: Rect = { x: 0, y: 0, width: 1000, height: 1000 }
 const EPS = 1e-9
@@ -19,8 +20,8 @@ const EPS = 1e-9
  *   that node.
  * - **Rect framing**: {@link CameraNode2D.setViewport} /
  *   {@link CameraNode2D.animateTo} fit a world rect into the canvas
- *   contain-style, recomputed on resize. This is the responsive framing kiosk
- *   layouts rely on.
+ *   contain-style, recomputed on resize. This is the responsive framing that
+ *   fixed-aspect layouts rely on.
  *
  * The two compose: the framing sets the base fit, the node's world transform is
  * an additional view offset on top (identity by default, so a plain framed
@@ -382,7 +383,9 @@ export class CameraNode2D extends Node2D implements CameraView2D {
     this.#fit.engine = this.engine
     const host = this.#host()
     if (!host) {
-      throw new Error(
+      throw new StargazerError(
+        'SG5007',
+
         `CameraNode2D '${this.id}' was attached to a tree with no camera host ` +
           `(SceneTree.stage is null). Camera nodes must live under a Stage's tree.`,
       )
@@ -400,6 +403,9 @@ export class CameraNode2D extends Node2D implements CameraView2D {
   // --- leaf-only -------------------------------------------------------------
 
   override add(..._children: Node[]): this {
-    throw new Error('CameraNode2D is a leaf node and cannot have children')
+    throw new StargazerError(
+      'SG5007',
+      'CameraNode2D is a leaf node and cannot have children',
+    )
   }
 }

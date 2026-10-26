@@ -1,0 +1,10 @@
+node_modules
+dist
+site
+.DS_Store
+*.svg
+*.sass
+*.scss
+*.glsl
+*.wgsl
+*.bin

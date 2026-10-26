@@ -120,6 +120,7 @@ export class ParticleEmitter {
     this.#minSpeedFrac = config.minSpeedFrac ?? 0
   }
 
+  /** How many particles are alive. */
   get aliveCount(): number {
     return this.pool.aliveCount
   }

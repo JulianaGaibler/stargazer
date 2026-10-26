@@ -4,6 +4,7 @@ import type { PointerHandlers } from './Node2D'
 
 /** How a node behaves as a tap button. */
 export interface ButtonOptions {
+  /** Called when the button is pressed and released on the node. */
   onClick: () => void
   /** The button is inert (no press, no click) while this is (or returns) false. */
   enabled?: boolean | (() => boolean)

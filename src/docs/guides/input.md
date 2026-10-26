@@ -15,7 +15,7 @@ Each interactive {@link Stage} has an {@link InputSystem} that listens on its ca
 Give a node pointer handlers with [`bindPointer`](/module/scene/node2d#bindpointer):
 
 ```ts
-import { ShapeNode } from '@src/stargazer'
+import { ShapeNode } from 'stargazer'
 
 const ball = new ShapeNode({
   geometry: { kind: 'circle', radius: 60 },
@@ -77,7 +77,7 @@ piece.bindPointer({
 A {@link ButtonBehavior} turns a node into a tap button. The button is pressed on `down`. `onClick` fires on `up` only if the release is still over the node, so a press dragged off the button does nothing.
 
 ```ts
-import { ButtonBehavior } from '@src/stargazer'
+import { ButtonBehavior } from 'stargazer'
 
 node.addBehavior(
   new ButtonBehavior({
@@ -95,7 +95,7 @@ The node draws itself. `onPressedChange` reports the pressed state, so make `pre
 A {@link DraggableBehavior} carries a node onto a drop target, such as a card into a slot:
 
 ```ts
-import { DraggableBehavior } from '@src/stargazer'
+import { DraggableBehavior } from 'stargazer'
 
 node.addBehavior(
   new DraggableBehavior<Cell>({
@@ -158,7 +158,7 @@ While the first pointer is down, the handlers ignore every other pointer. The sl
 {@link bindRegionGesture} reacts to presses on an area of the primary stage instead of on a node. Use it for a board you tap to drop a piece, or a strip you swipe from:
 
 ```ts
-import { bindRegionGesture } from '@src/stargazer'
+import { bindRegionGesture } from 'stargazer'
 
 const off = bindRegionGesture(engine, {
   hitTest: (w) => insideBoard(w.x, w.y),
@@ -180,7 +180,7 @@ A press is accepted when `hitTest` and `enabled` both pass. It is given to `onRe
 {@link ButtonBehavior} fires on release. That suits a menu item, but a game control should act the moment the finger lands. {@link HoldButtonBehavior} fires `onPress` on the press, and can repeat while held:
 
 ```ts
-import { HoldButtonBehavior } from '@src/stargazer'
+import { HoldButtonBehavior } from 'stargazer'
 
 node.addBehavior(
   new HoldButtonBehavior({

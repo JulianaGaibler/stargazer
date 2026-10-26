@@ -9,6 +9,7 @@
 // holds the earlier keyframe otherwise.
 
 import { cubicBezier, linear, type Easing } from '../../math/easings'
+import { StargazerError } from '../../diagnostics/StargazerError'
 
 /** One easing control pair: out handle `(ox, oy)` and in handle `(ix, iy)`. */
 export interface Handles {
@@ -141,7 +142,7 @@ export class ValueProp {
    */
   assign(other: ValueProp): void {
     if (other.dims !== this.dims) {
-      throw new Error('ValueProp.assign: dimension mismatch')
+      throw new StargazerError('SG6007', 'ValueProp.assign: dimension mismatch')
     }
     this.#times = other.#times
     this.#starts = other.#starts
@@ -170,6 +171,7 @@ export class ValueProp {
   get firstTime(): number {
     return this.#times[0]
   }
+  /** Time of the last keyframe. */
   get lastTime(): number {
     return this.#times[this.#times.length - 1]
   }
@@ -521,6 +523,7 @@ function ensurePathCapacity(out: PathData, count: number): void {
   out.o = new Float64Array(count * 2)
 }
 
+/** One Lottie path as flat arrays: vertices `v` and tangents `i` and `o`. */
 export interface PathShape {
   count: number
   closed: boolean

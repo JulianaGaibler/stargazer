@@ -15,6 +15,7 @@
  * caches, they repopulate lazily.
  */
 
+import { diagnostics } from '../../diagnostics/Diagnostics'
 import { evictOldest } from './evictOldest'
 import type { GfxDevice, Texture } from './GfxDevice'
 import type { GfxGradientStop } from './Gfx2D'
@@ -25,11 +26,11 @@ import {
   type RasterizedLabel,
 } from './rasterizeLabel'
 import { ShelfPacker } from './ShelfPacker'
-import { FIELD_HEIGHT, FIELD_WIDTH, loadField } from './squircleField'
+import { FIELD_HEIGHT, FIELD_TILE_SIZE, loadField } from './squircleField'
 
 /** Sprite tile size = 64 core + 1 px transparent padding on all sides. */
-export const ATLAS_TILE_CORE = 64
-export const ATLAS_TILE_PADDING = 1
+const ATLAS_TILE_CORE = 64
+const ATLAS_TILE_PADDING = 1
 export const ATLAS_TILE_SIZE = ATLAS_TILE_CORE + 2 * ATLAS_TILE_PADDING // 66
 
 /**
@@ -54,7 +55,7 @@ function bucketSide(px: number): number {
 
 /** Atlas texture dimensions. 1024×1024 -> 15×15 = 225 tiles capacity. */
 export const ATLAS_WIDTH = 1024
-export const ATLAS_HEIGHT = 1024
+const ATLAS_HEIGHT = 1024
 
 /** Ramp width: 256 texels smooth enough for every stop any caller uses. */
 const GRADIENT_LUT_WIDTH = 256
@@ -308,7 +309,7 @@ export interface TextureInspectorSnapshot {
 }
 
 /** One label-cache entry, flattened for the inspector. */
-export interface TextureInspectorLabel {
+interface TextureInspectorLabel {
   key: string
   text: string
   font: string
@@ -513,9 +514,10 @@ export class TextureManager implements TextureInspector {
       const field = await loadField()
       if (field) this.setSquircleField(field)
     } catch (err) {
-      console.warn(
-        '[stargazer] smooth corners unavailable, drawing circular corners:',
-        err,
+      diagnostics.report(
+        'SG2015',
+        'smooth corners unavailable, drawing circular corners:',
+        { cause: err },
       )
     }
   }
@@ -532,7 +534,7 @@ export class TextureManager implements TextureInspector {
   #uploadSquircleField(): void {
     if (!this.#squircleFieldData) return
     const tex = this.#device.createTexture2D({
-      width: FIELD_WIDTH,
+      width: FIELD_TILE_SIZE,
       height: FIELD_HEIGHT,
       filter: 'linear',
       wrap: 'clamp',
@@ -700,8 +702,9 @@ export class TextureManager implements TextureInspector {
       this.#atlasFull = true
       if (!this.#warnedAtlasFull) {
         this.#warnedAtlasFull = true
-        console.warn(
-          `TextureManager: particle atlas full (${ATLAS_WIDTH}×${ATLAS_HEIGHT}, ${Math.floor(ATLAS_WIDTH / ATLAS_TILE_SIZE) ** 2} tiles); further sprites use per-source textures.`,
+        diagnostics.report(
+          'SG2011',
+          `particle atlas full (${ATLAS_WIDTH}×${ATLAS_HEIGHT}, ${Math.floor(ATLAS_WIDTH / ATLAS_TILE_SIZE) ** 2} tiles); further sprites use per-source textures.`,
         )
       }
       return null
@@ -834,8 +837,9 @@ export class TextureManager implements TextureInspector {
     if (row < 0) {
       if (!this.#rampExhaustedWarned) {
         this.#rampExhaustedWarned = true
-        console.warn(
-          `GpuGfx: more than ${ATLAS_ROWS} distinct gradients in one frame, extra gradients draw as a solid color`,
+        diagnostics.report(
+          'SG2010',
+          `more than ${ATLAS_ROWS} distinct gradients in one frame, extra gradients draw as a solid color`,
         )
       }
       return -1

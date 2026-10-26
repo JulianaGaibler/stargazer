@@ -300,9 +300,6 @@ export function clearTextLayoutCaches(): void {
   richCache.clear()
 }
 
-/** @deprecated Use {@link clearTextLayoutCaches}. */
-export const _resetTextLayoutCacheForTests = clearTextLayoutCaches
-
 /**
  * Distance from a block's top edge to its first baseline, and the block's true
  * height. A block of `n` lines spans `n - 1` gaps plus one line box, so the

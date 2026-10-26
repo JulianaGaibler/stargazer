@@ -1,9 +1,6 @@
 import { RingSeries } from './RingSeries'
 import type { DebugStatsSnapshot } from './DebugController'
 
-/** The readings the HUD keeps a history of, for sparklines. */
-export type SeriesId = 'drawCalls' | 'bytesUploaded' | 'primitives' | 'paints'
-
 /**
  * Recent history of the renderer readings that have a sparkline. The hub
  * records one sample per poll while a window is open. Frame time is not here:

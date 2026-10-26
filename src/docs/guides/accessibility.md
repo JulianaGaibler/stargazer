@@ -26,7 +26,7 @@ Give the engine a mount element right after the canvas, then describe a node. In
 Then add semantics to a node with [`node.a11y()`](/module/scene/node2d#a11y):
 
 ```ts
-import { ShapeNode } from '@src/stargazer'
+import { ShapeNode } from 'stargazer'
 
 const startButton = new ShapeNode({
   geometry: { kind: 'rect', width: 240, height: 64 },

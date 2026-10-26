@@ -1788,7 +1788,7 @@ export class ColoredTriProgram implements GpuProgram {
  * lets the replay join the fans of paths that do not touch into one draw. It
  * draws through {@link ColoredTriProgram}'s pipelines and per-run uniforms.
  */
-export class StencilFanProgram implements GpuProgram {
+class StencilFanProgram implements GpuProgram {
   readonly kind = 'stencilFan' as const
   stream!: RingStream
 

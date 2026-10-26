@@ -1,3 +1,5 @@
+import { diagnostics } from '../../diagnostics/Diagnostics'
+
 /** One GPU resource that could not be built. */
 export interface RenderFailure {
   /** What failed to build, such as a program or a renderer. */
@@ -40,7 +42,7 @@ export class RenderFailures {
     }
     const failure = { source, message }
     this.#list.push(failure)
-    console.error(`Stargazer: ${source} failed to build: ${message}`)
+    diagnostics.report('SG3001', `${source} failed to build: ${message}`)
     for (const listener of this.#listeners) listener(failure)
   }
 }

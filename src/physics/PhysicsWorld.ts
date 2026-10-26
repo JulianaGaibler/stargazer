@@ -217,6 +217,7 @@ export class PhysicsWorld {
   get bodies(): readonly Body[] {
     return this.#_bodies
   }
+  /** How many bodies are in the world. */
   get bodyCount(): number {
     return this.#_bodies.length
   }

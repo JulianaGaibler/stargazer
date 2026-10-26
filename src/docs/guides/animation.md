@@ -17,7 +17,7 @@ You need an {@link Engine} and a node attached to one of its scenes. See [Setup]
 This example scales a node up, waits half a second, then fades it out:
 
 ```ts
-import { easings, ignoreAbort } from '@src/stargazer'
+import { easings, ignoreAbort } from 'stargazer'
 
 async function popAndFade(node: Node2D): Promise<void> {
   await node.tween(
@@ -109,7 +109,7 @@ A timeline suits a fixed sequence. For branches, loops or state changes between 
 An easing maps progress from 0 to 1 onto the eased value. The default is linear. The built-in easings are in the {@link easings} namespace:
 
 ```ts
-import { easings } from '@src/stargazer'
+import { easings } from 'stargazer'
 
 easings.linear
 easings.inQuad // also outQuad, inOutQuad
@@ -217,7 +217,7 @@ This applies to `wait`, `tweenTo`, `Node2D.tween`, `Node3D.tween`, [`CameraNode2
 {@link combineAbortSignals} returns a {@link CombinedAbort}, `{ signal, dispose }`. The combined signal aborts when any source aborts. `dispose()` removes the listeners it added to the sources. Call it when your operation ends:
 
 ```ts
-import { combineAbortSignals } from '@src/stargazer'
+import { combineAbortSignals } from 'stargazer'
 
 const combined = combineAbortSignals(node.abortSignal, opts.signal)
 try {

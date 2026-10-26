@@ -5,6 +5,7 @@ import type { Node } from './Node'
 
 /** The part of the debug controller `viewFor` consults. */
 export interface ViewDebug {
+  /** The 2D camera the HUD draws `stage` through. */
   activeCameraFor(stage: Stage): CameraView2D | null
 }
 

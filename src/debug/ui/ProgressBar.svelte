@@ -1,7 +1,10 @@
 <script lang="ts">
   interface Props {
+    /** From 0 to 100. Values outside the range are clamped. */
     percentage: number
+    /** A CSS color. */
     color?: string
+    /** Height in CSS px. */
     height?: number
   }
 

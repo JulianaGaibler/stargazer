@@ -1,3 +1,4 @@
+import { diagnostics } from '../../diagnostics/Diagnostics'
 /**
  * Rasterizes a single line of text onto an offscreen canvas using the platform
  * Canvas2D text engine (correct shaping / kerning / ligatures / emoji), ready
@@ -281,9 +282,6 @@ export function clearFontMetricsCache(): void {
   fontMetricsCache.clear()
 }
 
-/** @deprecated Use {@link clearFontMetricsCache}. */
-export const _resetFontMetricsCacheForTests = clearFontMetricsCache
-
 /**
  * Reduce `deviceScale` if rasterizing at it would exceed `maxPx` in either
  * dimension, so the texture always fits. Degrades to a softer (magnified) label
@@ -347,6 +345,23 @@ export function _setSharedLabelCanvasForTests(
   acquireFailed = false
 }
 
+let measurerOverride:
+  ((text: string, style: LabelStyle) => LabelMetrics) | null = null
+
+/**
+ * Replaces {@link measureText} with `measure` until the returned function is
+ * called. A headless test has no 2D context, so every string measures zero and
+ * every string fits. Exported through `stargazer/testing`.
+ */
+export function setTextMeasurer(
+  measure: (text: string, style: LabelStyle) => LabelMetrics,
+): () => void {
+  measurerOverride = measure
+  return () => {
+    if (measurerOverride === measure) measurerOverride = null
+  }
+}
+
 /**
  * Measure a label's local-space box using the shared offscreen canvas. The
  * public counterpart to `measureLabel` for callers that don't have a
@@ -375,12 +390,14 @@ export function _setSharedLabelCanvasForTests(
  *   )
  */
 export function measureText(text: string, style: LabelStyle): LabelMetrics {
+  if (measurerOverride) return measurerOverride(text, style)
   const shared = getSharedCtx()
   if (!shared) {
     if (!warnedNoContext) {
       warnedNoContext = true
-      console.warn(
-        '[stargazer] no 2D context to measure text, every string will report a zero box',
+      diagnostics.report(
+        'SG2019',
+        'no 2D context to measure text, every string will report a zero box',
       )
     }
     return {
