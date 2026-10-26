@@ -49,27 +49,17 @@ import { DEFAULT_MITER_LIMIT } from './strokeOutline'
 import { GfxPath, type FlatPath } from './GfxPath'
 import { appendStrokeFill } from './pathStroke'
 import { DashBuffer } from './dash'
-import { SurfacePool, type Surface } from './OffscreenSurfaces'
-import {
-  SurfaceEffects,
-  firstEffectSmooths,
-  placementOf,
-  type SurfaceEffectsJob,
-  type LayerCacheEntry,
-} from './SurfaceEffects'
+import { SurfacePool } from './OffscreenSurfaces'
+import { SurfaceEffects } from './SurfaceEffects'
 import { ImageDraw } from './ImageDraw'
 import { TextDraw } from './TextDraw'
 import { GradientFills } from './GradientFills'
 import { StrokeDraw, solidStroke } from './StrokeDraw'
 import { PathShadows, RETAIN_FILL_INDICES } from './PathShadows'
-import { PostChain } from '../postfx/PostChain'
-import {
-  OffscreenCompositeProgram,
-  type CompositeDraw,
-} from './programs/offscreenComposite'
-import type { PassHooks } from './GpuBatchContext'
+import { OffscreenCompositeProgram } from './programs/offscreenComposite'
+import { ClipState, type ClipPush } from './ClipState'
+import { OffscreenStack } from './OffscreenStack'
 import { MAX_CLIP_DEPTH } from './stencilRecipe'
-import type { ClipBounds } from './programs/coloredTri'
 import type { FillRule } from './stencilRecipe'
 import { TextureManager, type TextureInspector } from './TextureManager'
 import { VectorQuality } from '../VectorQuality'
@@ -122,59 +112,6 @@ export interface UnimplementedCounts {
    * `strokeOutline.ts`'s `resolveAlign`). Ticked on every occurrence.
    */
   strokeAlignFallback: number
-}
-
-/** The blend modes an offscreen composite supports. */
-const COMPOSITE_BLENDS = new Set<string>([
-  'source-over',
-  'lighter',
-  'screen',
-  'multiply',
-  'destination-out',
-  'destination-in',
-  'xor',
-])
-
-/** The rectangle of a texture a composite draws, a surface or an effects result. */
-type CompositeSource = Pick<
-  Surface,
-  'tex' | 'texW' | 'texH' | 'x' | 'y' | 'w' | 'h'
->
-
-/** An open `beginOffscreen`, kept until its `endOffscreen`. */
-interface OffFrame {
-  /**
-   * The surface being drawn into, `null` for a cached layer drawn from its kept
-   * render.
-   */
-  surface: Surface | null
-  /** The kept render composited in place of drawing, for a cache hit. */
-  hit: LayerCacheEntry | null
-  /** The effects to run over the surface, `null` for a plain surface. */
-  fx: SurfaceEffectsJob | null
-  alpha: number
-  blend: GfxBlend
-  retain: boolean
-  matte: GfxOffscreenHandle | null
-  matteMode: GfxMatteMode
-  clipDepth: number
-  clipPushes: ClipPush[]
-  saveLevel: number
-  passSamples: number
-}
-
-/** What a `GfxOffscreenHandle` holds. */
-interface OffscreenHandle {
-  surface: Surface
-}
-
-/** One clip path pushed by `clipPath`, undone by the `restore` of its level. */
-interface ClipPush {
-  level: number
-  /** Device bounds to pop, `null` when the clip raised no pixels. */
-  bounds: ClipBounds | null
-  /** Whether the depth went up, `false` when the depth cap refused it. */
-  raised: boolean
 }
 
 /** The segments a flattened path strokes, counting the closing one. */
@@ -355,6 +292,20 @@ export class GpuGfx implements Gfx2D {
     this.#ctx = new GpuBatchContext(device, this.stats)
     this.#pool = new SurfacePool(device)
     this.#effects = new SurfaceEffects(device)
+    this.#offscreen = new OffscreenStack({
+      device,
+      ctx: this.#ctx,
+      stats: this.stats,
+      clip: this.#clip,
+      pool: this.#pool,
+      effects: this.#effects,
+      composite: this.#composite,
+      target: () => this.#target,
+      targetWidth: () => this.#targetWidth,
+      targetHeight: () => this.#targetHeight,
+      resolveDestination: () => this.#resolveDestination(),
+      perfMarks: () => this.perfMarks,
+    })
     this.#ctx.vectorQuality = opts.vectorQuality ?? new VectorQuality()
     this.#ctx.registerProgram(this.#coloredTri)
     this.#ctx.registerProgram(this.#coloredTri.fan)
@@ -710,8 +661,8 @@ export class GpuGfx implements Gfx2D {
     this.#strokeDraw.strokePieces.sweep(this.#frameNo)
     this.#strokeDraw.outlines.sweep(this.#frameNo)
     this.#effects.beginFrame(this.#frameNo)
-    this.#clipPushes.length = 0
-    this.#saveLevel = 0
+    this.#clip.pushes.length = 0
+    this.#clip.saveLevel = 0
     // Reset per-frame stats so the HUD reflects the frame just rendered.
     this.stats.drawCalls = 0
     this.stats.programSwitches = 0
@@ -734,7 +685,7 @@ export class GpuGfx implements Gfx2D {
       ? [0, 0, 0, 0]
       : rgbaTuple(parseColor(opts.clearColor))
     this.#device.beginFrame()
-    this.#clear = clear
+    this.#offscreen.clear = clear
     this.#ctx.curBlend = 'source-over'
   }
 
@@ -748,12 +699,8 @@ export class GpuGfx implements Gfx2D {
    */
   perfMarks = false
   #pool: SurfacePool
-  /** The main pass's clear colour, set by `beginFrame`. */
-  #clear: readonly [number, number, number, number] = [0, 0, 0, 0]
-  #mainPrelude: (() => void) | null = null
-  /** Record-time stack of open `beginOffscreen` calls. */
-  readonly #offStack: OffFrame[] = []
   readonly #effects: SurfaceEffects
+  readonly #offscreen: OffscreenStack
 
   /**
    * Run `draw` at the start of the main pass, before the recorded layers. The
@@ -763,329 +710,15 @@ export class GpuGfx implements Gfx2D {
    * @internal
    */
   setMainPrelude(draw: (() => void) | null): void {
-    this.#mainPrelude = draw
-  }
-
-  readonly #hooks: PassHooks = {
-    open: (surface) => {
-      if (surface) {
-        if (this.perfMarks) performance.mark('gfx-surface:start')
-        const slot = this.#ctx.acquireFrameSlot(surface.texW, surface.texH)
-        this.#ctx.useFrameSlot(slot)
-        this.#ctx.passSamples = surface.draw.samples
-        this.#openSurface(surface)
-      } else {
-        this.#ctx.useFrameSlot(0)
-        this.#ctx.passSamples = this.#target.samples
-        this.#openMain()
-        const prelude = this.#mainPrelude
-        this.#mainPrelude = null
-        prelude?.()
-      }
-    },
-    close: (surface) => {
-      this.#device.endRenderPass()
-      if (surface) {
-        this.stats.passCount += this.#effects.run(
-          surface,
-          this.#target.colorSpace,
-        )
-      }
-      if (this.perfMarks && surface) {
-        performance.measure(
-          `gfx offscreen surface ${surface.w}x${surface.h}`,
-          'gfx-surface:start',
-        )
-      }
-    },
-  }
-
-  /** The pixel size of the target currently being recorded into. */
-  #viewW(): number {
-    return this.#topSurface()?.w ?? this.#targetWidth
-  }
-  #viewH(): number {
-    return this.#topSurface()?.h ?? this.#targetHeight
-  }
-
-  /** The innermost open surface, skipping layers drawn from a kept render. */
-  #topSurface(): Surface | null {
-    for (let i = this.#offStack.length - 1; i >= 0; i--) {
-      const s = this.#offStack[i].surface
-      if (s) return s
-    }
-    return null
-  }
-
-  /**
-   * Open the main target's pass. It is the frame's only pass over the target,
-   * so it resolves multisampled colour and drops everything the next frame does
-   * not read.
-   */
-  #openMain(): void {
-    const resolve = this.#resolveDestination()
-    this.stats.passCount++
-    this.#device.beginRenderPass({
-      color: {
-        target: this.#target,
-        loadOp: 'clear',
-        clearColor: this.#clear,
-        resolveTarget: resolve,
-        // The resolve target holds the result, so the multisampled samples
-        // never need to reach memory.
-        storeOp: resolve ? 'discard' : 'store',
-      },
-      // Both aspects come off the live target rather than the requested flags,
-      // so the pass can never describe an attachment the target does not have.
-      depth: this.#target.hasDepth
-        ? {
-            target: { renderTarget: this.#target },
-            loadOp: 'clear',
-            // Nothing samples the main depth: 2D never tests it and AO draws
-            // its own G-buffer.
-            storeOp: 'discard',
-          }
-        : undefined,
-      // Only clips and stroke de-duplication read it, and only within the
-      // frame.
-      stencil: this.#target.hasStencil
-        ? {
-            target: this.#target,
-            loadOp: 'clear',
-            clearValue: 0,
-            storeOp: 'discard',
-          }
-        : undefined,
-    })
-  }
-
-  /** Open a surface's pass. It resolves and drops its samples in the same pass. */
-  #openSurface(surface: Surface): void {
-    const resolve = surface.multisampled ? surface.resolve : undefined
-    this.stats.passCount++
-    this.#device.beginRenderPass({
-      color: {
-        target: surface.draw,
-        loadOp: 'clear',
-        clearColor: surface.clear,
-        resolveTarget: resolve,
-        storeOp: resolve ? 'discard' : 'store',
-      },
-      depth: surface.draw.hasDepth
-        ? {
-            target: { renderTarget: surface.draw },
-            loadOp: 'clear',
-            storeOp: 'discard',
-          }
-        : undefined,
-      stencil: surface.draw.hasStencil
-        ? {
-            target: surface.draw,
-            loadOp: 'clear',
-            clearValue: 0,
-            storeOp: 'discard',
-          }
-        : undefined,
-    })
+    this.#offscreen.setMainPrelude(draw)
   }
 
   beginOffscreen(opts: GfxOffscreenOptions = {}): boolean {
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    let x0 = 0
-    let y0 = 0
-    let x1 = this.#viewW()
-    let y1 = this.#viewH()
-    const b = opts.bounds
-    if (b) {
-      let minX = Infinity
-      let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
-      for (let i = 0; i < 4; i++) {
-        const lx = b.x + (i === 1 || i === 2 ? b.width : 0)
-        const ly = b.y + (i >= 2 ? b.height : 0)
-        const dx = t.a * lx + t.c * ly + t.e
-        const dy = t.b * lx + t.d * ly + t.f
-        if (dx < minX) minX = dx
-        if (dx > maxX) maxX = dx
-        if (dy < minY) minY = dy
-        if (dy > maxY) maxY = dy
-      }
-      x0 = Math.max(x0, Math.floor(minX))
-      y0 = Math.max(y0, Math.floor(minY))
-      x1 = Math.min(x1, Math.ceil(maxX))
-      y1 = Math.min(y1, Math.ceil(maxY))
-    }
-    const w = x1 - x0
-    const h = y1 - y0
-    if (w <= 0 || h <= 0) return false
-    const requested = opts.retain === true ? null : opts.effects
-    const fx =
-      requested && PostChain.hasWork(requested.effects) ? requested : null
-    if (requested?.cache) requested.cache.hit = false
-    const job = fx ? this.#effects.prepare(fx, this.#target.colorSpace) : null
-    if (job && fx) job.placement = placementOf(fx.units, x0, y0)
-    if (opts.effects && !fx) opts.effects.applied = opts.retain !== true
-    // A layer that must not show unprocessed is composited invisibly until its
-    // pipelines are ready.
-    const held = fx !== null && job === null && fx.hold === true
-    const alpha = held
-      ? 0
-      : this.#ctx.stateStack.getAlpha() * (opts.opacity ?? 1)
-    const blend = opts.blend ?? this.#ctx.stateStack.getBlend()
-    if (job && fx?.cache) {
-      const kept = this.#effects.checkLayerCache(
-        fx,
-        fx.cache,
-        job,
-        this.#target.colorSpace,
-        x0,
-        y0,
-        w,
-        h,
-      )
-      if (kept) {
-        // The kept render stands, so nothing is drawn and the composite is the
-        // whole cost. The frame only holds the alpha and blend for
-        // `endOffscreen`.
-        this.#offStack.push({
-          surface: null,
-          hit: kept,
-          fx: null,
-          alpha,
-          blend,
-          retain: false,
-          matte: null,
-          matteMode: 'alpha',
-          clipDepth: this.#ctx.clipDepth,
-          clipPushes: [],
-          saveLevel: this.#saveLevel,
-          passSamples: this.#ctx.passSamples,
-        })
-        return true
-      }
-    }
-    // Effects position by the size of the texture they read, so the surface is
-    // exactly the captured size. A layer whose first effect smooths its input
-    // draws single-sample, once every program has pipelines for it.
-    let samples = this.#target.samples
-    if (fx && samples > 1 && firstEffectSmooths(fx.effects)) {
-      if (this.#ctx.singleSampleReady) samples = 1
-      else this.#ctx.warmSingleSample()
-    }
-    const surface = this.#pool.acquire(
-      w,
-      h,
-      {
-        colorSpace: this.#target.colorSpace,
-        samples,
-        depth: this.#target.hasDepth,
-        stencil: this.#target.hasStencil,
-      },
-      fx !== null,
-    )
-    if (opts.clearColor !== undefined) {
-      // A surface holds premultiplied color, so a translucent clear is too.
-      const c = rgbaTuple(parseColor(opts.clearColor))
-      surface.clear = [c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3]]
-    }
-    if (job) {
-      job.x = x0
-      job.y = y0
-    }
-    surface.x = x0
-    surface.y = y0
-    surface.w = w
-    surface.h = h
-    this.stats.surfaces++
-    this.#ctx.pushPassMark('begin', surface)
-    // The surface starts from a clean state, in its own pixel space.
-    this.#ctx.txStack.push()
-    this.#ctx.stateStack.push()
-    this.#ctx.txStack.setTop(t.a, t.b, t.c, t.d, t.e - x0, t.f - y0)
-    this.#ctx.stateStack.setAlpha(1)
-    this.#ctx.stateStack.setBlend('source-over')
-    this.#ctx.stateStack.setClip(null)
-    this.#ctx.stateStack.setClipMask(null)
-    this.#offStack.push({
-      surface,
-      hit: null,
-      fx: job,
-      alpha,
-      blend,
-      retain: opts.retain === true,
-      matte: opts.matte ?? null,
-      matteMode: opts.matteMode ?? 'alpha',
-      clipDepth: this.#ctx.clipDepth,
-      clipPushes: this.#clipPushes.slice(),
-      saveLevel: this.#saveLevel,
-      passSamples: this.#ctx.passSamples,
-    })
-    this.#ctx.clipDepth = 0
-    this.#ctx.passSamples = samples
-    this.#clipPushes.length = 0
-    return true
+    return this.#offscreen.begin(opts)
   }
 
   endOffscreen(): GfxOffscreenHandle | null {
-    const frame = this.#offStack.pop()
-    if (!frame) return null
-    const kept = frame.hit
-    if (kept) {
-      this.#compositeSurface(
-        {
-          tex: this.#device.colorTexture(kept.out),
-          texW: kept.w,
-          texH: kept.h,
-          x: kept.x,
-          y: kept.y,
-          w: kept.w,
-          h: kept.h,
-        },
-        frame.alpha,
-        frame.blend,
-        null,
-        'alpha',
-      )
-      return null
-    }
-    const s = frame.surface!
-    this.#ctx.pushPassMark('end', s)
-    this.#ctx.txStack.pop()
-    this.#ctx.stateStack.pop()
-    this.#ctx.clipDepth = frame.clipDepth
-    this.#clipPushes.length = 0
-    this.#clipPushes.push(...frame.clipPushes)
-    this.#saveLevel = frame.saveLevel
-    this.#ctx.passSamples = frame.passSamples
-    const handle: OffscreenHandle = { surface: s }
-    if (frame.retain) return handle as unknown as GfxOffscreenHandle
-    const matteHandle = frame.matte as unknown as OffscreenHandle | null
-    let source: CompositeSource = s
-    const job = frame.fx
-    if (job) {
-      // The effects run when the surface's pass closes and write `out`, which
-      // the composite then draws in place of the surface.
-      const out = this.#effects.queue(s, job, this.#target.colorSpace)
-      source = {
-        tex: this.#device.colorTexture(out),
-        texW: s.w,
-        texH: s.h,
-        x: s.x,
-        y: s.y,
-        w: s.w,
-        h: s.h,
-      }
-    }
-    this.#compositeSurface(
-      source,
-      frame.alpha,
-      frame.blend,
-      matteHandle?.surface ?? null,
-      frame.matteMode,
-    )
-    return null
+    return this.#offscreen.end()
   }
 
   drawOffscreen(
@@ -1097,15 +730,7 @@ export class GpuGfx implements Gfx2D {
       matteMode?: GfxMatteMode
     } = {},
   ): void {
-    const surface = (handle as unknown as OffscreenHandle).surface
-    const matte = opts.matte as unknown as OffscreenHandle | undefined
-    this.#compositeSurface(
-      surface,
-      this.#ctx.stateStack.getAlpha() * (opts.opacity ?? 1),
-      opts.blend ?? this.#ctx.stateStack.getBlend(),
-      matte?.surface ?? null,
-      opts.matteMode ?? 'alpha',
-    )
+    this.#offscreen.draw(handle, opts)
   }
 
   /**
@@ -1115,49 +740,6 @@ export class GpuGfx implements Gfx2D {
    */
   warmEffects(fx: GfxSurfaceEffects): void {
     this.#effects.warm(fx, this.#target.colorSpace)
-  }
-
-  /** Record a quad of `s` at its rectangle in the current target. */
-  #compositeSurface(
-    s: CompositeSource,
-    alpha: number,
-    blend: GfxBlend,
-    matte: Surface | null,
-    matteMode: GfxMatteMode,
-  ): void {
-    // A matte surface must cover the same rectangle, which is how the shader
-    // addresses both with one UV.
-    if (
-      matte &&
-      (matte.x !== s.x || matte.y !== s.y || matte.w !== s.w || matte.h !== s.h)
-    ) {
-      matte = null
-    }
-    if (!COMPOSITE_BLENDS.has(blend)) {
-      diagnostics.report(
-        'SG2001',
-        `offscreen blend '${blend}' is not supported, compositing with 'source-over'`,
-      )
-      blend = 'source-over'
-    }
-    const draw: CompositeDraw = {
-      tex: s.tex,
-      matte: matte ? matte.tex : null,
-      matteMode: matte ? matteMode : 'none',
-      opacity: alpha,
-    }
-    // The rectangle in the target now being recorded into.
-    const x = s.x
-    const quad = [x, s.y, x + s.w, s.y, x + s.w, s.y + s.h, x, s.y + s.h]
-    const u1 = s.w / s.texW
-    const topDown = this.#device.ndc.textureTopDown
-    const v0 = topDown ? 0 : 1
-    const v1 = topDown ? s.h / s.texH : 1 - s.h / s.texH
-    const uv = [0, v0, u1, v0, u1, v1, 0, v1]
-    this.#ctx.stateStack.push()
-    this.#ctx.stateStack.setBlend(blend)
-    this.#composite.record(this.#ctx, draw, quad, uv)
-    this.#ctx.stateStack.pop()
   }
 
   /**
@@ -1186,7 +768,7 @@ export class GpuGfx implements Gfx2D {
     // then the main pass, which resolves MSAA into the resolve target.
     const marks = this.perfMarks
     if (marks) performance.mark('gfx-submit:start')
-    this.#ctx.submitFrame(this.#hooks)
+    this.#ctx.submitFrame(this.#offscreen.hooks)
     this.#ctx.passSamples = this.#target.samples
     if (marks) {
       // The profiler drops a measure's `detail`, so the counters go in the name.
@@ -1339,42 +921,38 @@ export class GpuGfx implements Gfx2D {
     e: number,
     f: number,
   ): void {
-    const stack = this.#offStack
-    if (stack.length === 0) {
+    const stack = this.#offscreen
+    if (!stack.open) {
       this.#ctx.txStack.setBase(a, b, c, d, e, f)
       return
     }
     // Inside a surface the matrix is still given in target pixels. A surface's
     // origin is in the pixels of the one around it, so the matrix moves by the
     // origins of every open surface, and keeps the stack's depth.
-    let ox = 0
-    let oy = 0
-    for (let i = 0; i < stack.length; i++) {
-      ox += stack[i].surface?.x ?? 0
-      oy += stack[i].surface?.y ?? 0
-    }
+    const ox = stack.originX()
+    const oy = stack.originY()
     this.#ctx.txStack.setTop(a, b, c, d, e - ox, f - oy)
   }
 
   save(): void {
     this.#ctx.txStack.push()
     this.#ctx.stateStack.push()
-    this.#saveLevel++
+    this.#clip.saveLevel++
   }
 
   restore(): void {
     // Undo the clip paths pushed at this level before the matrix goes.
-    const pushes = this.#clipPushes
+    const pushes = this.#clip.pushes
     while (
       pushes.length > 0 &&
-      pushes[pushes.length - 1].level >= this.#saveLevel
+      pushes[pushes.length - 1].level >= this.#clip.saveLevel
     ) {
       const push = pushes.pop() as ClipPush
       if (!push.raised) continue
       if (push.bounds) this.#coloredTri.clipPop(this.#ctx, push.bounds)
       this.#ctx.clipDepth--
     }
-    if (this.#saveLevel > 0) this.#saveLevel--
+    if (this.#clip.saveLevel > 0) this.#clip.saveLevel--
     this.#ctx.txStack.pop()
     this.#ctx.stateStack.pop()
   }
@@ -1394,8 +972,8 @@ export class GpuGfx implements Gfx2D {
         `clip paths nest at most ${MAX_CLIP_DEPTH} deep, extra clips are ignored`,
       )
       // Keep restore balanced.
-      this.#clipPushes.push({
-        level: this.#saveLevel,
+      this.#clip.pushes.push({
+        level: this.#clip.saveLevel,
         bounds: null,
         raised: false,
       })
@@ -1406,12 +984,16 @@ export class GpuGfx implements Gfx2D {
       this.#ctx,
       flat,
       rule,
-      this.#viewW(),
-      this.#viewH(),
+      this.#offscreen.viewW(),
+      this.#offscreen.viewH(),
     )
     // An empty or off-screen clip still raises the depth, over no pixels, so
     // nothing drawn inside it passes the test.
-    this.#clipPushes.push({ level: this.#saveLevel, bounds, raised: true })
+    this.#clip.pushes.push({
+      level: this.#clip.saveLevel,
+      bounds,
+      raised: true,
+    })
     this.#ctx.clipDepth++
   }
 
@@ -1451,8 +1033,7 @@ export class GpuGfx implements Gfx2D {
   readonly #dashBuffer = new DashBuffer()
   /** Scratch for the filled form of a stroke. */
   readonly #strokeFill = new GfxPath()
-  #saveLevel = 0
-  readonly #clipPushes: ClipPush[] = []
+  readonly #clip = new ClipState()
 
   setBlend(mode: import('./Gfx2D').GfxBlend): void {
     if (mode !== 'source-over' && mode !== 'lighter') {
@@ -1833,8 +1414,8 @@ export class GpuGfx implements Gfx2D {
       flat,
       rule,
       fill,
-      this.#viewW(),
-      this.#viewH(),
+      this.#offscreen.viewW(),
+      this.#offscreen.viewH(),
     )
   }
 
