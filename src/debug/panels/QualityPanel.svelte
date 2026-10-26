@@ -364,9 +364,9 @@
 
   $effect(() => {
     void revision
-    if (debug.smoothTimestep !== smoothTimestep)
-      smoothTimestep = debug.smoothTimestep
-    const ao = debug.ambientOcclusionPeek
+    if (debug.engine.ticker.smoothTimestep !== smoothTimestep)
+      smoothTimestep = debug.engine.ticker.smoothTimestep
+    const ao = debug.engine.primaryStage.peekAmbientOcclusion()
     if (ao) {
       if (ao.intensity !== aoIntensity) aoIntensity = ao.intensity
       if (ao.radius !== aoRadius) aoRadius = ao.radius
@@ -548,8 +548,8 @@
     <ToggleButton
       active={smoothTimestep}
       onToggle={() => {
-        debug.setSmoothTimestep(!smoothTimestep)
-        smoothTimestep = debug.smoothTimestep
+        debug.engine.ticker.setSmoothTimestep(!smoothTimestep)
+        smoothTimestep = debug.engine.ticker.smoothTimestep
       }}
       label="Smooth timestep (timer-jitter filter)"
     />
@@ -609,8 +609,8 @@
       step={0.1}
       format={(v) => `${v.toFixed(1)}×`}
       onInput={(v) => {
-        debug.ambientOcclusion.intensity = v
-        aoIntensity = debug.ambientOcclusion.intensity
+        debug.engine.primaryStage.ambientOcclusion.intensity = v
+        aoIntensity = debug.engine.primaryStage.ambientOcclusion.intensity
       }}
     />
     <DebugSlider
@@ -621,8 +621,8 @@
       step={0.05}
       format={(v) => v.toFixed(2)}
       onInput={(v) => {
-        debug.ambientOcclusion.radius = v
-        aoRadius = debug.ambientOcclusion.radius
+        debug.engine.primaryStage.ambientOcclusion.radius = v
+        aoRadius = debug.engine.primaryStage.ambientOcclusion.radius
       }}
     />
     <DebugSlider
@@ -633,8 +633,8 @@
       step={0.05}
       format={(v) => (v === 0 ? 'off' : v.toFixed(2))}
       onInput={(v) => {
-        debug.ambientOcclusion.directStrength = v
-        aoDirect = debug.ambientOcclusion.directStrength
+        debug.engine.primaryStage.ambientOcclusion.directStrength = v
+        aoDirect = debug.engine.primaryStage.ambientOcclusion.directStrength
       }}
     />
   </DebugSection>

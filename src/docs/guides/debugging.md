@@ -171,7 +171,7 @@ The backend picker in the Quality panel reloads the page with `?gfx=webgpu` or `
 Start the page with `?debug=perf`, or use the toggle under Debug views, and the engine wraps its work in `performance` marks. The browser profiler's user-timing lane then shows each span by name. The marks cost time themselves, so switch them on while you profile.
 
 ```ts
-host.debug.setPerfMarks(true)
+host.engine.perfMarks = true
 ```
 
 | Span                                                                      | Meaning                                                                                                 |

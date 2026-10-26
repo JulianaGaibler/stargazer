@@ -11,7 +11,6 @@ import type { CameraView3D } from '../camera/CameraView3D'
 import type { Node3D } from '../scene/Node3D'
 import type { DebugLine3DRenderer } from '../render/gfx/DebugLine3DRenderer'
 import type { RenderQuality } from '../render/RenderQuality'
-import type { AmbientOcclusion } from '../render/gfx/ao/AmbientOcclusion'
 import { walkTree } from '../scene/traverse'
 import {
   snapshotPhysics,
@@ -437,42 +436,6 @@ export class DebugController {
   /** Live 3D rendering-quality settings. The Rendering panel overrides these. */
   get quality(): RenderQuality {
     return this.engine.quality
-  }
-  /**
-   * The primary stage's ambient-occlusion controller, created on access. The
-   * Rendering panel touches this only when the operator enables AO, so a 3D
-   * scene that never turns it on warms no AO pipelines.
-   */
-  get ambientOcclusion(): AmbientOcclusion {
-    return this.engine.primaryStage.ambientOcclusion
-  }
-  /** The AO controller only if already created (for read-only HUD mirroring). */
-  get ambientOcclusionPeek(): AmbientOcclusion | null {
-    return this.engine.primaryStage.peekAmbientOcclusion()
-  }
-  /** Whether frame phases are recorded as `performance.measure` entries. */
-  get perfMarks(): boolean {
-    return this.engine.perfMarks
-  }
-  /** Turn the `performance.measure` entries on or off. */
-  setPerfMarks(enabled: boolean): void {
-    this.engine.perfMarks = enabled
-  }
-  /** Current render frame-rate cap in Hz, or 0 when uncapped. */
-  get maxFps(): number {
-    return this.engine.ticker.maxFps
-  }
-  /** Cap the render frame rate (Hz). 0 removes the cap. */
-  setMaxFps(fps: number): void {
-    this.engine.ticker.setMaxFps(fps)
-  }
-  /** Whether render `dt` smoothing is on. */
-  get smoothTimestep(): boolean {
-    return this.engine.ticker.smoothTimestep
-  }
-  /** Toggle render `dt` smoothing (timer-jitter filter). */
-  setSmoothTimestep(enabled: boolean): void {
-    this.engine.ticker.setSmoothTimestep(enabled)
   }
   /** The clip mask shown by the `clip-mask` render mode, or `null`. */
   get inspectedMask(): BitmapMask | null {

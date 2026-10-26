@@ -111,7 +111,7 @@
     const live2d = active.getDebugRenderMode()
     const liveMode: CombinedRenderMode = live3d !== 'normal' ? live3d : live2d
     if (liveMode !== renderMode) renderMode = liveMode
-    if (debug.perfMarks !== perfMarks) perfMarks = debug.perfMarks
+    if (debug.engine.perfMarks !== perfMarks) perfMarks = debug.engine.perfMarks
   })
 
   function handleRenderModeChange(mode: CombinedRenderMode): void {
@@ -128,8 +128,8 @@
   }
 
   function handlePerfMarksToggle(): void {
-    debug.setPerfMarks(!perfMarks)
-    perfMarks = debug.perfMarks
+    debug.engine.perfMarks = !perfMarks
+    perfMarks = debug.engine.perfMarks
   }
 
   // --- readings -----------------------------------------------------------

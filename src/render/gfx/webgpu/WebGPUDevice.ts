@@ -62,7 +62,6 @@ import type {
   VBuffer,
   VertexBufferLayout,
 } from '../GfxDevice'
-import { PassBindingState } from './bindingState'
 import {
   colorFormatToGPU,
   colorTargetToGPU,
@@ -252,8 +251,16 @@ export class WebGPUDevice implements GfxDevice {
   #computePass: GPUComputePassEncoder | null = null
   /** Last pipeline set on the open pass, for the `pipelineSwitches` stat. */
   #lastPipeline: GPURenderPipeline | null = null
-  /** What the open render pass already has bound, see {@link PassBindingState}. */
-  readonly #bindings = new PassBindingState<GPUBuffer, GPUBindGroup>()
+  // What the open render pass already holds, so a draw sets only what differs
+  // from the draw before it. A pass starts with nothing bound, and each encoder
+  // call crosses into the GPU process. Bind groups compare by object plus their
+  // dynamic offsets.
+  readonly #passVertexBuffers: (GPUBuffer | null)[] = []
+  readonly #passVertexOffsets: number[] = []
+  #passIndexBuffer: GPUBuffer | null = null
+  #passIndexFormat = ''
+  readonly #passGroups: (GPUBindGroup | null)[] = []
+  readonly #passGroupOffsets: (readonly number[] | undefined)[] = []
   /** Pass state a draw may change: reset to the WebGPU defaults per pass. */
   #stencilRef = 0
   #scissorSet = false
@@ -1439,7 +1446,12 @@ export class WebGPUDevice implements GfxDevice {
 
     this.#pass = encoder.beginRenderPass(descriptor)
     this.#lastPipeline = null
-    this.#bindings.reset()
+    this.#passVertexBuffers.length = 0
+    this.#passVertexOffsets.length = 0
+    this.#passIndexBuffer = null
+    this.#passIndexFormat = ''
+    this.#passGroups.length = 0
+    this.#passGroupOffsets.length = 0
     this.#stencilRef = 0
     this.#scissorSet = false
     this.#scissorKey = ''
@@ -1749,14 +1761,25 @@ export class WebGPUDevice implements GfxDevice {
     for (let i = 0; i < call.vertexBuffers.length; i++) {
       const vb = call.vertexBuffers[i]
       const gpu = (vb.buffer as WebGPUBuffer).gpu
-      if (this.#bindings.vertexBufferChanged(i, gpu, vb.offset)) {
+      if (
+        this.#passVertexBuffers[i] !== gpu ||
+        this.#passVertexOffsets[i] !== vb.offset
+      ) {
+        this.#passVertexBuffers[i] = gpu
+        this.#passVertexOffsets[i] = vb.offset
         pass.setVertexBuffer(i, gpu, vb.offset)
       }
     }
     for (const dg of call.bindGroups) {
       const bg = dg.bindGroup as WebGPUBindGroup
-      if (!this.#bindings.bindGroupChanged(dg.group, bg.gpu, dg.dynamicOffsets))
+      if (
+        this.#passGroups[dg.group] === bg.gpu &&
+        sameOffsets(this.#passGroupOffsets[dg.group], dg.dynamicOffsets)
+      ) {
         continue
+      }
+      this.#passGroups[dg.group] = bg.gpu
+      this.#passGroupOffsets[dg.group] = dg.dynamicOffsets?.slice()
       if (dg.dynamicOffsets && dg.dynamicOffsets.length > 0) {
         pass.setBindGroup(dg.group, bg.gpu, dg.dynamicOffsets)
       } else {
@@ -1770,7 +1793,12 @@ export class WebGPUDevice implements GfxDevice {
     if (call.indexBuffer) {
       const ib = call.indexBuffer as WebGPUIndexBuffer
       const format = indexTypeToGPU(ib.indexType)
-      if (this.#bindings.indexBufferChanged(ib.gpu, format)) {
+      if (
+        this.#passIndexBuffer !== ib.gpu ||
+        this.#passIndexFormat !== format
+      ) {
+        this.#passIndexBuffer = ib.gpu
+        this.#passIndexFormat = format
         pass.setIndexBuffer(ib.gpu, format)
       }
       pass.drawIndexed(call.indexCount ?? 0, instances, first, 0, 0)
@@ -1916,4 +1944,19 @@ function reportWgslErrors(
       )
     }
   })
+}
+
+/**
+ * Two dynamic offset lists are the same binding, and no list equals an empty
+ * one.
+ */
+function sameOffsets(
+  a: readonly number[] | undefined,
+  b: readonly number[] | undefined,
+): boolean {
+  const la = a?.length ?? 0
+  const lb = b?.length ?? 0
+  if (la !== lb) return false
+  for (let i = 0; i < la; i++) if (a![i] !== b![i]) return false
+  return true
 }

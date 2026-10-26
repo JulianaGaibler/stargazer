@@ -25,7 +25,6 @@ import type {
   GfxOffscreenOptions,
   GfxSurfaceEffects,
   GfxFill,
-  GfxLinearGradient,
   GfxGradientStop,
   GfxImageOptions,
   GfxShadowStyle,
@@ -39,25 +38,14 @@ import { depthStencilFormatOf } from './depthStencil'
 import { parseColor } from './parseColor'
 import { RenderFailures } from './RenderFailures'
 import type { GeometryHandle } from './GeometryHandle'
-import { RetainedCache, type RetainedCacheStats } from './RetainedCache'
+import type { RetainedCacheStats } from './RetainedCache'
 import {
   getContourClosed,
   getPathContours,
   getPathTessellation,
-  getRegistrationEpoch,
 } from './PathTessellationRegistry'
-import {
-  strokeOutline,
-  scaleBucketCenter,
-  scaleBucketIndex,
-  StrokeOutlineBuffer,
-  DEFAULT_MITER_LIMIT,
-  wouldFallBackToCenter,
-} from './strokeOutline'
-import {
-  flattenQuadratic,
-  tessellateContours,
-} from '../../assets/SvgPathContours'
+import { tessellateContours } from '../../assets/SvgPathContours'
+import { DEFAULT_MITER_LIMIT } from './strokeOutline'
 import { GfxPath, type FlatPath } from './GfxPath'
 import { appendStrokeFill } from './pathStroke'
 import { DashBuffer } from './dash'
@@ -69,6 +57,11 @@ import {
   type SurfaceEffectsJob,
   type LayerCacheEntry,
 } from './SurfaceEffects'
+import { ImageDraw } from './ImageDraw'
+import { TextDraw } from './TextDraw'
+import { GradientFills } from './GradientFills'
+import { StrokeDraw, solidStroke } from './StrokeDraw'
+import { PathShadows, RETAIN_FILL_INDICES } from './PathShadows'
 import { PostChain } from '../postfx/PostChain'
 import {
   OffscreenCompositeProgram,
@@ -78,33 +71,22 @@ import type { PassHooks } from './GpuBatchContext'
 import { MAX_CLIP_DEPTH } from './stencilRecipe'
 import type { ClipBounds } from './programs/coloredTri'
 import type { FillRule } from './stencilRecipe'
-import {
-  TextureManager,
-  type LabelTexture,
-  type TextureInspector,
-} from './TextureManager'
+import { TextureManager, type TextureInspector } from './TextureManager'
 import { VectorQuality } from '../VectorQuality'
-import { DEFAULT_LABEL_FONT, type LabelStyle } from './rasterizeLabel'
 import type { BitmapMask } from '../../assets/BitmapMask'
-import { packColor, rgbaTuple } from './packing'
-import {
-  CURVE_FLATTEN_MAX_POINTS,
-  CURVE_FLATTEN_TOL_PX,
-  RING_SIZE,
-} from './batchLayout'
+import { rgbaTuple } from './packing'
+import { RING_SIZE } from './batchLayout'
 import {
   GpuBatchContext,
   type DebugRenderMode,
   type GpuGfxStats,
-  type ResolvedMaskPaint,
 } from './GpuBatchContext'
 import type { GpuProgram } from './GpuProgram'
 import { ColoredTriProgram } from './programs/coloredTri'
 import { StrokeProgram } from './programs/stroke'
 import { resolveRadii, type RoundRectRadii } from './roundRectRadii'
 import { resolveClip } from './analyticClip'
-import { labelFont } from './labelFont'
-import { emitDebugOutlineMesh, emitDebugPolygonOutline } from './debugWireframe'
+import { emitDebugPolygonOutline } from './debugWireframe'
 
 import { fitSquircleCorners, squircleShadowRadiusScale } from './squircle'
 import { GradientRadialProgram } from './programs/gradientRadial'
@@ -113,40 +95,7 @@ import { ShaderQuadProgram } from './programs/shaderQuad'
 import type { ShaderQuad } from './ShaderQuad'
 import { TextQuadProgram } from './programs/textQuad'
 import { ShapeProgram } from './programs/shape'
-import { SHAPE_TEX_ATLAS, SHAPE_TEX_LABEL } from './batchLayout'
 import { PathShadowCompositeProgram } from './programs/pathShadowComposite'
-import {
-  PathShadowCache,
-  HARD_SHADOW_BLUR_PX,
-  insetMaskProjection,
-  type PathShadowRequest,
-} from './PathShadowCache'
-import type { Rect } from '../../math/Rect'
-
-/**
- * The scale-independent half of a label's cache key. `TextureManager` appends
- * the scale bucket. Newline separators cannot collide: labels are single-line,
- * so the text has none, and font/align/baseline/color never do.
- */
-/**
- * `style` with a flat color, for the circle and round-rect strokes. A gradient
- * stroke on those shapes is not supported: the `shape` program's paint slot
- * serves the fill. It falls back to the gradient's first stop rather than
- * dropping the stroke. A style that already has a flat color is returned as is,
- * so the common case copies nothing.
- */
-function solidStroke(style: GfxStrokeStyle): SolidStrokeStyle {
-  const color = style.color
-  if (typeof color === 'string') return style as SolidStrokeStyle
-  return { ...style, color: color.stops[0]?.color ?? '#000' }
-}
-
-/** The style a `fillText` call without one draws with. */
-const NO_TEXT_STYLE: GfxTextStyle = {}
-
-function labelBaseKey(text: string, style: LabelStyle): string {
-  return `${text}\n${style.font}\n${style.align}\n${style.baseline}\n${style.color}\n`
-}
 
 export type { DebugRenderMode, GpuGfxStats }
 
@@ -174,18 +123,6 @@ export interface UnimplementedCounts {
    */
   strokeAlignFallback: number
 }
-
-/**
- * Fewest segments a path stroke has before its packed instances are worth
- * keeping on the GPU between frames.
- */
-const RETAIN_STROKE_SEGMENTS = 256
-
-/**
- * Fewest indices a gradient or masked fill has before its tessellation is worth
- * keeping on the GPU between frames.
- */
-const RETAIN_FILL_INDICES = 64
 
 /** The blend modes an offscreen composite supports. */
 const COMPOSITE_BLENDS = new Set<string>([
@@ -276,30 +213,11 @@ export class GpuGfx implements Gfx2D {
   readonly #pathShadowComposite = new PathShadowCompositeProgram()
   readonly #composite = new OffscreenCompositeProgram()
 
-  /**
-   * Cached blurred-coverage masks for arbitrary-path drop shadows. Unlike the
-   * other programs, not re-warmed on retarget: its raster/blur targets are its
-   * own private r8/rg8 targets, independent of the screen target's format,
-   * depth, stencil, or sample count.
-   */
-  #pathShadowCache!: PathShadowCache
-  readonly #pathBoundsCache = new WeakMap<
-    Path2D,
-    { epoch: number; bounds: Rect }
-  >()
-  /**
-   * This frame's distinct (path, style, scale-bucket) requests that missed the
-   * cache, drained by `processPendingShadowBakes` in next frame's
-   * pre-`beginFrame` window.
-   */
-  readonly #pendingShadowBakes = new Map<string, PathShadowRequest>()
-  /**
-   * Multiples of its own device scale that the next drawn frame's path shadows
-   * also bake a mask for, and the requests collecting them produced. See
-   * `warmPathShadows`.
-   */
-  #shadowWarmFactors: readonly number[] = []
-  readonly #shadowWarmups = new Map<string, PathShadowRequest>()
+  readonly #gradientFills: GradientFills
+  readonly #strokeDraw: StrokeDraw
+  readonly #pathShadows: PathShadows
+  readonly #imageDraw: ImageDraw
+  readonly #textDraw: TextDraw
 
   /**
    * Every texture the GPU backend uses: atlas, per-source, gradient LUTs, clip
@@ -448,6 +366,34 @@ export class GpuGfx implements Gfx2D {
     this.#ctx.registerProgram(this.#textQuad)
     this.#ctx.registerProgram(this.#pathShadowComposite)
     this.#ctx.registerProgram(this.#shaderQuad)
+    this.#imageDraw = new ImageDraw(this.#ctx, this.#shape, this.#textQuad)
+    this.#textDraw = new TextDraw(this.#ctx, this.#shape, this.#textQuad)
+    this.#gradientFills = new GradientFills({
+      ctx: this.#ctx,
+      coloredTri: this.#coloredTri,
+      radial: this.#gradientRadial,
+      masked: this.#maskedGradient,
+      shaderQuad: this.#shaderQuad,
+      gfx: this,
+    })
+    this.#strokeDraw = new StrokeDraw({
+      ctx: this.#ctx,
+      stroke: this.#stroke,
+      shape: this.#shape,
+      coloredTri: this.#coloredTri,
+      stats: this.stats,
+      unimplemented: this.unimplemented,
+      gfx: this,
+      hasStencil: () => this.#target.hasStencil,
+    })
+    this.#pathShadows = new PathShadows({
+      ctx: this.#ctx,
+      coloredTri: this.#coloredTri,
+      composite: this.#pathShadowComposite,
+      unimplemented: this.unimplemented,
+      gfx: this,
+      canDrawRetained: (geo, ownRun) => this.#canDrawRetained(geo, ownRun),
+    })
     this.#initGpuResources()
   }
 
@@ -547,10 +493,9 @@ export class GpuGfx implements Gfx2D {
     // teardown call reaches them, same as every other GPU resource rebuilt
     // here. Its own pipelines are independent of the screen target's format,
     // so this is the only place it's (re)built, unlike `#programs`.
-    this.#pathShadowCache = new PathShadowCache(device)
-    this.#pathShadowCache
-      .warmup()
-      .catch((err) => this.failures.report('path shadows', err))
+    this.#pathShadows.reset(device, (err) =>
+      this.failures.report('path shadows', err),
+    )
     this.#pool.dispose()
     this.#effects.reset()
 
@@ -638,7 +583,7 @@ export class GpuGfx implements Gfx2D {
    */
   get textureInspector(): TextureInspector {
     const textureManager = this.#textureManager
-    const pathShadowCache = this.#pathShadowCache
+    const pathShadowCache = this.#pathShadows.cache
     return {
       snapshot: () => ({
         ...textureManager.snapshot(),
@@ -759,14 +704,11 @@ export class GpuGfx implements Gfx2D {
     this.#textureManager.resetLabelBudget()
     this.#ctx.resetBatchMarkers()
     this.#frameNo++
-    const used = this.#gradientUsePrev
-    this.#gradientUsePrev = this.#gradientUse
-    this.#gradientUse = used
-    used.clear()
+    this.#gradientFills.beginFrame()
     this.#stroke.cache.sweep(this.#frameNo)
     this.#coloredTri.geometryCache.sweep(this.#frameNo)
-    this.#strokePieces.sweep(this.#frameNo)
-    this.#outlines.sweep(this.#frameNo)
+    this.#strokeDraw.strokePieces.sweep(this.#frameNo)
+    this.#strokeDraw.outlines.sweep(this.#frameNo)
     this.#effects.beginFrame(this.#frameNo)
     this.#clipPushes.length = 0
     this.#saveLevel = 0
@@ -1239,7 +1181,7 @@ export class GpuGfx implements Gfx2D {
     // One frame of collection per `warmPathShadows` call: every shadow this
     // frame drew has queued its warm requests by now, and leaving the factors
     // set would re-queue them for every frame after.
-    this.#shadowWarmFactors = []
+    this.#pathShadows.endCollecting()
     // Replay the recorded 2D command list: every surface in a pass of its own,
     // then the main pass, which resolves MSAA into the resolve target.
     const marks = this.perfMarks
@@ -1274,11 +1216,11 @@ export class GpuGfx implements Gfx2D {
     this.stats.labelHolds = labels.holds
     this.stats.labelPageWipes = labels.pageWipes
     this.stats.labelEntries = labels.entries
-    this.stats.maskBakes = this.#pathShadowCache.maskBakes
-    this.stats.maskBakeWork = this.#pathShadowCache.maskBakeWork
-    this.stats.maskBytes = this.#pathShadowCache.maskBytes
-    this.stats.poolHits = this.#pathShadowCache.pool.hits
-    this.stats.poolMisses = this.#pathShadowCache.pool.misses
+    this.stats.maskBakes = this.#pathShadows.cache.maskBakes
+    this.stats.maskBakeWork = this.#pathShadows.cache.maskBakeWork
+    this.stats.maskBytes = this.#pathShadows.cache.maskBytes
+    this.stats.poolHits = this.#pathShadows.cache.pool.hits
+    this.stats.poolMisses = this.#pathShadows.cache.pool.misses
     if (this.#present && !this.#resolvesToCanvas) {
       if (marks) performance.mark('gfx-present:start')
       this.#device.present(
@@ -1842,7 +1784,7 @@ export class GpuGfx implements Gfx2D {
       typeof fill !== 'string' &&
       fill.kind === 'linear' &&
       geo.indices.length >= RETAIN_FILL_INDICES &&
-      !this.#gradientShared(fill)
+      !this.#gradientFills.shared(fill)
     if (!radial && this.#canDrawRetained(geo, ownRun)) {
       this.#coloredTri.fillTessellationRetained(this.#ctx, geo, fill)
     } else {
@@ -1911,16 +1853,16 @@ export class GpuGfx implements Gfx2D {
     // once.
     let pieceKey: string | null = null
     if (geometric) {
-      pieceKey = this.#strokePieces.keyFor(
+      pieceKey = this.#strokeDraw.strokePieces.keyFor(
         path,
         `${path.version}|${Math.round(-2 * Math.log2(tol))}|${style.width}|${style.cap}|${style.join}|${style.miterLimit}|${style.dash?.join(',')}|${style.dashOffset}`,
       )
-      const hit = this.#strokePieces.get(pieceKey)
+      const hit = this.#strokeDraw.strokePieces.get(pieceKey)
       if (hit) {
         this.fillPath(hit.path, style.color, 'nonzero')
         return
       }
-      if (!this.#strokePieces.admit(pieceKey)) pieceKey = null
+      if (!this.#strokeDraw.strokePieces.admit(pieceKey)) pieceKey = null
     }
     const flat = path.flatten(tol)
     const fillPieces = pieceKey !== null ? new GfxPath() : this.#strokeFill
@@ -1962,14 +1904,14 @@ export class GpuGfx implements Gfx2D {
     let grouped = false
     if (
       !geometric &&
-      !this.#needsOutline(style) &&
-      this.#strokeNeedsStencil(
+      !this.#strokeDraw.needsOutline(style) &&
+      this.#strokeDraw.strokeNeedsStencil(
         style as SolidStrokeStyle,
         dashed ? 2 : flatSegments(flat),
       )
     ) {
       grouped = true
-      this.#pathGroup = true
+      this.#strokeDraw.pathGroup = true
       this.#ctx.beginStencilGroup()
     }
     for (let c = 0; c < flat.contourCount; c++) {
@@ -1992,12 +1934,12 @@ export class GpuGfx implements Gfx2D {
     }
     if (grouped) {
       this.#ctx.endStencilGroup()
-      this.#pathGroup = false
+      this.#strokeDraw.pathGroup = false
     }
     if (geometric && !fillPieces.isEmpty) {
       this.fillPath(fillPieces, style.color, 'nonzero')
       if (pieceKey !== null) {
-        this.#strokePieces.add(pieceKey, {
+        this.#strokeDraw.strokePieces.add(pieceKey, {
           path: fillPieces,
           bytes: fillPieces.flatten(tol).pointCount * 8,
           release: () => fillPieces.release(),
@@ -2045,27 +1987,7 @@ export class GpuGfx implements Gfx2D {
     r: number,
     stops: readonly GfxGradientStop[],
   ): void {
-    if (r <= 0 || stops.length === 0) return
-    const rampRow = this.#textureManager.ensureStopsRow(stops)
-    if (rampRow < 0) return
-    const off = this.#gradientRadial.beginInstance(this.#ctx)
-    if (off < 0) return
-    const slot = this.#ctx.curSlot
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const dcx = t.a * cx + t.c * cy + t.e
-    const dcy = t.b * cx + t.d * cy + t.f
-    const det = Math.abs(t.a * t.d - t.b * t.c)
-    const dr = r * Math.sqrt(det)
-    const alpha = this.#ctx.stateStack.getAlpha()
-    const f = this.#gradientRadial.floatView
-    f[off + 0] = dcx
-    f[off + 1] = dcy
-    f[off + 2] = dr
-    f[off + 3] = alpha
-    f[off + 4] = rampRow
-    f[off + 5] = 0
-    this.#gradientRadial.commitInstance(slot)
+    this.#gradientFills.fillCircleRadialGradient(cx, cy, r, stops)
   }
 
   drawShaderQuad(
@@ -2075,14 +1997,7 @@ export class GpuGfx implements Gfx2D {
     w: number,
     h: number,
   ): void {
-    if (w <= 0 || h <= 0) return
-    if (this.#ctx.stateStack.getClipMask()) {
-      diagnostics.report(
-        'SG2006',
-        'drawShaderQuad ignores setClipMask. Sample a mask inside the shader, or use setClip.',
-      )
-    }
-    this.#shaderQuad.record(this.#ctx, quad, x, y, w, h)
+    this.#gradientFills.drawShaderQuad(quad, x, y, w, h)
   }
 
   fillMaskedRadialGradient(
@@ -2096,59 +2011,17 @@ export class GpuGfx implements Gfx2D {
     gr: number,
     stops: readonly GfxGradientStop[],
   ): void {
-    if (gr <= 0 || dw <= 0 || dh <= 0 || stops.length === 0) return
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    // Axis-aligned assumption (same as drawImage): the background base
-    // transform never rotates/skews.
-    if (Math.abs(t.b) > 1e-9 || Math.abs(t.c) > 1e-9) return
-    const rampRow = this.#textureManager.ensureStopsRow(stops)
-    if (rampRow < 0) return
-    const entry = this.#textureManager.getOrCreateEntry(mask)
-    if (entry === null) return
-    let tex: Texture
-    let u0: number, v0: number, u1: number, v1: number
-    if ('srcRect' in entry) {
-      tex = entry.tex
-      const r = entry.srcRect
-      u0 = r[0]
-      v0 = r[1]
-      u1 = r[2]
-      v1 = r[3]
-    } else {
-      tex = entry
-      u0 = 0
-      v0 = 0
-      u1 = 1
-      v1 = 1
-    }
-    const off = this.#maskedGradient.beginInstance(this.#ctx, tex)
-    if (off < 0) return
-    const slot = this.#ctx.curSlot
-    const dstX = t.a * dx + t.e
-    const dstY = t.d * dy + t.f
-    const dstW = t.a * dw
-    const dstH = t.d * dh
-    const dcx = t.a * gcx + t.c * gcy + t.e
-    const dcy = t.b * gcx + t.d * gcy + t.f
-    const det = Math.abs(t.a * t.d - t.b * t.c)
-    const dr = gr * Math.sqrt(det)
-    const alpha = this.#ctx.stateStack.getAlpha()
-    const f = this.#maskedGradient.floatView
-    f[off + 0] = dstX
-    f[off + 1] = dstY
-    f[off + 2] = dstW
-    f[off + 3] = dstH
-    f[off + 4] = u0
-    f[off + 5] = v0
-    f[off + 6] = u1
-    f[off + 7] = v1
-    f[off + 8] = dcx
-    f[off + 9] = dcy
-    f[off + 10] = dr
-    f[off + 11] = alpha
-    f[off + 12] = rampRow
-    this.#maskedGradient.commitInstance(slot)
+    this.#gradientFills.fillMaskedRadialGradient(
+      mask,
+      dx,
+      dy,
+      dw,
+      dh,
+      gcx,
+      gcy,
+      gr,
+      stops,
+    )
   }
 
   fillPolyLinearGradient(
@@ -2161,8 +2034,7 @@ export class GpuGfx implements Gfx2D {
     colorStart: string,
     colorEnd: string,
   ): void {
-    this.#coloredTri.fillPolyLinearGradient(
-      this.#ctx,
+    this.#gradientFills.fillPolyLinearGradient(
       pts,
       count,
       x0,
@@ -2172,9 +2044,6 @@ export class GpuGfx implements Gfx2D {
       colorStart,
       colorEnd,
     )
-    if (this.#ctx.curDebugMode === 'polygons') {
-      emitDebugPolygonOutline(this, this.#ctx, pts, count, true)
-    }
   }
 
   // --- Gfx2D: shadows --------------------------------------------------------
@@ -2203,252 +2072,26 @@ export class GpuGfx implements Gfx2D {
     this.#shape.shadowCircle(this.#ctx, cx, cy, r, style)
   }
 
-  /** Local-space AABB of `path`'s tessellation, cached per registration epoch. */
-  #localBoundsFor(
-    path: Path2D,
-    geo: { vertices: Float32Array },
-    epoch: number,
-  ): Rect {
-    const cached = this.#pathBoundsCache.get(path)
-    if (cached && cached.epoch === epoch) return cached.bounds
-    const v = geo.vertices
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity
-    for (let i = 0; i < v.length; i += 2) {
-      const x = v[i]
-      const y = v[i + 1]
-      if (x < minX) minX = x
-      if (x > maxX) maxX = x
-      if (y < minY) minY = y
-      if (y > maxY) maxY = y
-    }
-    const bounds: Rect =
-      v.length === 0
-        ? { x: 0, y: 0, width: 0, height: 0 }
-        : { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-    this.#pathBoundsCache.set(path, { epoch, bounds })
-    return bounds
-  }
-
-  /** The path's own fill, translated by the shadow's offset, no blur. */
-  #hardPathShadow(path: Path2D, style: GfxShadowStyle): void {
-    this.save()
-    this.translate(style.offsetX ?? 0, style.offsetY ?? 0)
-    this.fillPath2D(path, style.color)
-    this.restore()
-  }
-
   shadowPath2D(path: Path2D, style: GfxShadowStyle): void {
-    const geo = getPathTessellation(path)
-    if (!geo) {
-      this.unimplemented.shadowPath2D++
-      return
-    }
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const scaleX = Math.hypot(t.a, t.b)
-    const scaleY = Math.hypot(t.c, t.d)
-    const scale = Math.sqrt(Math.abs(t.a * t.d - t.b * t.c)) || 1e-4
-    const blur = Math.max(0, style.blur ?? 0)
-    const sigmaDevice = blur * 0.5 * scale
-    const inset = style.inset === true
-
-    if (sigmaDevice * 2 <= HARD_SHADOW_BLUR_PX) {
-      if (!inset) this.#hardPathShadow(path, style)
-      return
-    }
-
-    const epoch = getRegistrationEpoch(path)
-    const req: PathShadowRequest = {
-      path,
-      geometry: geo,
-      localBounds: this.#localBoundsFor(path, geo, epoch),
-      registrationEpoch: epoch,
-      blur,
-      spread: style.spread ?? 0,
-      scaleX,
-      scaleY,
-      scale,
-      quality: this.#ctx.vectorQuality,
-    }
-    const mask = this.#pathShadowCache.peek(req)
-    // A substitute mask gets drawn but still queues the bake, otherwise a
-    // stand-in is never replaced by the mask this request actually asked for.
-    if (!mask || !mask.exact) {
-      this.#pendingShadowBakes.set(this.#pathShadowCache.requestKey(req), req)
-    }
-    if (this.#shadowWarmFactors.length > 0) this.#collectShadowWarmups(req)
-    if (!mask) {
-      if (!inset) {
-        this.unimplemented.pathShadowFallback++
-        this.#hardPathShadow(path, style)
-      }
-      return
-    }
-
-    const alpha = this.#ctx.stateStack.getAlpha()
-    const offsetX = style.offsetX ?? 0
-    const offsetY = style.offsetY ?? 0
-    const offDx = t.a * offsetX + t.c * offsetY
-    const offDy = t.b * offsetX + t.d * offsetY
-
-    if (inset) {
-      const maskPaint: ResolvedMaskPaint = {
-        ...insetMaskProjection(t, offDx, offDy, mask),
-        kind: 'mask',
-        maskTex: mask.texture,
-      }
-      // Each path's mask is its own texture, so an inset shadow is a run of
-      // its own.
-      if (
-        this.#canDrawRetained(geo, geo.indices.length >= RETAIN_FILL_INDICES)
-      ) {
-        this.#coloredTri.fillTessellationInsetShadowRetained(
-          this.#ctx,
-          geo,
-          style.color,
-          alpha,
-          maskPaint,
-        )
-      } else {
-        this.#coloredTri.fillTessellationInsetShadow(
-          this.#ctx,
-          geo,
-          style.color,
-          alpha,
-          maskPaint,
-        )
-      }
-      return
-    }
-
-    const col0x = t.a * mask.localW
-    const col0y = t.b * mask.localW
-    const col1x = t.c * mask.localH
-    const col1y = t.d * mask.localH
-    const tx = t.a * mask.localX + t.c * mask.localY + t.e + offDx
-    const ty = t.b * mask.localX + t.d * mask.localY + t.f + offDy
-    const off = this.#pathShadowComposite.beginInstance(this.#ctx, mask.texture)
-    if (off < 0) return
-    const slot = this.#ctx.curSlot
-    const f = this.#pathShadowComposite.floatView
-    const u = this.#pathShadowComposite.uintView
-    f[off + 0] = col0x
-    f[off + 1] = col0y
-    f[off + 2] = col1x
-    f[off + 3] = col1y
-    f[off + 4] = tx
-    f[off + 5] = ty
-    f[off + 6] = 0
-    f[off + 7] = 0
-    f[off + 8] = 1
-    f[off + 9] = 1
-    u[off + 10] = packColor(style.color, alpha)
-    f[off + 11] =
-      this.#ctx.stateStack.getBlend() !== 'lighter' &&
-      this.#ctx.vectorQuality.dither
-        ? 1
-        : 0
-    this.#pathShadowComposite.commitInstance(slot)
+    this.#pathShadows.shadowPath2D(path, style)
   }
 
-  /**
-   * Bake the masks the next drawn frame's path shadows would need at other
-   * device scales, so a camera that reaches one of them finds them cached
-   * instead of baking a few per frame as it arrives.
-   *
-   * `factors` are multiples of each shadow's own current device scale, which is
-   * one number per target framing however each shadow's own transform differs:
-   * pass `2` for a camera about to zoom to twice the scale it is at now. Only
-   * the half-octave scale bucket of the product is keyed, so a factor landing
-   * inside the current bucket warms nothing.
-   *
-   * Collection runs once, on the next frame that draws. Those requests then
-   * bake behind that frame's own, as many per frame as the bake budget allows,
-   * and `pendingPathShadowWarmups` reports what is left. Warming is best effort
-   * in two ways: no draw has asked for a warmed mask, so it is also the first
-   * entry evicted when live masks need the byte budget, and a shadow small
-   * enough to draw as a hard silhouette at the current scale asks the cache for
-   * nothing and so warms nothing.
-   *
-   * @example
-   *   // A tap is about to zoom the map in. Bake what that framing needs now.
-   *   stage.warmPathShadows([playScale / idleScale])
-   */
   warmPathShadows(factors: readonly number[]): void {
-    this.#shadowWarmFactors = factors.filter((f) => f > 0)
+    this.#pathShadows.warmPathShadows(factors)
   }
 
-  /** Warm-up bake requests still waiting on the per-frame bake budget. */
   get pendingPathShadowWarmups(): number {
-    return this.#shadowWarmups.size
+    return this.#pathShadows.pendingPathShadowWarmups
   }
 
-  /**
-   * Queue `req` again at each warm factor's device scale. Blur and spread stay
-   * in local units, so a warm request differs from the live one only in its
-   * scale bucket, which is exactly what a camera zoom changes.
-   */
-  #collectShadowWarmups(req: PathShadowRequest): void {
-    const liveKey = this.#pathShadowCache.requestKey(req)
-    for (const factor of this.#shadowWarmFactors) {
-      const warm: PathShadowRequest = {
-        ...req,
-        scaleX: req.scaleX * factor,
-        scaleY: req.scaleY * factor,
-        scale: req.scale * factor,
-      }
-      const key = this.#pathShadowCache.requestKey(warm)
-      if (key !== liveKey) this.#shadowWarmups.set(key, warm)
-    }
-  }
-
-  /**
-   * Drain this frame's queued path-shadow bake requests. Must run outside any
-   * open render pass (the bake opens and closes its own), so callers run it in
-   * the pre-`beginFrame` window, which `Stage` runs before
-   * `screen.beginFrame()`. A request queued this way bakes at the earliest in
-   * the FOLLOWING frame's draw, one frame behind the draw call that queued it.
-   * `shadowPath2D` draws a substitute mask or the hard fallback in the
-   * meantime.
-   */
   processPendingShadowBakes(): void {
-    this.#pathShadowCache.beginFrame()
-    if (this.#pendingShadowBakes.size > 0) {
-      for (const req of this.#pendingShadowBakes.values()) {
-        this.#pathShadowCache.getOrBake(req)
-      }
-      this.#pendingShadowBakes.clear()
-    }
-    // Warm-ups go after the live requests, so the frame on screen converges
-    // before a framing nothing has reached yet. The first request the budget
-    // turns down ends the drain, which keeps a starved frame from costing a
-    // size and kernel estimate per queued request.
-    for (const [key, req] of this.#shadowWarmups) {
-      if (this.#pathShadowCache.getOrBake(req)?.exact !== true) break
-      this.#shadowWarmups.delete(key)
-    }
-    this.#pathShadowCache.pool.endFrame()
+    this.#pathShadows.processPendingShadowBakes()
   }
 
   // --- Gfx2D: strokes ------------------------------------------------------
 
   strokeCircle(cx: number, cy: number, r: number, style: GfxStrokeStyle): void {
-    this.#shape.strokeCircle(this.#ctx, cx, cy, r, solidStroke(style))
-  }
-
-  /**
-   * Whether `style` needs the outline tessellator rather than the segment
-   * stroker.
-   */
-  #needsOutline(style: GfxStrokeStyle): boolean {
-    return (
-      (style.align !== undefined && style.align !== 'center') ||
-      style.exactJoins === true ||
-      typeof style.color !== 'string'
-    )
+    this.#strokeDraw.strokeCircle(cx, cy, r, style)
   }
 
   strokeLine(
@@ -2458,16 +2101,7 @@ export class GpuGfx implements Gfx2D {
     y1: number,
     style: GfxStrokeStyle,
   ): void {
-    if (this.#needsOutline(style)) {
-      const pts = this.#linePoints
-      pts[0] = x0
-      pts[1] = y0
-      pts[2] = x1
-      pts[3] = y1
-      this.#strokeOutlineUncached(pts, 2, false, style)
-      return
-    }
-    this.#stroke.line(this.#ctx, x0, y0, x1, y1, style as SolidStrokeStyle)
+    this.#strokeDraw.strokeLine(x0, y0, x1, y1, style)
   }
 
   strokeQuadratic(
@@ -2479,137 +2113,7 @@ export class GpuGfx implements Gfx2D {
     y1: number,
     style: GfxStrokeStyle,
   ): void {
-    if (this.#needsOutline(style)) {
-      this.#ctx.txStack.read(this.#ctx.txOut)
-      const t = this.#ctx.txOut
-      const det = Math.abs(t.a * t.d - t.b * t.c)
-      const localTol = CURVE_FLATTEN_TOL_PX / (Math.sqrt(det) || 1)
-      const buf = this.#curvePoints
-      buf[0] = x0
-      buf[1] = y0
-      const cursor = flattenQuadratic(x0, y0, cx, cy, x1, y1, localTol, buf, 2)
-      this.#strokeOutlineUncached(buf, cursor / 2, false, style)
-      return
-    }
-    // Flattening turns one curve into many collinear segments, so a translucent
-    // quadratic beads at every one of them. Segment count is not known until
-    // the flattener runs, and a curve always has more than one.
-    if (!this.#strokeNeedsStencil(style as SolidStrokeStyle, 2)) {
-      this.#stroke.quadratic(
-        this.#ctx,
-        x0,
-        y0,
-        cx,
-        cy,
-        x1,
-        y1,
-        style as SolidStrokeStyle,
-      )
-      return
-    }
-    this.#ctx.beginStencilGroup()
-    this.#stroke.quadratic(
-      this.#ctx,
-      x0,
-      y0,
-      cx,
-      cy,
-      x1,
-      y1,
-      style as SolidStrokeStyle,
-    )
-    this.#ctx.endStencilGroup()
-  }
-
-  /**
-   * Whether a stroke of `segments` segments needs the deduplicating stencil
-   * path.
-   *
-   * Only translucent strokes can bead: an opaque one composites to the same
-   * result however many times it covers a pixel, so it stays on the plain,
-   * fully batched path. A single segment has no interior join and so cannot
-   * overlap itself either.
-   */
-  /** Tessellated stroke outlines of registered paths, by style and scale. */
-  readonly #outlines = new RetainedCache<{
-    buffer: StrokeOutlineBuffer
-    bytes: number
-    release(): void
-  }>({
-    name: 'Stroke outlines',
-    idleFrames: 120,
-    budgetBytes: 8 * 1024 * 1024,
-  })
-
-  /** The convex pieces of strokes drawn as a filled union, by path and shape. */
-  readonly #strokePieces = new RetainedCache<{
-    path: GfxPath
-    bytes: number
-    release(): void
-  }>({
-    name: 'Stroke pieces',
-    idleFrames: 120,
-    budgetBytes: 8 * 1024 * 1024,
-  })
-
-  /** Set while `strokePath` holds one stencil group over all its contours. */
-  #pathGroup = false
-
-  #strokeNeedsStencil(style: SolidStrokeStyle, segments: number): boolean {
-    if (this.#pathGroup || segments < 2 || !this.#target.hasStencil) {
-      return false
-    }
-    const alpha = this.#ctx.stateStack.getAlpha() * parseColor(style.color).a
-    return alpha < 1
-  }
-
-  /** Current transform's per-axis device scale, for the outline tessellator. */
-  #outlineScale(): { scaleX: number; scaleY: number; scale: number } {
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const scaleX = Math.hypot(t.a, t.b)
-    const scaleY = Math.hypot(t.c, t.d)
-    return { scaleX, scaleY, scale: Math.sqrt(Math.abs(t.a * t.d - t.b * t.c)) }
-  }
-
-  /**
-   * Tessellate and draw a stroke outline with no caching: `strokePolyline`'s
-   * `pts` has no stable identity to key by (the caller mutates its buffer every
-   * frame), and `strokeLine`/`strokeQuadratic` are cheap one-or-few segment
-   * shapes where a cache would cost more than it saves.
-   */
-  #strokeOutlineUncached(
-    pts: ArrayLike<number>,
-    count: number,
-    closed: boolean,
-    style: GfxStrokeStyle,
-  ): void {
-    if (count < 2 || style.width <= 0) return
-    const align = style.align ?? 'center'
-    if (wouldFallBackToCenter(pts, count, closed, align)) {
-      this.unimplemented.strokeAlignFallback++
-    }
-    const { scaleX, scaleY, scale } = this.#outlineScale()
-    const buf = new StrokeOutlineBuffer()
-    strokeOutline(
-      pts,
-      count,
-      {
-        width: style.width,
-        align,
-        join: style.join ?? 'miter',
-        cap: style.cap ?? 'round',
-        miterLimit: style.miterLimit ?? DEFAULT_MITER_LIMIT,
-        closed,
-        fringeScale: { x: scaleX, y: scaleY },
-        scale,
-      },
-      buf,
-    )
-    this.#coloredTri.fillOutlineTessellation(this.#ctx, buf, style.color)
-    if (this.#ctx.curDebugMode === 'polygons') {
-      emitDebugOutlineMesh(this, this.#ctx, buf)
-    }
+    this.#strokeDraw.strokeQuadratic(x0, y0, cx, cy, x1, y1, style)
   }
 
   strokePolyline(
@@ -2617,90 +2121,15 @@ export class GpuGfx implements Gfx2D {
     count: number,
     style: GfxStrokeStyle,
   ): void {
-    if (this.#needsOutline(style)) {
-      this.#strokeOutlineUncached(pts, count, style.closed === true, style)
-      return
-    }
-    // A closed polyline joins back to its first point, so it has one more
-    // segment than an open one.
-    const segments = style.closed === true ? count : count - 1
-    const solidStyle = style as SolidStrokeStyle
-    this.#strokeRetained(
-      this.#replaySource,
-      'polyline',
-      segments,
-      solidStyle,
-      this.#strokeNeedsStencil(solidStyle, segments),
-      () => this.#stroke.polyline(this.#ctx, pts, count, solidStyle),
-    )
+    this.#strokeDraw.strokePolyline(pts, count, style)
   }
 
-  /**
-   * Tessellate (or reuse the cached tessellation of) one contour's stroke
-   * outline. Keyed by the style signature, the half-octave scale and anisotropy
-   * buckets, and the path's registration epoch, so a re-parse at a new
-   * tolerance can't serve triangles built from stale contours. `dash` is not
-   * supported on the outline path and is ignored here: no caller combines it
-   * with a gradient color, a non-center alignment, or `exactJoins` today.
-   */
-  #strokeOutlineCached(
-    path: Path2D,
-    contourIndex: number,
-    pts: Float32Array,
-    closed: boolean,
-    style: GfxStrokeStyle,
-  ): void {
-    if (pts.length < 4 || style.width <= 0) return
-    const { scaleX, scaleY } = this.#outlineScale()
-    const uniformScale = Math.sqrt(scaleX * scaleY)
-    const anisotropy = scaleY > 0 ? scaleX / scaleY : 1
-    const scaleBucket = scaleBucketIndex(uniformScale)
-    const anisoBucket = scaleBucketIndex(anisotropy)
-    const align = style.align ?? 'center'
-    const join = style.join ?? 'miter'
-    const cap = style.cap ?? 'round'
-    const miterLimit = style.miterLimit ?? DEFAULT_MITER_LIMIT
-    if (wouldFallBackToCenter(pts, pts.length / 2, closed, align)) {
-      this.unimplemented.strokeAlignFallback++
-    }
-    const key = `${style.width}|${align}|${join}|${cap}|${miterLimit}|${closed}|${scaleBucket}|${anisoBucket}|${getRegistrationEpoch(path)}|${contourIndex}`
-    const cacheKey = this.#outlines.keyFor(path, key)
-    let buf = this.#outlines.get(cacheKey)?.buffer
-    if (buf) {
-      this.stats.outlineCacheHits++
-    } else {
-      this.stats.outlineTessellations++
-      const uniformCenter = scaleBucketCenter(scaleBucket)
-      const anisoCenter = scaleBucketCenter(anisoBucket)
-      const bucketScaleX = uniformCenter * Math.sqrt(anisoCenter)
-      const bucketScaleY = uniformCenter / Math.sqrt(anisoCenter)
-      buf = new StrokeOutlineBuffer()
-      strokeOutline(
-        pts,
-        pts.length / 2,
-        {
-          width: style.width,
-          align,
-          join,
-          cap,
-          miterLimit,
-          closed,
-          fringeScale: { x: bucketScaleX, y: bucketScaleY },
-          scale: uniformCenter,
-        },
-        buf,
-      )
-      this.#outlines.add(cacheKey, {
-        buffer: buf,
-        bytes:
-          (buf.positions.length + buf.coverage.length + buf.indices.length) * 8,
-        release: () => {},
-      })
-    }
-    this.#coloredTri.fillOutlineTessellation(this.#ctx, buf, style.color)
-    if (this.#ctx.curDebugMode === 'polygons') {
-      emitDebugOutlineMesh(this, this.#ctx, buf)
-    }
+  strokePath2D(path: Path2D, style: GfxStrokeStyle): void {
+    this.#strokeDraw.strokePath2D(path, style)
+  }
+
+  replaySource(token: object | null): void {
+    this.#strokeDraw.replaySource(token)
   }
 
   /** What the caches that keep drawing work between frames hold and did. */
@@ -2708,188 +2137,27 @@ export class GpuGfx implements Gfx2D {
     const stats = [
       this.#stroke.cache.stats,
       this.#coloredTri.geometryCache.stats,
-      this.#strokePieces.stats,
-      this.#outlines.stats,
+      this.#strokeDraw.strokePieces.stats,
+      this.#strokeDraw.outlines.stats,
     ]
     const layers = this.#effects.layerStats()
     if (layers) stats.push(layers)
     return stats
   }
 
-  /**
-   * How many fills drew with each gradient this frame and the frame before,
-   * keyed by the gradient's device-space axis and stops. Two fills with the
-   * same key share a paint and can draw as one run.
-   */
-  #gradientUse = new Map<string, number>()
-  #gradientUsePrev = new Map<string, number>()
-
-  /**
-   * Count `fill` as drawn this frame, and report whether another fill drew with
-   * the same gradient the frame before.
-   */
-  #gradientShared(fill: GfxLinearGradient): boolean {
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const x0 = t.a * fill.x0 + t.c * fill.y0 + t.e
-    const y0 = t.b * fill.x0 + t.d * fill.y0 + t.f
-    const x1 = t.a * fill.x1 + t.c * fill.y1 + t.e
-    const y1 = t.b * fill.x1 + t.d * fill.y1 + t.f
-    let key = `${x0},${y0},${x1},${y1},${this.#ctx.stateStack.getAlpha()}`
-    for (const s of fill.stops) key += `|${s.offset}:${s.color}`
-    this.#gradientUse.set(key, (this.#gradientUse.get(key) ?? 0) + 1)
-    return (this.#gradientUsePrev.get(key) ?? 0) > 1
-  }
-
   /** Frames begun so far, for the retained caches. */
   #frameNo = 0
-
-  /**
-   * The recorded call being replayed, a stable identity for as long as the
-   * picture that holds it is unchanged. `null` outside a replay.
-   */
-  #replaySource: object | null = null
-
-  replaySource(token: object | null): void {
-    this.#replaySource = token
-  }
 
   streamedBytes(): number {
     return this.#ctx.streamedWords() * 4
   }
 
-  /**
-   * Stroke through `emit`, from the stroke cache when the same stroke was drawn
-   * the frame before. `source` is what the points belong to, and `kind` tells
-   * apart several strokes made from one source. Strokes with no stable source,
-   * too few segments to be worth a run of their own, or a dash are drawn
-   * directly.
-   */
-  #strokeRetained(
-    source: object | null,
-    kind: string,
-    segments: number,
-    style: SolidStrokeStyle,
-    stencil: boolean,
-    emit: () => void,
-  ): void {
-    const cache = this.#stroke.cache
-    let key: string | null = null
-    if (
-      source !== null &&
-      segments >= RETAIN_STROKE_SEGMENTS &&
-      style.dash === undefined
-    ) {
-      key = cache.keyFor(source, `${kind}|${this.#strokeSignature(style)}`)
-      const hit = cache.get(key)
-      if (hit) {
-        this.#ctx.recordInstanced(hit.buffer, hit.words, hit.bounds, stencil)
-        return
-      }
-      if (!cache.admit(key)) key = null
-    }
-    if (key !== null) this.#ctx.closeRun()
-    const firstRun = this.#ctx.runCount
-    if (stencil) this.#ctx.beginStencilGroup()
-    emit()
-    if (stencil) this.#ctx.endStencilGroup()
-    if (key !== null) this.#keepStroke(key, firstRun)
-  }
+  /** Resolved corner radii of the round rect being drawn, reused across calls. */
+  readonly #radii: [number, number, number, number] = [0, 0, 0, 0]
+  /** Each corner's fitted smoothing for the round rect being drawn. */
+  readonly #cornerSmoothing: [number, number, number, number] = [0, 0, 0, 0]
 
-  /**
-   * What packed stroke instances depend on besides their points: the transform,
-   * the alpha, and the style that shapes them.
-   */
-  #strokeSignature(style: SolidStrokeStyle): string {
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const alpha = this.#ctx.stateStack.getAlpha()
-    return `${t.a},${t.b},${t.c},${t.d},${t.e},${t.f}|${alpha}|${style.color}|${style.width}|${style.join}|${style.cap}|${style.miterLimit}|${style.closed}`
-  }
-
-  /**
-   * Move the instances the runs from `firstRun` on were just packed into out of
-   * the ring and into a buffer the cache keeps, and draw from it from now on.
-   */
-  #keepStroke(key: string, firstRun: number): void {
-    const ctx = this.#ctx
-    ctx.closeRun()
-    const end = ctx.runCount
-    if (end === firstRun) return
-    let start = Infinity
-    let stop = -Infinity
-    for (let i = firstRun; i < end; i++) {
-      const run = ctx.runAt(i)
-      if (run.kind !== 'stroke' || run.instances) return
-      start = Math.min(start, run.startWord)
-      stop = Math.max(stop, run.endWord)
-    }
-    if (!(stop > start)) return
-    const bounds = new Float64Array(4)
-    if (!this.#stroke.runBounds(ctx.runAt(firstRun), bounds)) return
-    const entry = this.#stroke.keep(
-      key,
-      this.#stroke.stream.floatView.subarray(start, stop),
-      bounds,
-    )
-    for (let i = firstRun; i < end; i++) {
-      const run = ctx.runAt(i)
-      run.startWord -= start
-      run.endWord -= start
-      run.instances = { buffer: entry.buffer, bounds }
-    }
-  }
-
-  strokePath2D(path: Path2D, style: GfxStrokeStyle): void {
-    const contours = getPathContours(path)
-    if (!contours) {
-      // No cached contours for this Path2D. Callers that construct
-      // Path2Ds outside SvgPathMap must call `registerPathTessellation`,
-      // which also stashes contours.
-      this.unimplemented.strokePath2D++
-      return
-    }
-    if (this.#needsOutline(style)) {
-      for (let i = 0; i < contours.length; i++) {
-        const c = contours[i]
-        if (c.length / 2 < 2) continue
-        this.#strokeOutlineCached(path, i, c, getContourClosed(path, i), style)
-      }
-      return
-    }
-    // Total across every contour, counted first: the whole path is one stroke
-    // and so one stencil group, and a path holding a single segment needs no
-    // group at all.
-    let segments = 0
-    for (let i = 0; i < contours.length; i++) {
-      const count = contours[i].length / 2
-      if (count < 2) continue
-      segments += getContourClosed(path, i) ? count : count - 1
-    }
-    const solidStyle = style as SolidStrokeStyle
-    const stencil = this.#strokeNeedsStencil(solidStyle, segments)
-    // A registered path's points change only with a new registration, so the
-    // path and its epoch identify them.
-    this.#strokeRetained(
-      path,
-      `path${getRegistrationEpoch(path)}`,
-      segments,
-      solidStyle,
-      stencil,
-      () => {
-        for (let i = 0; i < contours.length; i++) {
-          const c = contours[i]
-          const count = c.length / 2
-          if (count < 2) continue
-          const closed = getContourClosed(path, i)
-          const perContourStyle: SolidStrokeStyle = { ...solidStyle, closed }
-          this.#stroke.polyline(this.#ctx, c, count, perContourStyle)
-        }
-      },
-    )
-  }
-
-  // --- Gfx2D: images -------------------------------------------------------
+  // --- Gfx2D: images and text ----------------------------------------------
 
   drawImage(
     img: CanvasImageSource,
@@ -2899,307 +2167,15 @@ export class GpuGfx implements Gfx2D {
     dh: number,
     opts?: GfxImageOptions,
   ): void {
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    if (
-      !this.#textureManager.isAtlasSource(img) &&
-      this.#drawImageRaster(img, dx, dy, dw, dh, opts)
-    ) {
-      return
-    }
-    const entry = this.#textureManager.getOrCreateEntry(img)
-    if (entry === null) return
-    // Discriminate atlas entry vs standalone Texture. Atlas entries carry
-    // a `srcRect` field, standalone Textures don't.
-    let tex: Texture
-    let u0: number, v0: number, u1: number, v1: number
-    if ('srcRect' in entry) {
-      tex = entry.tex
-      const r = entry.srcRect
-      u0 = r[0]
-      v0 = r[1]
-      u1 = r[2]
-      v1 = r[3]
-    } else {
-      tex = entry
-      u0 = 0
-      v0 = 0
-      u1 = 1
-      v1 = 1
-    }
-    // Full affine (shares the shape/textQuad layout): the unit square [0,1]²
-    // maps to device px via mCol0·u + mCol1·v + translate, so rotation/skew are
-    // free, with no axis-aligned rejection.
-    const col0x = t.a * dw
-    const col0y = t.b * dw
-    const col1x = t.c * dh
-    const col1y = t.d * dh
-    let tx = t.a * dx + t.c * dy + t.e
-    let ty = t.b * dx + t.d * dy + t.f
-    // Subpixel-snap only when axis-aligned (matches fillText): land 1:1 texels
-    // on whole device pixels so blits don't smear. Skip when rotated/skewed.
-    if (Math.abs(t.b) < 1e-6 && Math.abs(t.c) < 1e-6) {
-      tx = Math.round(tx)
-      ty = Math.round(ty)
-    }
-    const alpha = this.#ctx.stateStack.getAlpha()
-    const tintByte = Math.max(0, Math.min(255, Math.round(alpha * 255)))
-    const packedTint =
-      ((tintByte << 24) | (tintByte << 16) | (tintByte << 8) | tintByte) >>> 0
-    // Shape routing: only atlas sprites (the particle atlas bound at the shape's
-    // fixed atlas unit) go through it. A per-source image has its own texture,
-    // which the shape doesn't bind, so it stays on the textQuad program.
-    if (tex === this.#textureManager.getAtlasTexture()) {
-      this.#shape.textured(
-        this.#ctx,
-        col0x,
-        col0y,
-        col1x,
-        col1y,
-        tx,
-        ty,
-        u0,
-        v0,
-        u1,
-        v1,
-        SHAPE_TEX_ATLAS,
-        packedTint,
-      )
-      return
-    }
-    const words = this.#textQuad.beginInstance(this.#ctx, tex)
-    if (words < 0) return
-    const slot = this.#ctx.curSlot
-    const fv = this.#textQuad.floatView
-    const uv = this.#textQuad.uintView
-    fv[words + 0] = col0x
-    fv[words + 1] = col0y
-    fv[words + 2] = col1x
-    fv[words + 3] = col1y
-    fv[words + 4] = tx
-    fv[words + 5] = ty
-    fv[words + 6] = u0
-    fv[words + 7] = v0
-    fv[words + 8] = u1
-    fv[words + 9] = v1
-    uv[words + 10] = packedTint >>> 0
-    this.#textQuad.commitInstance(slot)
+    this.#imageDraw.drawImage(img, dx, dy, dw, dh, opts)
   }
 
-  /**
-   * Draw a small image from the shared label page, so it joins the draws of the
-   * text and shapes around it. False when the image is too large for a page
-   * slot, and the caller draws it from its own texture.
-   */
-  #drawImageRaster(
-    img: CanvasImageSource,
-    dx: number,
-    dy: number,
-    dw: number,
-    dh: number,
-    opts: GfxImageOptions | undefined,
-  ): boolean {
-    const t = this.#ctx.txOut
-    const devW = Math.hypot(t.a, t.b) * dw
-    const devH = Math.hypot(t.c, t.d) * dh
-    const label = this.#textureManager.ensureImageRaster(
-      img,
-      devW,
-      devH,
-      opts?.smoothing !== false,
-    )
-    if (label === null) return false
-    if (label.tex !== this.#textureManager.getLabelPageTexture()) return false
-    const col0x = t.a * dw
-    const col0y = t.b * dw
-    const col1x = t.c * dh
-    const col1y = t.d * dh
-    let tx = t.a * dx + t.c * dy + t.e
-    let ty = t.b * dx + t.d * dy + t.f
-    if (Math.abs(t.b) < 1e-6 && Math.abs(t.c) < 1e-6) {
-      tx = Math.round(tx)
-      ty = Math.round(ty)
-    }
-    const alpha = this.#ctx.stateStack.getAlpha()
-    const a = Math.max(0, Math.min(255, Math.round(alpha * 255)))
-    const packedTint = ((a << 24) | (a << 16) | (a << 8) | a) >>> 0
-    const sr = label.srcRect
-    this.#shape.textured(
-      this.#ctx,
-      col0x,
-      col0y,
-      col1x,
-      col1y,
-      tx,
-      ty,
-      sr[0],
-      sr[1],
-      sr[2],
-      sr[3],
-      SHAPE_TEX_LABEL,
-      packedTint,
-    )
-    return true
+  warmText(text: string, style?: GfxTextStyle): void {
+    this.#textDraw.warmText(text, style)
   }
 
-  // --- Gfx2D: text ---------------------------------------------------------
-
-  warmText(text: string, style: GfxTextStyle = NO_TEXT_STYLE): void {
-    if (text.length === 0) return
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const deviceScale = Math.max(Math.hypot(t.a, t.b), Math.hypot(t.c, t.d))
-    if (!(deviceScale > 0)) return
-    this.#label(text, style, deviceScale)
-  }
-
-  /**
-   * The label for `text`. A font with a px size is keyed without it and
-   * rasterized at its size in device px, so `labelScale` is what the label's
-   * sizes are multiplied by to reach local units. Any other font is keyed whole
-   * and rasterized at the scale.
-   */
-  #label(
-    text: string,
-    style: GfxTextStyle,
-    deviceScale: number,
-  ): LabelTexture | null {
-    const resolved = this.#labelStyle
-    const fontName = style.font ?? DEFAULT_LABEL_FONT
-    resolved.font = fontName
-    resolved.align = style.align ?? 'left'
-    resolved.baseline = style.baseline ?? 'alphabetic'
-    resolved.color = style.color ?? '#000'
-    const font = labelFont(fontName)
-    if (!font) {
-      this.#labelScale = 1
-      return this.#textureManager.ensureLabelTexture(
-        labelBaseKey(text, resolved),
-        text,
-        resolved,
-        deviceScale,
-      )
-    }
-    const label = this.#textureManager.ensureTextLabel(
-      `${text}\n${font.head}\u0000${font.tail}\n${resolved.align}\n${resolved.baseline}\n${resolved.color}\n`,
-      text,
-      resolved,
-      font,
-      font.size,
-      deviceScale,
-    )
-    this.#labelScale = label?.px ? font.size / label.px : 1
-    return label
-  }
-  #labelScale = 1
-
-  /**
-   * The resolved style of the label being drawn, reused across calls. The
-   * texture cache reads it only while rasterizing and keeps no reference.
-   */
-  /** Points of an outline-stroked line or curve, reused across calls. */
-  readonly #linePoints = new Float32Array(4)
-  readonly #curvePoints = new Float32Array(CURVE_FLATTEN_MAX_POINTS * 2)
-  /** Resolved corner radii of the round rect being drawn, reused across calls. */
-  readonly #radii: [number, number, number, number] = [0, 0, 0, 0]
-  /** Each corner's fitted smoothing for the round rect being drawn. */
-  readonly #cornerSmoothing: [number, number, number, number] = [0, 0, 0, 0]
-
-  readonly #labelStyle: LabelStyle = {
-    font: DEFAULT_LABEL_FONT,
-    align: 'left',
-    baseline: 'alphabetic',
-    color: '#000',
-  }
-
-  fillText(
-    text: string,
-    x: number,
-    y: number,
-    style: GfxTextStyle = NO_TEXT_STYLE,
-  ): void {
-    if (text.length === 0) return
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    // Net local->device scale, independent of rotation (columns of the linear
-    // part). Drives how sharply the label is rasterized. Rotation is free.
-    const deviceScale = Math.max(Math.hypot(t.a, t.b), Math.hypot(t.c, t.d))
-    if (!(deviceScale > 0)) return
-
-    const label = this.#label(text, style, deviceScale)
-    if (label === null) return
-
-    // Local-space dst rect: bitmap top-left relative to the (x, y) anchor. A
-    // label's sizes are in px of the font size it was rasterized at.
-    const ls = this.#labelScale
-    const dx = x - label.anchorOffsetX * ls
-    const dy = y - label.anchorOffsetY * ls
-    const w = label.localW * ls
-    const h = label.localH * ls
-    // Affine mapping the unit square [0,1]² -> device px:
-    //   pos = col0 * u + col1 * v + translate
-    const col0x = t.a * w
-    const col0y = t.b * w
-    const col1x = t.c * h
-    const col1y = t.d * h
-    let tx = t.a * dx + t.c * dy + t.e
-    let ty = t.b * dx + t.d * dy + t.f
-    // Subpixel snap for axis-aligned draws (all screen-space labels, and any
-    // non-rotated world label): land the 1:1 texels on whole device pixels so
-    // they don't smear. Skip when rotated/skewed (snapping wouldn't align).
-    if (Math.abs(t.b) < 1e-6 && Math.abs(t.c) < 1e-6) {
-      tx = Math.round(tx)
-      ty = Math.round(ty)
-    }
-
-    // Tint = white × alpha (premultiplied). Baked glyph color is preserved,
-    // this only applies the current alpha (and keeps emoji multi-color).
-    const alpha = this.#ctx.stateStack.getAlpha()
-    const a = Math.max(0, Math.min(255, Math.round(alpha * 255)))
-    const packedTint = ((a << 24) | (a << 16) | (a << 8) | a) >>> 0
-
-    // Sample the label's region in its texture: a sub-rect of the shared label
-    // page, or the whole texture ([0,0,1,1]) for an oversized dedicated label.
-    const sr = label.srcRect
-    // Shape routing: only page-backed labels (the shared label page bound at the
-    // shape's fixed label unit) can go through it. An oversized label has its own
-    // texture, so it stays on the textQuad program.
-    if (label.tex === this.#textureManager.getLabelPageTexture()) {
-      this.#shape.textured(
-        this.#ctx,
-        col0x,
-        col0y,
-        col1x,
-        col1y,
-        tx,
-        ty,
-        sr[0],
-        sr[1],
-        sr[2],
-        sr[3],
-        SHAPE_TEX_LABEL,
-        packedTint,
-      )
-      return
-    }
-
-    const words = this.#textQuad.beginInstance(this.#ctx, label.tex)
-    if (words < 0) return
-    const slot = this.#ctx.curSlot
-    const fv = this.#textQuad.floatView
-    const uv = this.#textQuad.uintView
-    fv[words + 0] = col0x
-    fv[words + 1] = col0y
-    fv[words + 2] = col1x
-    fv[words + 3] = col1y
-    fv[words + 4] = tx
-    fv[words + 5] = ty
-    fv[words + 6] = sr[0] // u0
-    fv[words + 7] = sr[1] // v0
-    fv[words + 8] = sr[2] // u1
-    fv[words + 9] = sr[3] // v1
-    uv[words + 10] = packedTint
-    this.#textQuad.commitInstance(slot)
+  fillText(text: string, x: number, y: number, style?: GfxTextStyle): void {
+    this.#textDraw.fillText(text, x, y, style)
   }
 
   #updateProjection(w: number, h: number): void {

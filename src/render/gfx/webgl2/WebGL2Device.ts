@@ -70,7 +70,6 @@ import type {
 } from '../GfxDevice'
 import { DATA_TABLE_WIDTH, dataTableRows, dataTableSpans } from '../dataTable'
 import { pipelineKey } from '../pipelineKey'
-import { UniformBindingCache } from './uniformBindings'
 import {
   getSourceWidth,
   getSourceHeight,
@@ -308,7 +307,13 @@ export class WebGL2Device implements GfxDevice {
    */
   #activeUnit = 0
   #boundArrayBuffer: WebGLBuffer | null = null
-  readonly #uniformBindings = new UniformBindingCache()
+  // What each indexed uniform buffer binding point holds, so a draw that binds
+  // the same range as the last one issues no GL call. A deleted buffer needs no
+  // invalidation, because a new buffer is a different object. A lost context
+  // drops every binding. Size is -1 for a whole-buffer bind.
+  readonly #uboBuffers: (object | null)[] = []
+  readonly #uboOffsets: number[] = []
+  readonly #uboSizes: number[] = []
   #nextBufferId = 1
 
   /** Color attachment of the open pass, for the resolve on `endRenderPass`. */
@@ -1861,6 +1866,26 @@ export class WebGL2Device implements GfxDevice {
     return { gl: glVao, slotOffsets, indexType, bufferIds }
   }
 
+  /** Whether binding `buffer` at `point` with this range changes anything. */
+  #uboNeedsBind(
+    point: number,
+    buffer: object,
+    offset: number,
+    size: number,
+  ): boolean {
+    if (
+      this.#uboBuffers[point] === buffer &&
+      this.#uboOffsets[point] === offset &&
+      this.#uboSizes[point] === size
+    ) {
+      return false
+    }
+    this.#uboBuffers[point] = buffer
+    this.#uboOffsets[point] = offset
+    this.#uboSizes[point] = size
+    return true
+  }
+
   #bindVao(vao: WebGL2Vao): void {
     if (this.#curVaoGl === vao.gl) return
     this.#gl.bindVertexArray(vao.gl)
@@ -1941,7 +1966,7 @@ export class WebGL2Device implements GfxDevice {
                 `WebGL2Device: uniform buffer offset ${off} (binding ${b.binding}) is not a multiple of ${align}`,
               )
             }
-            if (this.#uniformBindings.needsBind(b.binding, ubo.gl, off, b.size))
+            if (this.#uboNeedsBind(b.binding, ubo.gl, off, b.size))
               gl.bindBufferRange(
                 gl.UNIFORM_BUFFER,
                 b.binding,
@@ -1949,9 +1974,7 @@ export class WebGL2Device implements GfxDevice {
                 off,
                 b.size,
               )
-          } else if (
-            this.#uniformBindings.needsBind(b.binding, ubo.gl, 0, -1)
-          ) {
+          } else if (this.#uboNeedsBind(b.binding, ubo.gl, 0, -1)) {
             gl.bindBufferBase(gl.UNIFORM_BUFFER, b.binding, ubo.gl)
           }
         } else {
@@ -2247,7 +2270,9 @@ export class WebGL2Device implements GfxDevice {
     this.#boundTex = []
     this.#boundTexTarget = []
     this.#boundArrayBuffer = null
-    this.#uniformBindings.clear()
+    this.#uboBuffers.length = 0
+    this.#uboOffsets.length = 0
+    this.#uboSizes.length = 0
     this.#passColor = null
     // Pipelines' cached programs/VAOs are dead. A rebuild recreates them.
     this.#pipelineCache.clear()

@@ -40,8 +40,6 @@ export interface AnimationClip {
   duration: number
 }
 
-// Sampling runs every frame, so report once and skip the call afterward.
-let warnedCubic = false
 const scratchA = new Float64Array(4)
 const scratchB = new Float64Array(4)
 const qa = quat()
@@ -63,8 +61,7 @@ function sampleChannel(channel: AnimationChannel, time: number): void {
   if (n === 0) return
   const stride = path === 'rotation' ? 4 : 3
   const cubic = sampler.interpolation === 'CUBICSPLINE'
-  if (cubic && !warnedCubic) {
-    warnedCubic = true
+  if (cubic) {
     diagnostics.report(
       'SG6005',
       'AnimationClip: CUBICSPLINE interpolation is approximated as LINEAR.',

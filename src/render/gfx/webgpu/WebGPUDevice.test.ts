@@ -21,6 +21,17 @@ function fakeGpu(
   descriptors: (GPUTextureDescriptor | GPUBindGroupLayoutDescriptor)[] = [],
 ): GPUDevice {
   let textures = 0
+  // Logs the binds a draw makes and ignores every other pass call.
+  const renderPass = new Proxy(
+    {},
+    {
+      get: (_, key) =>
+        typeof key === 'string' &&
+        /^set(VertexBuffer|IndexBuffer|BindGroup)$/.test(key)
+          ? () => log.push(key)
+          : anything(),
+    },
+  )
   const device = {
     limits: {
       minUniformBufferOffsetAlignment: 256,
@@ -40,6 +51,10 @@ function fakeGpu(
         createView: anything,
       }
     },
+    createCommandEncoder: () => ({
+      beginRenderPass: () => renderPass,
+      finish: anything,
+    }),
     queue: {
       submit: () => log.push('submit'),
       writeTexture: () => {},
@@ -159,5 +174,98 @@ describe('WebGPUDevice', () => {
       { binding: 3, texture: { sampleType: 'depth', viewDimension: 'cube' } },
       { binding: 19, sampler: { type: 'comparison' } },
     ])
+  })
+
+  describe('draw binds', () => {
+    // A draw sets only what differs from the draw before it in the same pass.
+    const asDrawCall = (o: {
+      vb: unknown
+      offset?: number
+      ib?: unknown
+      bg: unknown
+      dynamicOffsets?: number[]
+    }): Parameters<WebGPUDevice['draw']>[0] =>
+      ({
+        pipeline: { gpu: {}, stencilRef: 0 },
+        vertexBuffers: [{ buffer: o.vb, offset: o.offset ?? 0 }],
+        bindGroups: [
+          { group: 0, bindGroup: o.bg, dynamicOffsets: o.dynamicOffsets },
+        ],
+        indexBuffer: o.ib,
+        vertexCount: 3,
+        indexCount: 3,
+      }) as never
+
+    async function openPass(log: string[]): Promise<WebGPUDevice> {
+      const device = await makeDevice(log)
+      device.beginFrame()
+      device.beginRenderPass({
+        color: {
+          target: { samples: 1, color: { createView: anything } } as never,
+          loadOp: 'load',
+        },
+      })
+      return device
+    }
+    const gpuBuffer = (gpu: object = {}) => ({ gpu, indexType: 'uint16' })
+
+    it('skips a repeated vertex buffer, index buffer and bind group', async () => {
+      const log: string[] = []
+      const device = await openPass(log)
+      const vb = gpuBuffer()
+      const ib = gpuBuffer()
+      const bg = { gpu: {} }
+      device.draw(asDrawCall({ vb, ib, bg, dynamicOffsets: [256] }))
+      device.draw(asDrawCall({ vb, ib, bg, dynamicOffsets: [256] }))
+      expect(log).toEqual(['setVertexBuffer', 'setBindGroup', 'setIndexBuffer'])
+    })
+
+    it('sets again when the offset, dynamic offsets or buffer changes', async () => {
+      const log: string[] = []
+      const device = await openPass(log)
+      const vb = gpuBuffer()
+      const bg = { gpu: {} }
+      device.draw(asDrawCall({ vb, bg, dynamicOffsets: [256] }))
+      log.length = 0
+      device.draw(asDrawCall({ vb, bg, offset: 64, dynamicOffsets: [256] }))
+      expect(log).toEqual(['setVertexBuffer'])
+      log.length = 0
+      device.draw(asDrawCall({ vb, bg, offset: 64, dynamicOffsets: [512] }))
+      expect(log).toEqual(['setBindGroup'])
+      log.length = 0
+      device.draw(
+        asDrawCall({ vb: gpuBuffer(), bg, offset: 64, dynamicOffsets: [512] }),
+      )
+      expect(log).toEqual(['setVertexBuffer'])
+    })
+
+    it('treats no dynamic offsets and an empty list as the same bind group', async () => {
+      const log: string[] = []
+      const device = await openPass(log)
+      const vb = gpuBuffer()
+      const bg = { gpu: {} }
+      device.draw(asDrawCall({ vb, bg }))
+      log.length = 0
+      device.draw(asDrawCall({ vb, bg, dynamicOffsets: [] }))
+      expect(log).toEqual([])
+    })
+
+    it('binds everything again in a new pass', async () => {
+      const log: string[] = []
+      const device = await openPass(log)
+      const vb = gpuBuffer()
+      const bg = { gpu: {} }
+      device.draw(asDrawCall({ vb, bg }))
+      device.endRenderPass()
+      log.length = 0
+      device.beginRenderPass({
+        color: {
+          target: { samples: 1, color: { createView: anything } } as never,
+          loadOp: 'load',
+        },
+      })
+      device.draw(asDrawCall({ vb, bg }))
+      expect(log).toEqual(['setVertexBuffer', 'setBindGroup'])
+    })
   })
 })
