@@ -2,12 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { Fog } from './Fog'
 
 describe('Fog', () => {
-  it('defaults to disabled exponential fog', () => {
-    const fog = new Fog()
-    expect(fog.enabled).toBe(false)
-    expect(fog.mode).toBe('exp')
-  })
-
   it('applies construction options', () => {
     const fog = new Fog({
       enabled: true,

@@ -13,7 +13,29 @@ export interface QuadShaderSource {
   readonly reflection: ShaderReflection
 }
 
-/** Build a {@link QuadShaderSource} from a shader module's generated artifacts. */
+/**
+ * Build a {@link QuadShaderSource} from a shader module's generated artifacts.
+ * Pass the `.gen.wgsl` file when the module uses includes.
+ *
+ * @remarks
+ *   The WGSL module has `vs_main` and `fs_main` and declares these bindings:
+ *
+ *   - Group 0, binding 0 is the `Frame` block, copied from an existing shader such
+ *       as `maskedRadialGradient.wgsl`. Binding 8 is the `Clip` block, which
+ *       `include/clipUniform.inc.wgsl` declares along with `clipCoverage`.
+ *   - Vertex input `a_unit` at location 0 is the quad's corner in `0..1`.
+ *       `a_originAxisX` at location 1 is a `vec4` of the origin in device
+ *       pixels and the x edge vector. `a_axisYAlpha` at location 2 holds the y
+ *       edge vector, then the draw's alpha.
+ *   - Group 1, binding 10 is the `Params` block, written from `quad.params`. Group
+ *       1, bindings 0 to 3 are the textures, each with its sampler at the
+ *       texture's binding plus 16.
+ *
+ *   The vertex shader places a corner at `origin + axisX * unit.x + axisY *
+ *   unit.y`, projects it with `frame.proj`, and passes `unit` on as the UV. The
+ *   fragment shader returns a premultiplied color and multiplies in the draw's
+ *   alpha and `clipCoverage`.
+ */
 export function quadShader(
   vertex: string,
   fragment: string,

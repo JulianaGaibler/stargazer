@@ -35,9 +35,8 @@ export interface FlexOptions {
 
 /**
  * A child that grows to fill leftover main-axis space in a {@link Row} or
- * {@link Column}, in proportion to its `flex` weight. `fit: 'tight'` (the
- * default, and what {@link Expanded} uses) forces the child to exactly its
- * share. `'loose'` lets the child be smaller.
+ * {@link Column}, in proportion to its `flex` weight. `fit` defaults to
+ * `'loose'` and has no effect in a {@link Flex}.
  *
  * @example
  *   new Row({

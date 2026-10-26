@@ -1,35 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { GpuGfx } from './GpuGfx'
 import { GfxPath } from './GfxPath'
-import { MockGfxDevice, type DrawRecord } from './webgl2/mockGfxDevice'
+import { MockGfxDevice, type DrawRecord } from './mock/mockGfxDevice'
 import { pipelineKey } from './pipelineKey'
 import type { PipelineDesc } from './GfxDevice'
+import { makeFrameGfx } from './testing/gpuGfxHarness'
 
 /**
  * A stencil-backed surface, as the primary stage builds. `stencil: false`
  * models a surface that has none.
  */
-async function makeGfx(stencil = true): Promise<{
-  gfx: GpuGfx
-  device: MockGfxDevice
-}> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device, { stencil })
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#000000',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-  return { gfx, device }
-}
+const makeGfx = (stencil = true) =>
+  makeFrameGfx({ stencil }, { clearColor: '#000000' })
 
 const ZIGZAG = [10, 10, 60, 40, 110, 10, 160, 40]
 

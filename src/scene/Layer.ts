@@ -65,7 +65,8 @@ export interface LayerOptions {
   cache?: LayerCache
   /**
    * CSS pixels added around the region on every side, for an effect that
-   * spreads past what was drawn, such as a blur. Default 0.
+   * spreads past what was drawn, such as a blur. An effect reads only the
+   * region, and samples past its edge repeat the edge pixels. Default 0.
    */
   padding?: number
   /**
@@ -118,7 +119,10 @@ export interface LayerOptions {
  *   removed, when an effect's parameters change, or when the canvas, the view
  *   or the region changes. The layer's own `alpha` is applied when the result
  *   is drawn and never forces a render. A node that draws immediately (`draw`
- *   instead of `paint`) makes the layer render every frame. Call `invalidate()`
+ *   instead of `paint`), a matte, or a nested layer with effects makes the
+ *   layer render every frame, and development builds warn once. A kept result
+ *   is released when the layer goes unused for a while, and the least recently
+ *   used go first when the cache is over its memory budget. Call `invalidate()`
  *   for a change that none of these see.
  *
  *   `effects` run post-processing over the layer's subtree and nothing else. The

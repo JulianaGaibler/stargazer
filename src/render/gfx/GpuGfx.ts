@@ -23,7 +23,6 @@ import type {
   GfxMatteMode,
   GfxOffscreenHandle,
   GfxOffscreenOptions,
-  GfxSurfaceCache,
   GfxSurfaceEffects,
   GfxFill,
   GfxLinearGradient,
@@ -40,12 +39,7 @@ import { depthStencilFormatOf } from './depthStencil'
 import { parseColor } from './parseColor'
 import { RenderFailures } from './RenderFailures'
 import type { GeometryHandle } from './GeometryHandle'
-import {
-  RetainedCache,
-  type RetainedCacheStats,
-  type RetainedEntry,
-} from './RetainedCache'
-import { copySignature, signaturesEqual } from '../layer/LayerSignature'
+import { RetainedCache, type RetainedCacheStats } from './RetainedCache'
 import {
   getContourClosed,
   getPathContours,
@@ -68,17 +62,14 @@ import { GfxPath, type FlatPath } from './GfxPath'
 import { appendStrokeFill } from './pathStroke'
 import { DashBuffer } from './dash'
 import { SurfacePool, type Surface } from './OffscreenSurfaces'
-import { RenderTargetPool } from './RenderTargetPool'
+import {
+  SurfaceEffects,
+  firstEffectSmooths,
+  placementOf,
+  type SurfaceEffectsJob,
+  type LayerCacheEntry,
+} from './SurfaceEffects'
 import { PostChain } from '../postfx/PostChain'
-import {
-  UNPLACED,
-  type PostEffect,
-  type PostPlacement,
-} from '../postfx/PostEffect'
-import {
-  PASS_GPU_GRACE_FRAMES,
-  PostProgramCache,
-} from '../postfx/PostProgramCache'
 import {
   OffscreenCompositeProgram,
   type CompositeDraw,
@@ -89,11 +80,9 @@ import type { ClipBounds } from './programs/coloredTri'
 import type { FillRule } from './stencilRecipe'
 import {
   TextureManager,
-  type LabelFontTemplate,
   type LabelTexture,
   type TextureInspector,
 } from './TextureManager'
-import { evictOldest } from './evictOldest'
 import { VectorQuality } from '../VectorQuality'
 import { DEFAULT_LABEL_FONT, type LabelStyle } from './rasterizeLabel'
 import type { BitmapMask } from '../../assets/BitmapMask'
@@ -113,8 +102,10 @@ import type { GpuProgram } from './GpuProgram'
 import { ColoredTriProgram } from './programs/coloredTri'
 import { StrokeProgram } from './programs/stroke'
 import { resolveRadii, type RoundRectRadii } from './roundRectRadii'
+import { resolveClip } from './analyticClip'
+import { labelFont } from './labelFont'
+import { emitDebugOutlineMesh, emitDebugPolygonOutline } from './debugWireframe'
 
-const NO_CLIP_RADII = [0, 0, 0, 0] as const
 import { fitSquircleCorners, squircleShadowRadiusScale } from './squircle'
 import { GradientRadialProgram } from './programs/gradientRadial'
 import { MaskedGradientProgram } from './programs/maskedGradient'
@@ -152,32 +143,6 @@ function solidStroke(style: GfxStrokeStyle): SolidStrokeStyle {
 
 /** The style a `fillText` call without one draws with. */
 const NO_TEXT_STYLE: GfxTextStyle = {}
-
-const FONT_SIZE = /(\d*\.?\d+)px/
-/** A font split around its px size, with that size, or `null` without one. */
-interface LabelFont extends LabelFontTemplate {
-  size: number
-}
-/** Fonts recently drawn, split around their size. */
-const LABEL_FONTS = new Map<string, LabelFont | null>()
-
-function labelFont(font: string): LabelFont | null {
-  let hit = LABEL_FONTS.get(font)
-  if (hit !== undefined) return hit
-  const m = FONT_SIZE.exec(font)
-  const size = m ? Number(m[1]) : NaN
-  hit =
-    m && Number.isFinite(size) && size > 0
-      ? {
-          head: font.slice(0, m.index),
-          tail: font.slice(m.index + m[0].length),
-          size,
-        }
-      : null
-  if (LABEL_FONTS.size >= 256) evictOldest(LABEL_FONTS)
-  LABEL_FONTS.set(font, hit)
-  return hit
-}
 
 function labelBaseKey(text: string, style: LabelStyle): string {
   return `${text}\n${style.font}\n${style.align}\n${style.baseline}\n${style.color}\n`
@@ -233,87 +198,11 @@ const COMPOSITE_BLENDS = new Set<string>([
   'xor',
 ])
 
-/**
- * Effects to run over an offscreen surface, from `beginOffscreen` until the
- * surface's pass closes.
- */
-interface SurfaceEffectsJob {
-  chain: PostChain
-  effects: readonly PostEffect[]
-  /** Where the chain writes, a target the composite then samples. */
-  out: RenderTarget | null
-  /**
-   * The cache entry the result is kept in, for a cached layer. It is valid once
-   * the chain has run, and then holds `signature` and the region.
-   */
-  entry: LayerCacheEntry | null
-  signature: Float64Array | null
-  signatureLength: number
-  x: number
-  y: number
-  /** Where the surface sits, for the passes' context. */
-  placement: PostPlacement
-}
-
-/**
- * Where a surface at (`x0`, `y0`) sits, given its owner's local space in device
- * pixels. Without `units`, one local unit is one device pixel and the origin is
- * the surface's own corner.
- */
-function placementOf(
-  units: GfxSurfaceEffects['units'],
-  x0: number,
-  y0: number,
-): PostPlacement {
-  if (!units) return { ...UNPLACED, originX: x0, originY: y0 }
-  return {
-    originX: x0,
-    originY: y0,
-    pxPerUnit: Math.hypot(units.a, units.b),
-    unitOriginX: units.e - x0,
-    unitOriginY: units.f - y0,
-  }
-}
-
-/**
- * The kept render of a cached layer: the processed result and what it was made
- * from. The target is the entry's own for as long as the region keeps its
- * size.
- */
-interface LayerCacheEntry extends RetainedEntry {
-  out: RenderTarget
-  /** Where the region sat in the target, and its size. */
-  x: number
-  y: number
-  w: number
-  h: number
-  colorSpace: string
-  /** The signature of what was drawn, valid up to `signatureLength`. */
-  signature: Float64Array
-  signatureLength: number
-  /** Whether `out` holds a finished render of `signature`. */
-  valid: boolean
-}
-
 /** The rectangle of a texture a composite draws, a surface or an effects result. */
 type CompositeSource = Pick<
   Surface,
   'tex' | 'texW' | 'texH' | 'x' | 'y' | 'w' | 'h'
 >
-
-/**
- * The state surface effects need on one device: the compiled passes shared by
- * every chain, a pool for the chains' targets, and a chain per owner.
- */
-interface EffectState {
-  programs: PostProgramCache
-  pool: RenderTargetPool
-  chains: Map<object, { chain: PostChain; unseen: number }>
-  /** The kept renders of cached layers, one per layer. */
-  layers: RetainedCache<LayerCacheEntry>
-  /** Cached layers drawn from their kept render this frame. */
-  layerHits: number
-}
 
 /** An open `beginOffscreen`, kept until its `endOffscreen`. */
 interface OffFrame {
@@ -360,14 +249,6 @@ function flatSegments(flat: FlatPath): number {
     n += flat.closed[c] === 1 ? len : len - 1
   }
   return n
-}
-
-/** Whether the first enabled effect removes fine detail from its input. */
-function firstEffectSmooths(effects: readonly PostEffect[]): boolean {
-  for (const effect of effects) {
-    if (effect.enabled) return effect.smoothsInput === true
-  }
-  return false
 }
 
 export class GpuGfx implements Gfx2D {
@@ -555,6 +436,7 @@ export class GpuGfx implements Gfx2D {
     this.#textureManager = null as unknown as TextureManager
     this.#ctx = new GpuBatchContext(device, this.stats)
     this.#pool = new SurfacePool(device)
+    this.#effects = new SurfaceEffects(device)
     this.#ctx.vectorQuality = opts.vectorQuality ?? new VectorQuality()
     this.#ctx.registerProgram(this.#coloredTri)
     this.#ctx.registerProgram(this.#coloredTri.fan)
@@ -600,12 +482,12 @@ export class GpuGfx implements Gfx2D {
    * effects are not compiled yet composites unprocessed.
    */
   get effectsCompiling(): boolean {
-    return this.#fx?.programs.compiling ?? false
+    return this.#effects.compiling
   }
 
   /** Resolves once the surface effect pipelines compiling now have finished. */
   whenEffectsCompiled(): Promise<void> {
-    return this.#fx?.programs.whenCompiled() ?? Promise.resolve()
+    return this.#effects.whenCompiled()
   }
 
   /**
@@ -670,10 +552,7 @@ export class GpuGfx implements Gfx2D {
       .warmup()
       .catch((err) => this.failures.report('path shadows', err))
     this.#pool.dispose()
-    // Anything the effects held lived on the old context.
-    this.#fx?.layers.clear(false)
-    this.#fx = null
-    this.#fxJobs.clear()
+    this.#effects.reset()
 
     this.#warmupPromise = this.#warmupPipelines()
   }
@@ -888,10 +767,7 @@ export class GpuGfx implements Gfx2D {
     this.#coloredTri.geometryCache.sweep(this.#frameNo)
     this.#strokePieces.sweep(this.#frameNo)
     this.#outlines.sweep(this.#frameNo)
-    if (this.#fx) {
-      this.#fx.layers.sweep(this.#frameNo)
-      this.#fx.layerHits = 0
-    }
+    this.#effects.beginFrame(this.#frameNo)
     this.#clipPushes.length = 0
     this.#saveLevel = 0
     // Reset per-frame stats so the HUD reflects the frame just rendered.
@@ -935,10 +811,7 @@ export class GpuGfx implements Gfx2D {
   #mainPrelude: (() => void) | null = null
   /** Record-time stack of open `beginOffscreen` calls. */
   readonly #offStack: OffFrame[] = []
-  /** Surface effects state, created on first use and dropped on a restore. */
-  #fx: EffectState | null = null
-  /** Effects waiting for their surface's pass to close, by surface. */
-  readonly #fxJobs = new Map<Surface, SurfaceEffectsJob>()
+  readonly #effects: SurfaceEffects
 
   /**
    * Run `draw` at the start of the main pass, before the recorded layers. The
@@ -970,7 +843,12 @@ export class GpuGfx implements Gfx2D {
     },
     close: (surface) => {
       this.#device.endRenderPass()
-      if (surface) this.#runSurfaceEffects(surface)
+      if (surface) {
+        this.stats.passCount += this.#effects.run(
+          surface,
+          this.#target.colorSpace,
+        )
+      }
       if (this.perfMarks && surface) {
         performance.measure(
           `gfx offscreen surface ${surface.w}x${surface.h}`,
@@ -1104,7 +982,7 @@ export class GpuGfx implements Gfx2D {
     const fx =
       requested && PostChain.hasWork(requested.effects) ? requested : null
     if (requested?.cache) requested.cache.hit = false
-    const job = fx ? this.#prepareSurfaceEffects(fx) : null
+    const job = fx ? this.#effects.prepare(fx, this.#target.colorSpace) : null
     if (job && fx) job.placement = placementOf(fx.units, x0, y0)
     if (opts.effects && !fx) opts.effects.applied = opts.retain !== true
     // A layer that must not show unprocessed is composited invisibly until its
@@ -1115,7 +993,16 @@ export class GpuGfx implements Gfx2D {
       : this.#ctx.stateStack.getAlpha() * (opts.opacity ?? 1)
     const blend = opts.blend ?? this.#ctx.stateStack.getBlend()
     if (job && fx?.cache) {
-      const kept = this.#checkLayerCache(fx, fx.cache, job, x0, y0, w, h)
+      const kept = this.#effects.checkLayerCache(
+        fx,
+        fx.cache,
+        job,
+        this.#target.colorSpace,
+        x0,
+        y0,
+        w,
+        h,
+      )
       if (kept) {
         // The kept render stands, so nothing is drawn and the composite is the
         // whole cost. The frame only holds the alpha and blend for
@@ -1237,13 +1124,8 @@ export class GpuGfx implements Gfx2D {
     const job = frame.fx
     if (job) {
       // The effects run when the surface's pass closes and write `out`, which
-      // the composite then draws in place of the surface. A cached layer writes
-      // the target it keeps.
-      const out =
-        job.entry?.out ??
-        this.#fx!.pool.acquireTransient(s.w, s.h, this.#target.colorSpace)
-      job.out = out
-      this.#fxJobs.set(s, job)
+      // the composite then draws in place of the surface.
+      const out = this.#effects.queue(s, job, this.#target.colorSpace)
       source = {
         tex: this.#device.colorTexture(out),
         texW: s.w,
@@ -1284,203 +1166,13 @@ export class GpuGfx implements Gfx2D {
     )
   }
 
-  /** The surface effects state, created on first use. */
-  #effectState(): EffectState {
-    return (this.#fx ??= {
-      programs: new PostProgramCache(this.#device),
-      pool: new RenderTargetPool(this.#device),
-      chains: new Map(),
-      layers: new RetainedCache<LayerCacheEntry>({
-        name: 'Layer renders',
-        idleFrames: 240,
-        budgetBytes: 64 * 1024 * 1024,
-      }),
-      layerHits: 0,
-    })
-  }
-
-  /**
-   * Get ready to run `fx` over a surface: find or create the owner's chain, add
-   * the frame's time, and make sure the pipelines are compiled for the target's
-   * color space. Reports whether they are, in `fx.applied`. Returns the job for
-   * the surface, or `null` when a pipeline is still compiling and the surface
-   * composites as it is.
-   */
-  #prepareSurfaceEffects(fx: GfxSurfaceEffects): SurfaceEffectsJob | null {
-    const state = this.#effectState()
-    let entry = state.chains.get(fx.owner)
-    if (!entry) {
-      entry = {
-        chain: new PostChain(this.#device, state.programs, state.pool),
-        unseen: 0,
-      }
-      state.chains.set(fx.owner, entry)
-    }
-    entry.unseen = 0
-    entry.chain.advance(fx.dt)
-    const ready = entry.chain.prepare(fx.effects, this.#target.colorSpace)
-    for (const effect of fx.effects) {
-      for (const pass of effect.passes) state.programs.noteLive(pass)
-    }
-    fx.applied = ready
-    return ready
-      ? {
-          chain: entry.chain,
-          effects: fx.effects,
-          out: null,
-          entry: null,
-          signature: null,
-          signatureLength: 0,
-          x: 0,
-          y: 0,
-          placement: { ...UNPLACED },
-        }
-      : null
-  }
-
-  /**
-   * Decide whether the kept render of a cached layer still stands. Returns it
-   * when it does, with `cache.hit` set. Otherwise gets the layer's entry ready
-   * to be drawn into (a new target when the region changed size) and records
-   * the signature to keep once the render has run, and returns `null`.
-   */
-  #checkLayerCache(
-    fx: GfxSurfaceEffects,
-    cache: GfxSurfaceCache,
-    job: SurfaceEffectsJob,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-  ): LayerCacheEntry | null {
-    const state = this.#fx!
-    const colorSpace = this.#target.colorSpace
-    // Asked every frame, even when the answer is a hit, so the effects' own
-    // record of what they last wrote stays current.
-    const paramsChanged = job.chain.paramsChanged(
-      { width: w, height: h, placement: job.placement },
-      fx.effects,
-    )
-    const key = state.layers.keyFor(fx.owner, 'layer')
-    let entry = state.layers.get(key)
-    const forced = cache.invalidated
-    cache.invalidated = false
-    if (
-      entry &&
-      entry.valid &&
-      !forced &&
-      !paramsChanged &&
-      entry.colorSpace === colorSpace &&
-      entry.x === x &&
-      entry.y === y &&
-      entry.w === w &&
-      entry.h === h &&
-      signaturesEqual(
-        entry.signature,
-        entry.signatureLength,
-        cache.signature,
-        cache.length,
-      )
-    ) {
-      cache.hit = true
-      state.layerHits++
-      return entry
-    }
-    if (
-      !entry ||
-      entry.w !== w ||
-      entry.h !== h ||
-      entry.colorSpace !== colorSpace
-    ) {
-      const pool = state.pool
-      const out = pool.acquireRetained(w, h, colorSpace)
-      entry = {
-        out,
-        x,
-        y,
-        w,
-        h,
-        colorSpace,
-        signature: new Float64Array(0),
-        signatureLength: 0,
-        valid: false,
-        bytes: w * h * 4,
-        release: () => pool.release(out),
-      }
-      // Replaces, and frees, the entry of the old size.
-      state.layers.add(key, entry)
-    }
-    entry.valid = false
-    job.entry = entry
-    job.signature = copySignature(
-      cache.signature,
-      cache.length,
-      new Float64Array(cache.length),
-    )
-    job.signatureLength = cache.length
-    return null
-  }
-
-  /**
-   * Run the effects queued for `surface`, now that its pass has closed and its
-   * result texture is complete. They draw between that pass and the next one.
-   */
-  #runSurfaceEffects(surface: Surface): void {
-    const job = this.#fxJobs.get(surface)
-    if (!job) return
-    this.#fxJobs.delete(surface)
-    job.chain.run(
-      {
-        texture: surface.tex,
-        width: surface.w,
-        height: surface.h,
-        placement: job.placement,
-      },
-      job.effects,
-      this.#target.colorSpace,
-      job.out,
-    )
-    this.stats.passCount += PostChain.passCount(job.effects)
-    const entry = job.entry
-    if (entry && job.signature) {
-      // The kept target now holds a finished render of this signature.
-      entry.x = job.x
-      entry.y = job.y
-      entry.signature = copySignature(
-        job.signature,
-        job.signatureLength,
-        entry.signature,
-      )
-      entry.signatureLength = job.signatureLength
-      entry.valid = true
-    }
-  }
-
   /**
    * Compile the pipelines of `fx` ahead of time, for the target's color space,
    * so the first frame that uses them is not drawn unprocessed. Safe to call
    * every frame, an already compiled pass is skipped.
    */
   warmEffects(fx: GfxSurfaceEffects): void {
-    const state = this.#effectState()
-    const passes = fx.effects.flatMap((e) => e.passes)
-    state.programs.warm(passes, [this.#target.colorSpace])
-  }
-
-  /**
-   * End of frame for surface effects: return the pooled targets, free the
-   * passes and chains no layer has used for a while.
-   */
-  #endEffectsFrame(): void {
-    const state = this.#fx
-    if (!state) return
-    state.pool.endFrame()
-    state.programs.endFrame()
-    for (const [owner, entry] of state.chains) {
-      if (++entry.unseen <= PASS_GPU_GRACE_FRAMES) continue
-      entry.chain.destroy()
-      state.chains.delete(owner)
-    }
+    this.#effects.warm(fx, this.#target.colorSpace)
   }
 
   /** Record a quad of `s` at its rectangle in the current target. */
@@ -1563,7 +1255,7 @@ export class GpuGfx implements Gfx2D {
       )
     }
     this.#pool.endFrame()
-    this.#endEffectsFrame()
+    this.#effects.endFrame()
     this.stats.offscreenBytes = this.#pool.bytes
     // Real GPU state-change counts come from the device (post-elision).
     // `blendSwitches` is derived from the run blend transitions in submitFrame
@@ -1862,82 +1554,9 @@ export class GpuGfx implements Gfx2D {
       this.#ctx.stateStack.setClip(null)
       return
     }
-    // Resolve local -> device px through the current transform, like fillCircle.
     // The snapshot is taken now, so later transform changes don't move the clip.
     this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const scale = Math.sqrt(Math.abs(t.a * t.d - t.b * t.c))
-    // The inverse maps a device pixel back into the space the shape was given
-    // in. A transform with no inverse clips everything: the shape is moved out
-    // of reach.
-    const det = t.a * t.d - t.b * t.c
-    const singular = !(Math.abs(det) > 1e-12)
-    const inv = singular ? 0 : 1 / det
-    const ia = singular ? 0 : t.d * inv
-    const ib = singular ? 0 : -t.b * inv
-    const ic = singular ? 0 : -t.c * inv
-    const id = singular ? 0 : t.a * inv
-    const ie = singular ? 0 : (t.c * t.f - t.d * t.e) * inv
-    const iff = singular ? 0 : (t.b * t.e - t.a * t.f) * inv
-    const far = 1e9
-    if (shape.kind === 'circle') {
-      this.#ctx.stateStack.setClip({
-        kind: 1,
-        cx: t.a * shape.cx + t.c * shape.cy + t.e,
-        cy: t.b * shape.cx + t.d * shape.cy + t.f,
-        r: shape.r * scale,
-        halfW: 0,
-        halfH: 0,
-        radii: NO_CLIP_RADII,
-        lcx: singular ? far : shape.cx,
-        lcy: shape.cy,
-        lr: shape.r,
-        lhalfW: 0,
-        lhalfH: 0,
-        lradii: NO_CLIP_RADII,
-        ia,
-        ib,
-        ic,
-        id,
-        ie,
-        if: iff,
-      })
-    } else {
-      const midX = shape.x + shape.w / 2
-      const midY = shape.y + shape.h / 2
-      // A fresh tuple, since the stack keeps the clip after this call returns.
-      const lradii = resolveRadii(
-        shape.radii ?? shape.radius ?? 0,
-        shape.w,
-        shape.h,
-      )
-      this.#ctx.stateStack.setClip({
-        kind: 2,
-        cx: t.a * midX + t.c * midY + t.e,
-        cy: t.b * midX + t.d * midY + t.f,
-        r: 0,
-        halfW: (shape.w / 2) * Math.abs(t.a),
-        halfH: (shape.h / 2) * Math.abs(t.d),
-        radii: [
-          lradii[0] * scale,
-          lradii[1] * scale,
-          lradii[2] * scale,
-          lradii[3] * scale,
-        ],
-        lcx: singular ? far : midX,
-        lcy: midY,
-        lr: 0,
-        lhalfW: shape.w / 2,
-        lhalfH: shape.h / 2,
-        lradii,
-        ia,
-        ib,
-        ic,
-        id,
-        ie,
-        if: iff,
-      })
-    }
+    this.#ctx.stateStack.setClip(resolveClip(this.#ctx.txOut, shape))
   }
 
   /**
@@ -2001,80 +1620,6 @@ export class GpuGfx implements Gfx2D {
     return this.#target.samples
   }
 
-  /**
-   * `'polygons'` debug mode: thin wireframe around a local-space polygon. Width
-   * inverts the current transform's uniform scale so it stays ~1 device pixel
-   * regardless of zoom.
-   */
-  #emitDebugPolygonOutline(
-    pts: ArrayLike<number>,
-    count: number,
-    closed: boolean,
-  ): void {
-    if (count < 2) return
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const det = Math.abs(t.a * t.d - t.b * t.c)
-    const scale = det > 1e-9 ? Math.sqrt(det) : 1
-    const style: GfxStrokeStyle = {
-      color: 'rgba(96, 165, 250, 0.75)',
-      width: 1 / scale,
-    }
-    for (let i = 0; i < count - 1; i++) {
-      this.strokeLine(
-        pts[i * 2],
-        pts[i * 2 + 1],
-        pts[(i + 1) * 2],
-        pts[(i + 1) * 2 + 1],
-        style,
-      )
-    }
-    if (closed && count >= 3) {
-      const last = count - 1
-      this.strokeLine(pts[last * 2], pts[last * 2 + 1], pts[0], pts[1], style)
-    }
-  }
-
-  /**
-   * `'polygons'` debug mode for a stroke that routed through the outline
-   * tessellator: every triangle edge of its actual output (core, joins, and
-   * fringe ring), not the source contour `#emitDebugPolygonOutline` draws for a
-   * fill. Deliberately not just the outer boundary: the join tessellation, the
-   * fringe ring, and a short-segment overlap (see `strokeOutline.ts`) are
-   * exactly what this mode exists to let you see.
-   */
-  #emitDebugOutlineMesh(outline: {
-    positions: readonly number[]
-    indices: readonly number[]
-  }): void {
-    const idx = outline.indices
-    if (idx.length < 3) return
-    this.#ctx.txStack.read(this.#ctx.txOut)
-    const t = this.#ctx.txOut
-    const det = Math.abs(t.a * t.d - t.b * t.c)
-    const scale = det > 1e-9 ? Math.sqrt(det) : 1
-    const style: GfxStrokeStyle = {
-      color: 'rgba(96, 165, 250, 0.75)',
-      width: 1 / scale,
-    }
-    const pos = outline.positions
-    const triCount = idx.length / 3
-    for (let i = 0; i < triCount; i++) {
-      const i0 = idx[i * 3]
-      const i1 = idx[i * 3 + 1]
-      const i2 = idx[i * 3 + 2]
-      const x0 = pos[i0 * 2]
-      const y0 = pos[i0 * 2 + 1]
-      const x1 = pos[i1 * 2]
-      const y1 = pos[i1 * 2 + 1]
-      const x2 = pos[i2 * 2]
-      const y2 = pos[i2 * 2 + 1]
-      this.strokeLine(x0, y0, x1, y1, style)
-      this.strokeLine(x1, y1, x2, y2, style)
-      this.strokeLine(x2, y2, x0, y0, style)
-    }
-  }
-
   // --- Gfx2D: fills --------------------------------------------------------
 
   fillRect(x: number, y: number, w: number, h: number, fill: GfxFill): void {
@@ -2083,7 +1628,7 @@ export class GpuGfx implements Gfx2D {
       // Rect corners CCW starting from A. `emitDebugPolygonOutline`
       // handles the closing edge.
       const rectPts = [x, y, x + w, y, x + w, y + h, x, y + h]
-      this.#emitDebugPolygonOutline(rectPts, 4, true)
+      emitDebugPolygonOutline(this, this.#ctx, rectPts, 4, true)
     }
   }
 
@@ -2245,7 +1790,7 @@ export class GpuGfx implements Gfx2D {
   fillConvexPoly(pts: ArrayLike<number>, count: number, fill: GfxFill): void {
     this.#coloredTri.fillConvexPoly(this.#ctx, pts, count, fill)
     if (this.#ctx.curDebugMode === 'polygons') {
-      this.#emitDebugPolygonOutline(pts, count, true)
+      emitDebugPolygonOutline(this, this.#ctx, pts, count, true)
     }
   }
 
@@ -2310,7 +1855,9 @@ export class GpuGfx implements Gfx2D {
       if (contours) {
         for (let i = 0; i < contours.length; i++) {
           const c = contours[i]
-          this.#emitDebugPolygonOutline(
+          emitDebugPolygonOutline(
+            this,
+            this.#ctx,
             c,
             c.length / 2,
             getContourClosed(path, i),
@@ -2626,7 +2173,7 @@ export class GpuGfx implements Gfx2D {
       colorEnd,
     )
     if (this.#ctx.curDebugMode === 'polygons') {
-      this.#emitDebugPolygonOutline(pts, count, true)
+      emitDebugPolygonOutline(this, this.#ctx, pts, count, true)
     }
   }
 
@@ -3061,7 +2608,7 @@ export class GpuGfx implements Gfx2D {
     )
     this.#coloredTri.fillOutlineTessellation(this.#ctx, buf, style.color)
     if (this.#ctx.curDebugMode === 'polygons') {
-      this.#emitDebugOutlineMesh(buf)
+      emitDebugOutlineMesh(this, this.#ctx, buf)
     }
   }
 
@@ -3152,7 +2699,7 @@ export class GpuGfx implements Gfx2D {
     }
     this.#coloredTri.fillOutlineTessellation(this.#ctx, buf, style.color)
     if (this.#ctx.curDebugMode === 'polygons') {
-      this.#emitDebugOutlineMesh(buf)
+      emitDebugOutlineMesh(this, this.#ctx, buf)
     }
   }
 
@@ -3164,10 +2711,8 @@ export class GpuGfx implements Gfx2D {
       this.#strokePieces.stats,
       this.#outlines.stats,
     ]
-    const layers = this.#fx
-    // A lookup that ends in a re-render is not a hit, so the count is the
-    // layers drawn from their kept render.
-    if (layers) stats.push({ ...layers.layers.stats, hits: layers.layerHits })
+    const layers = this.#effects.layerStats()
+    if (layers) stats.push(layers)
     return stats
   }
 

@@ -91,8 +91,9 @@ export interface EngineOptions {
    */
   physics?: boolean | PhysicsWorldConfig
   /**
-   * Test-only escape hatch: inject a prebuilt `GfxDevice` for the primary stage
-   * instead of acquiring a real WebGL2 context. See `StageOptions.gpuDevice`.
+   * A prebuilt `GfxDevice` for the primary stage, used instead of acquiring a
+   * WebGL2 context. `selectGfxDevice` and `mountEngine` supply one for WebGPU,
+   * and tests inject a mock. See `StageOptions.gpuDevice`.
    */
   gpuDevice?: GfxDevice
   /** Forwarded to the primary stage. See `StageOptions.renderScale`. */

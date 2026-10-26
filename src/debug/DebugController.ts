@@ -1,26 +1,32 @@
-import type { RetainedCacheStats } from '../render/gfx/RetainedCache'
-import type { RenderFailure } from '../render/gfx/RenderFailures'
 import { createEmitter, type Emitter } from '../events/Emitter'
-import type { Engine, RegisteredPhysicsWorld } from '../engine/Engine'
+import type { Engine } from '../engine/Engine'
 import type { CameraView2D } from '../camera/CameraView2D'
 import type { Stage } from '../render/Stage'
 import type { Gfx2D } from '../render/gfx/Gfx2D'
-import type { GfxBackend } from '../render/gfx/GfxDevice'
-import type { GpuGfxStats } from '../render/gfx/GpuBatchContext'
 import type { BitmapMask } from '../assets/BitmapMask'
 import { DebugCamera } from './DebugCamera'
 import { DebugCamera3D } from './DebugCamera3D'
 import { FrameStats } from './FrameStats'
 import type { CameraView3D } from '../camera/CameraView3D'
 import type { Node3D } from '../scene/Node3D'
-import { MeshNode } from '../nodes/MeshNode'
 import type { DebugLine3DRenderer } from '../render/gfx/DebugLine3DRenderer'
-import { Light3D } from '../nodes/Light3D'
 import type { RenderQuality } from '../render/RenderQuality'
 import type { AmbientOcclusion } from '../render/gfx/ao/AmbientOcclusion'
 import { walkTree } from '../scene/traverse'
+import {
+  snapshotPhysics,
+  snapshotStageChips,
+  snapshotWorld3d,
+  stageById,
+  stageIdOf,
+  worldsForStage,
+  type ActivePointerReadout,
+  type DebugGpuStatsReadout,
+  type DebugStatsSnapshot,
+  type PhysicsWorldReadout,
+  type StageChip,
+} from './DebugSnapshot'
 import { drawGrid } from './DebugGridRenderer'
-import { pushObb, drawLightGizmo, pushWireframe } from './DebugGizmo3DRenderer'
 import { drawNodeOutlines } from './DebugOutlineRenderer'
 import { drawLayoutOutlines } from './DebugLayoutRenderer'
 import { viewFor } from '../scene/viewFor'
@@ -29,13 +35,19 @@ import {
   drawPhysicsOverlay,
   type PhysicsOverlayFlags,
 } from './DebugPhysicsRenderer'
-import { BodyType } from '../physics/types'
-import type { PhysicsWorld } from '../physics/PhysicsWorld'
 import type { Node } from '../scene/Node'
 import type { Node2D } from '../scene/Node2D'
 import { get, writable, type Readable } from 'svelte/store'
 import type { Component } from 'svelte'
-import { debugFont } from './debugFont'
+import {
+  WorldAccents,
+  drawClipMaskOverlay,
+  drawGameCameraRect,
+  drawNodeHighlight,
+  pushMeshBounds,
+  pushMeshWireframes,
+  pushNodeHighlight3D,
+} from './DebugOverlay'
 
 /**
  * Which camera drives the debug view. `active` is the engine's normal cameras,
@@ -78,149 +90,12 @@ export interface DebugToggleState {
 type DebugFlag =
   'outlines' | 'layoutOutlines' | 'follow' | 'grid' | 'pointerOverlay'
 
-/** Flattened view of one active pointer, shaped for the HUD's pointer sections. */
-export interface ActivePointerReadout {
-  id: number
-  kind: 'touch' | 'mouse' | 'pen'
-  screen: { x: number; y: number }
-  world: { x: number; y: number }
-  capturedByNodeId: string | null
-}
-
-/** One entry per attached stage, surfaced to the HUD for the chip strip. */
-export interface StageChip {
-  /** Stable identifier, `'primary'` or `'stage-{N}'`. */
-  id: string
-  /** Display label, `stage.name ?? \`Stage {N}`` (primary is always "Primary"). */
-  label: string
-  isActive: boolean
-  isPrimary: boolean
-}
-
-/**
- * Per-frame GPU pipeline counters for the HUD. A direct alias of
- * {@link GpuGfxStats} (the field `Stage.gpuStats`/`GpuGfx.stats` actually
- * carry), kept as its own exported name so this module's public surface doesn't
- * shift if that one's internal home does.
- */
-export type DebugGpuStatsReadout = GpuGfxStats
-
-/**
- * One frame's worth of debug metrics for the active stage. Produced by
- * {@link DebugController.snapshotStats} and consumed by the HUD.
- */
-export interface DebugStatsSnapshot {
-  /** CPU work-time percentiles (seconds) per frame, headroom, NOT frame cadence. */
-  p50: number
-  p95: number
-  p99: number
-  max: number
-  count: number
-  /**
-   * Actual frames per second, from the real post-cap frame interval. Reflects
-   * the FPS cap and vsync. `0` when not yet measured.
-   */
-  fps: number
-  /** 2D nodes in the active stage's tree. */
-  nodeCount: number
-  /** What the 2D walk did last frame: nodes, pictures painted and replayed. */
-  compose: { nodes: number; paints: number; replays: number; culled: number }
-  /** The pictures that streamed the most bytes to the GPU last frame. */
-  streamers: readonly (readonly [string, number])[]
-  /** What the renderer's retained caches hold and did last frame. */
-  caches: readonly RetainedCacheStats[]
-  /** The node classes that painted pictures last frame, most first. */
-  composePainters: readonly (readonly [string, number])[]
-  composeTotals: {
-    frames: number
-    framesPainted: number
-    paints: number
-    stale: number
-  }
-  /** Per-frame GPU pipeline stats for the active stage. */
-  gpu: DebugGpuStatsReadout
-  /** Which rendering backend the active stage's device is. */
-  backend: GfxBackend
-  /** GPU resources the active stage could not build, such as a rejected shader. */
-  renderFailures: readonly RenderFailure[]
-  cameraMode: 'game' | 'debug'
-  cameraFollowing: boolean
-  viewport: { x: number; y: number; width: number; height: number }
-  screenPxPerWorldUnit: number
-  pointerScreen: { x: number; y: number } | null
-  pointerWorld: { x: number; y: number } | null
-  canvasCss: { w: number; h: number }
-  canvasDevice: { w: number; h: number }
-  dpr: number
-  activePointers: ActivePointerReadout[]
-  touchSlopScreen: number
-  touchSlopWorld: number
-  aliveParticles: number
-  /** All currently-attached stages, in order (primary first). */
-  stages: StageChip[]
-  /** Id of the currently-active stage, matches one entry in `stages`. */
-  activeStageId: string
-  /** True when the active stage isn't the primary. HUD grays pointer sections. */
-  activeIsPrimary: boolean
-  /** True when the active stage has its own `InputSystem`. */
-  activeHasInput: boolean
-  /** One entry per physics world in the active stage, empty when it has none. */
-  physics: PhysicsWorldReadout[]
-  /** 3D world stats for the active stage, or `null` when it has no 3D content. */
-  world3d: World3DReadout | null
-  /** Whether the fly camera currently holds the pointer lock (mouse-look on). */
-  flyPointerLocked: boolean
-  /** The fly camera's persistent scroll-adjustable speed multiplier. */
-  flySpeedMultiplier: number
-}
-
-/**
- * 3D world + camera metrics for the active stage, shown in the HUD's Rendering
- * (3D subsection) and Camera panels.
- */
-export interface World3DReadout {
-  nodeCount: number
-  meshCount: number
-  /** Total triangles across all mesh geometry (not culled). */
-  triangleCount: number
-  /** Meshes + surfaces actually drawn last frame. */
-  visible: number
-  /** 3D draw calls last frame (meshes + RTT quads). */
-  drawCalls: number
-  /** Whether the 3D fly-camera is inspecting the scene. */
-  cameraMode: 'game' | 'debug'
-  camera: {
-    position: { x: number; y: number; z: number }
-    projectionness: number
-    fovY: number
-    near: number
-    far: number
-    aspect: number
-    focalDistance: number
-  }
-}
-
-/**
- * Live stats for one physics world in the active stage, shown in the HUD's
- * Physics panel. One of these per world, several worlds can coexist in a
- * stage.
- */
-export interface PhysicsWorldReadout {
-  /** Stable id for keying the HUD list within one snapshot. */
-  id: string
-  /** The world's label, from its registration. */
-  label: string
-  /** CSS color used for this world in the panel swatch and the overlay. */
-  accent: string
-  bodyCount: number
-  sleeping: number
-  static: number
-  dynamic: number
-  kinematic: number
-  /** Solid contact manifolds from the last step (sensors excluded). */
-  contactCount: number
-  atRest: boolean
-  gravity: { x: number; y: number }
+export type {
+  ActivePointerReadout,
+  DebugGpuStatsReadout,
+  DebugStatsSnapshot,
+  PhysicsWorldReadout,
+  StageChip,
 }
 
 /** Event map for {@link DebugController.events}. */
@@ -335,12 +210,7 @@ export class DebugController {
   }
   /** Cached OR of `_physicsFlags`, so `drawOverlay` is one test when all off. */
   #_physicsAny = false
-  /**
-   * Stable overlay color per world, assigned on first sight from a fixed
-   * palette. Keying by the world (not a render-time index) keeps a color from
-   * shifting when another world is removed.
-   */
-  readonly #worldAccents = new Map<PhysicsWorld, string>()
+  readonly #worldAccents = new WorldAccents()
   /** Node whose bounds the overlay highlights, driven by the Scene panel. */
   #highlightedNode: Node2D | null = null
   #_activeStage: Stage | null = null // null -> primary
@@ -650,7 +520,9 @@ export class DebugController {
         active.renderer.cssSize.h,
       )
     }
-    this.events.emit('stageChanged', { activeStageId: this.#stageIdOf(active) })
+    this.events.emit('stageChanged', {
+      activeStageId: stageIdOf(this.engine, active),
+    })
   }
 
   /**
@@ -903,27 +775,9 @@ export class DebugController {
    */
   overlayAccentForNode(node: Node2D): string | null {
     for (const entry of this.engine.physicsWorlds) {
-      if (entry.spaceNode === node) return this.#accentFor(entry.world)
+      if (entry.spaceNode === node) return this.#worldAccents.get(entry.world)
     }
     return null
-  }
-
-  /** Registered worlds anchored in `stage`'s scene. */
-  #worldsForStage(stage: Stage): RegisteredPhysicsWorld[] {
-    const scene = stage.tree
-    return this.engine.physicsWorlds.filter(
-      (e) => (e.spaceNode?.scene ?? null) === scene,
-    )
-  }
-
-  /** Stable overlay color for a world, assigned from the palette on demand. */
-  #accentFor(world: PhysicsWorld): string {
-    let c = this.#worldAccents.get(world)
-    if (!c) {
-      c = WORLD_ACCENTS[this.#worldAccents.size % WORLD_ACCENTS.length]
-      this.#worldAccents.set(world, c)
-    }
-    return c
   }
 
   /** Flip one physics overlay layer on or off. */
@@ -1015,8 +869,15 @@ export class DebugController {
       }
     }
     const gpu = { ...active.gpuStats }
-    const physics = this.#snapshotPhysics(active)
-    const world3d = this.#snapshotWorld3d(active)
+    const physics = snapshotPhysics(
+      worldsForStage(this.engine, active),
+      this.#worldAccents,
+    )
+    const world3d = snapshotWorld3d(
+      active,
+      () => this.activeCamera3dFor(active),
+      this.camera3dActive,
+    )
     return {
       p50: p.p50,
       p95: p.p95,
@@ -1048,8 +909,8 @@ export class DebugController {
       touchSlopScreen: stageInput?.touchSlopScreen ?? 0,
       touchSlopWorld: stageInput?.touchSlopWorld ?? 0,
       aliveParticles,
-      stages: this.#snapshotStageChips(),
-      activeStageId: this.#stageIdOf(active),
+      stages: snapshotStageChips(this.engine, this.#_activeStage),
+      activeStageId: stageIdOf(this.engine, active),
       activeIsPrimary: this.activeIsPrimary,
       activeHasInput: stageInput !== null,
       physics,
@@ -1059,127 +920,12 @@ export class DebugController {
     }
   }
 
-  /** Tally 3D world + camera stats for a stage, or `null` when it has no 3D. */
-  #snapshotWorld3d(stage: Stage): World3DReadout | null {
-    // Only report 3D when the stage has real 3D content (or the 3D fly-cam is
-    // engaged). `has3D` skips intrinsic nodes, so reading it never materializes
-    // the lazy default 3D camera on a pure-2D stage.
-    if (!stage.tree.has3D && !this.camera3dActive) return null
-    let nodeCount = 0
-    let meshCount = 0
-    let triangleCount = 0
-    walkTree(stage.tree.root, (n) => {
-      nodeCount++
-      if (n instanceof MeshNode) {
-        meshCount++
-        const g = n.geometry
-        if (g) triangleCount += g.indices.length / 3
-      }
-    })
-    const s = stage.render3dStats
-    const cam = this.activeCamera3dFor(stage)
-    // 3D content but no 3D camera yet: no camera readout to report.
-    if (!cam) return null
-    const eye = cam.eyePosition()
-    return {
-      nodeCount,
-      meshCount,
-      triangleCount,
-      visible: s?.visible ?? 0,
-      drawCalls: s?.draws ?? 0,
-      cameraMode: this.camera3dActive ? 'debug' : 'game',
-      camera: {
-        position: { x: eye.x, y: eye.y, z: eye.z },
-        projectionness: cam.projectionness,
-        fovY: cam.fovY,
-        near: cam.near,
-        far: cam.far,
-        aspect: cam.aspect,
-        focalDistance: cam.focalDistance,
-      },
-    }
-  }
-
-  /** Tally physics stats for every world in a stage. */
-  #snapshotPhysics(stage: Stage): PhysicsWorldReadout[] {
-    const out: PhysicsWorldReadout[] = []
-    const worlds = this.#worldsForStage(stage)
-    for (let i = 0; i < worlds.length; i++) {
-      const { world, label } = worlds[i]
-      let sleeping = 0
-      let staticCount = 0
-      let dynamic = 0
-      let kinematic = 0
-      for (const b of world.bodies) {
-        if (b.sleeping) sleeping++
-        if (b.type === BodyType.Static) staticCount++
-        else if (b.type === BodyType.Kinematic) kinematic++
-        else dynamic++
-      }
-      out.push({
-        id: `world-${i}`,
-        label,
-        accent: this.#accentFor(world),
-        bodyCount: world.bodyCount,
-        sleeping,
-        static: staticCount,
-        dynamic,
-        kinematic,
-        contactCount: world.contactCount,
-        atRest: world.isAtRest(),
-        gravity: { ...world.config.gravity },
-      })
-    }
-    return out
-  }
-
-  #snapshotStageChips(): StageChip[] {
-    const chips: StageChip[] = []
-    const primary = this.engine.primaryStage
-    chips.push({
-      id: 'primary',
-      label: primary.name ?? 'Primary',
-      isActive: this.#_activeStage === null,
-      isPrimary: true,
-    })
-    let idx = 1
-    for (const stage of this.engine.stages) {
-      chips.push({
-        id: `stage-${idx}`,
-        label: stage.name ?? `Stage ${idx}`,
-        isActive: this.#_activeStage === stage,
-        isPrimary: false,
-      })
-      idx++
-    }
-    return chips
-  }
-
-  #stageIdOf(stage: Stage): string {
-    if (stage === this.engine.primaryStage) return 'primary'
-    let idx = 1
-    for (const s of this.engine.stages) {
-      if (s === stage) return `stage-${idx}`
-      idx++
-    }
-    return 'primary' // unreachable fallback
-  }
-
   /**
    * Resolve a stage id (from `snapshotStats().stages[i].id`) back to the Stage
    * instance. Called by the HUD's chip strip on tap.
    */
   stageById(id: string): Stage | null {
-    if (id === 'primary') return this.engine.primaryStage
-    const m = /^stage-(\d+)$/.exec(id)
-    if (!m) return null
-    const target = Number(m[1])
-    let idx = 1
-    for (const s of this.engine.stages) {
-      if (idx === target) return s
-      idx++
-    }
-    return null
+    return stageById(this.engine, id)
   }
 
   /**
@@ -1197,7 +943,7 @@ export class DebugController {
     // mask's worldRect. Only active on GPU stages under `'clip-mask'`
     // render mode.
     if (stage.getDebugRenderMode() === 'clip-mask' && this.#_inspectedMask) {
-      this.#drawClipMaskOverlay(gfx, activeCamera, dpr)
+      drawClipMaskOverlay(gfx, activeCamera, dpr, this.#_inspectedMask)
     }
 
     // Reset blend so a lingering `lighter` from the last dynamic-layer
@@ -1223,7 +969,7 @@ export class DebugController {
 
     if (this.#_physicsAny) {
       const alpha = this.engine.ticker.fixedAlpha
-      for (const entry of this.#worldsForStage(stage)) {
+      for (const entry of worldsForStage(this.engine, stage)) {
         const space = entry.spaceNode?.transform.world ?? null
         drawPhysicsOverlay(
           gfx,
@@ -1232,7 +978,7 @@ export class DebugController {
           this.#_physicsFlags,
           space,
           alpha,
-          this.#accentFor(entry.world),
+          this.#worldAccents.get(entry.world),
           entry.label,
         )
       }
@@ -1243,14 +989,14 @@ export class DebugController {
       const view =
         viewFor(highlighted, stage, { activeCameraFor: () => activeCamera }) ??
         activeCamera
-      this.#drawNodeHighlight(gfx, view, highlighted)
+      drawNodeHighlight(gfx, view, highlighted)
     }
 
     // Only meaningful when the debug camera is active, the pip shows the
     // stage's game camera rect in debug-camera space.
     const gameCam = stage.currentCamera2D
     if (this.#_cameraActive && gameCam) {
-      this.#drawGameCameraRect(gfx, activeCamera, gameCam)
+      drawGameCameraRect(gfx, activeCamera, gameCam)
     }
   }
 
@@ -1276,80 +1022,15 @@ export class DebugController {
       lines.groundGrid(eye.x, eye.z, 1, 40, [1, 1, 1, 0.12])
       lines.originAxes(1000)
     }
-    if (this.#flags.outlines) {
-      walkTree(stage.tree.root, (n) => {
-        if (n instanceof MeshNode) {
-          const b = n.localBounds()
-          if (b)
-            pushObb(
-              lines,
-              b.min,
-              b.max,
-              n.worldMatrix,
-              [0.4, 0.9, 1, 0.9],
-              false,
-            )
-        }
-      })
-    }
+    if (this.#flags.outlines) pushMeshBounds(lines, stage)
     // Wireframe render view: triangle edges over the shaded fill, depth-tested
     // so hidden edges are occluded (a clean "mesh view").
-    if (this.#_renderMode === 'wireframe') {
-      walkTree(stage.tree.root, (n) => {
-        if (n instanceof MeshNode && n.geometry && n.visible) {
-          pushWireframe(lines, n)
-        }
-      })
-    }
-
-    const hi = this.#highlightedNode3d
-    if (hi) {
-      const c: [number, number, number, number] = [1, 1, 0.3, 1]
-      if (hi instanceof MeshNode) {
-        const b = hi.localBounds()
-        if (b) pushObb(lines, b.min, b.max, hi.worldMatrix, c, true)
-      } else if (hi instanceof Light3D) {
-        drawLightGizmo(lines, hi)
-      } else {
-        pushObb(
-          lines,
-          { x: -0.5, y: -0.5, z: -0.5 },
-          { x: 0.5, y: 0.5, z: 0.5 },
-          hi.worldMatrix,
-          c,
-          true,
-        )
-      }
-    }
+    if (this.#_renderMode === 'wireframe') pushMeshWireframes(lines, stage)
+    if (this.#highlightedNode3d)
+      pushNodeHighlight3D(lines, this.#highlightedNode3d)
     if (this.camera3dActive && stage.currentCamera3D) {
       lines.frustum(stage.currentCamera3D.invViewProjection, [1, 0.8, 0.3, 0.8])
     }
-  }
-
-  /**
-   * Paint the inspected clip mask over the frame as a translucent red fill,
-   * clipped to the mask itself. Works by installing a world->device base
-   * transform + `gfx.setClipMask(mask)` so `fillRect` uses local (world) coords
-   * for the mask UVs, same coord system the mask's `worldRect` is in.
-   */
-  #drawClipMaskOverlay(gfx: Gfx2D, camera: CameraView2D, dpr: number): void {
-    const mask = this.#_inspectedMask
-    if (!mask) return
-    const S = camera.getScreenAffine()
-    gfx.setBlend('source-over')
-    gfx.setAlpha(1)
-    gfx.setBaseTransform(
-      S.a * dpr,
-      S.b * dpr,
-      S.c * dpr,
-      S.d * dpr,
-      S.e * dpr,
-      S.f * dpr,
-    )
-    gfx.setClipMask(mask)
-    const wr = mask.worldRect
-    gfx.fillRect(wr.x, wr.y, wr.width, wr.height, 'rgba(255, 80, 80, 0.4)')
-    gfx.setClipMask(null)
   }
 
   /**
@@ -1488,99 +1169,4 @@ export class DebugController {
     }
     if (this.#_cameraActive) this.#routeCameraKey(e.code, false)
   }
-
-  #drawGameCameraRect(
-    gfx: Gfx2D,
-    activeCam: CameraView2D,
-    gameCam: CameraView2D,
-  ): void {
-    // Game camera's world-space viewport rect (dashed) as seen through the
-    // currently-active (debug) camera.
-    const g = gameCam.viewport
-    const pts = new Float32Array(8)
-    for (let i = 0; i < 4; i++) {
-      const cx = i === 0 || i === 3 ? g.x : g.x + g.width
-      const cy = i < 2 ? g.y : g.y + g.height
-      const s = activeCam.worldToScreen(cx, cy)
-      pts[i * 2] = s.x
-      pts[i * 2 + 1] = s.y
-    }
-    gfx.strokePolyline(pts, 4, {
-      color: 'rgba(255, 215, 77, 0.9)',
-      width: 1,
-      dash: [6, 4],
-      closed: true,
-    })
-
-    const anchor = activeCam.worldToScreen(g.x, g.y)
-    gfx.fillText('game camera', anchor.x + 4, anchor.y + 12, {
-      font: debugFont(11),
-      color: 'rgba(255, 215, 77, 0.9)',
-    })
-  }
-
-  /**
-   * Outline a node's bounds (through its world transform) and label it with the
-   * node id. Falls back to a small ring at the node origin when the node has no
-   * bounds.
-   */
-  #drawNodeHighlight(gfx: Gfx2D, cam: CameraView2D, node: Node2D): void {
-    // Bright line over a dark halo so the highlight reads on any background.
-    const color = 'rgba(255, 255, 255, 0.98)'
-    const halo = 'rgba(0, 0, 0, 0.85)'
-    const m = node.transform.world
-    const b = node.bounds
-    if (!b) {
-      const o = cam.worldToScreen(m.e, m.f)
-      gfx.strokeCircle(o.x, o.y, 6, { color: halo, width: 4 })
-      gfx.strokeCircle(o.x, o.y, 6, { color, width: 1.5 })
-      this.#labelWithHalo(gfx, node.id, o.x + 9, o.y - 4, color)
-      return
-    }
-    const pts = new Float32Array(8)
-    const corners = [
-      [b.x, b.y],
-      [b.x + b.width, b.y],
-      [b.x + b.width, b.y + b.height],
-      [b.x, b.y + b.height],
-    ]
-    for (let i = 0; i < 4; i++) {
-      const lx = corners[i][0]
-      const ly = corners[i][1]
-      const s = cam.worldToScreen(
-        m.a * lx + m.c * ly + m.e,
-        m.b * lx + m.d * ly + m.f,
-      )
-      pts[i * 2] = s.x
-      pts[i * 2 + 1] = s.y
-    }
-    gfx.strokePolyline(pts, 4, { color: halo, width: 4, closed: true })
-    gfx.strokePolyline(pts, 4, { color, width: 2, dash: [4, 3], closed: true })
-    this.#labelWithHalo(gfx, node.id, pts[0] + 4, pts[1] - 4, color)
-  }
-
-  /** Draw label text on a dark backplate so it stays legible on any color. */
-  #labelWithHalo(
-    gfx: Gfx2D,
-    text: string,
-    x: number,
-    y: number,
-    color: string,
-  ): void {
-    // 11px monospace advance is ~6.6px. No measureText on Gfx2D, so approximate.
-    const w = text.length * 6.6
-    gfx.fillRect(x - 2, y - 10, w + 4, 14, 'rgba(0, 0, 0, 0.65)')
-    gfx.fillText(text, x, y, { font: debugFont(11), color })
-  }
 }
-
-// Overlay colors cycled across coexisting physics worlds. Distinct hues so two
-// worlds on screen read apart at a glance.
-const WORLD_ACCENTS = [
-  'rgba(34, 211, 238, 1)', // cyan
-  'rgba(232, 121, 249, 1)', // magenta
-  'rgba(250, 204, 21, 1)', // amber
-  'rgba(74, 222, 128, 1)', // green
-  'rgba(248, 113, 113, 1)', // red
-  'rgba(129, 140, 248, 1)', // indigo
-]

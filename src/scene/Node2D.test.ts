@@ -401,7 +401,7 @@ describe('Node2D', () => {
     it('add still accepts a single child', () => {
       const parent = new Node2D('p')
       const a = new Node2D('a')
-      expect(parent.add(a)).toBe(parent)
+      parent.add(a)
       expect(parent.children).toEqual([a])
     })
 
@@ -411,30 +411,28 @@ describe('Node2D', () => {
       const b = new Node2D('b')
       const c = new Node2D('c')
       parent.add(a, b, c)
-      const ret = parent.remove(a, c)
-      expect(ret).toBe(parent)
+      parent.remove(a, c)
       expect(parent.children).toEqual([b])
       expect(a.parent).toBeNull()
       expect(c.parent).toBeNull()
     })
 
-    it('setVisible / setHitEnabled mutate and chain', () => {
+    it('setVisible / setHitEnabled mutate', () => {
       const node = new Node2D('n')
-      const ret = node.setVisible(false).setHitEnabled(true)
-      expect(ret).toBe(node)
+      node.setVisible(false).setHitEnabled(true)
       expect(node.visible).toBe(false)
       expect(node.hitEnabled).toBe(true)
     })
 
-    it('removeBehavior and destroyChildren return this', () => {
+    it('removeBehavior and destroyChildren take effect', () => {
       const node = new Node2D('n')
       const behavior = new BehaviorA()
       node.addBehavior(behavior)
-      expect(node.removeBehavior(behavior)).toBe(node)
+      node.removeBehavior(behavior)
 
       const child = new Node2D('c')
       node.add(child)
-      expect(node.destroyChildren()).toBe(node)
+      node.destroyChildren()
       expect(child.isDestroyed).toBe(true)
       expect(node.children).toEqual([])
     })

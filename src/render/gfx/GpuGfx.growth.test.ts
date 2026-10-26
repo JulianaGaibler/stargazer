@@ -1,17 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { makeReadyGfx } from './testing/gpuGfxHarness'
 
-async function makeGfx(): Promise<{ gfx: GpuGfx; device: MockGfxDevice }> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device, { stencil: true })
-  await gfx.whenReady
-  device.reset()
-  return { gfx, device }
-}
+const makeGfx = () => makeReadyGfx({ stencil: true })
 
 function frame(gfx: GpuGfx, draw: () => void): void {
   gfx.beginFrame({

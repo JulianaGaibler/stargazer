@@ -658,9 +658,11 @@ export interface Gfx2D {
    * same as Canvas 2D. Self-overlapping outlines and holes follow the rule.
    * `fill` is a CSS color or a gradient paint.
    *
-   * Needs a stencil buffer (the stage's main surface has one). On a surface
-   * without one the path fills even-odd and warns once. Unlike `fillPath2D`,
-   * the path may change between frames.
+   * A convex outline fills with one draw that batches with its neighbors. Any
+   * other outline uses the stencil buffer, which costs two draws that cover its
+   * bounding box, and needs a surface that has one (the stage's main surface
+   * does). On a surface without one it fills even-odd and warns once. Unlike
+   * `fillPath2D`, the path may change between frames.
    *
    * @example
    *   gfx.fillPath(star, '#f5c542', 'evenodd')
@@ -717,7 +719,7 @@ export interface Gfx2D {
    *
    * The clip is exact per pixel under any transform, unlike
    * {@link Gfx2D.setClip}, and it combines with it. It needs a stencil buffer
-   * and is ignored without one. `drawShaderQuad` does not respect it.
+   * and is ignored without one.
    *
    * @example
    *   gfx.save()

@@ -9,7 +9,7 @@ import {
   MASK_EVICT_FRAMES,
   type PathShadowRequest,
 } from './PathShadowCache'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import { VectorQuality, SHADOW_SIGMA_BUDGETS } from '../VectorQuality'
 import type { GeometryHandle } from './GeometryHandle'
 

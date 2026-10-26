@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Engine } from './Engine'
 import { CAPTURE_IDLE_RELEASE_SEC } from './SceneCapture'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 import { LayoutRoot } from '../layout/LayoutRoot'
 import { TextNode } from '../nodes/TextNode'
 import type { Stage } from '../render/Stage'

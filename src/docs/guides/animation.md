@@ -6,18 +6,16 @@ order: 7
 
 # Animation and async lifecycle
 
-Stargazer animates with tweens. A tween moves numeric properties from their current values to target values over a duration, and returns a Promise that resolves when it ends. You chain animations with `await`, and you cancel them with an `AbortSignal`.
+A tween moves numeric properties from their current values to target values over a duration, and returns a Promise that resolves when it ends. After this page you can animate a node, chain animations with `await`, run steps in order or in parallel, and cancel a sequence with an `AbortSignal`.
 
-The engine's {@link Animator} runs every tween and wait. It advances them once per frame in engine time, so they stop while the engine is paused. You rarely call the animator directly. Nodes have helpers that tie a tween to the node's lifetime, so destroying the node cancels its tweens.
-
-You need an {@link Engine} and a node attached to one of its scenes. See [Setup](/guides/setup) and [Scene graph](/guides/scene). The `?demo=anim` dev demo runs a looping timeline and shows cancellation and the overlap warning.
+The engine's {@link Animator} runs every tween and wait. It advances them once per frame in engine time, so they hold while the engine is paused. Nodes have helpers that tie a tween to the node's lifetime, so destroying the node cancels its tweens. The examples need a node in one of the engine's scenes, see [Setup](/guides/setup) and [Scene graph](/guides/scene). The `?demo=anim` dev demo runs a looping timeline with cancellation and the overlap warning.
 
 ## Basic usage
 
-This example scales a node up, waits half a second, then fades it out:
+This example scales a node up, waits half a second, then fades it out.
 
 ```ts
-import { easings, ignoreAbort } from 'stargazer'
+import { easings, ignoreAbort, type Node2D } from 'stargazer'
 
 async function popAndFade(node: Node2D): Promise<void> {
   await node.tween(
@@ -31,11 +29,11 @@ async function popAndFade(node: Node2D): Promise<void> {
 popAndFade(node).catch(ignoreAbort)
 ```
 
-Each `await` resumes on the frame the step finishes. If the node is destroyed during the sequence, the pending step rejects with an `AbortError`. {@link ignoreAbort} swallows that error and rethrows any other.
+Each `await` resumes on the frame the step finishes. When the node is destroyed during the sequence, the pending step rejects with an `AbortError`. {@link ignoreAbort} swallows that error and rethrows any other.
 
 ### Animate a node's transform
 
-[`Node2D.tween`](/module/scene/node2d#tween) animates fields of the node's {@link Transform2D}: `x`, `y`, `scaleX`, `scaleY`, `rotation`, `skew`, `skewAxis`, `originX`, `originY` and `alpha`. It returns a Promise. When you don't need to wait for the end, use [`play`](/module/scene/node2d#play). It takes the same arguments, returns nothing, and swallows the `AbortError` for you.
+[`Node2D.tween`](/module/scene/node2d#tween) animates fields of the node's {@link Transform2D}, such as `x`, `y`, `scaleX`, `rotation` and `alpha`. It returns a Promise. To start an animation and move on, use [`play`](/module/scene/node2d#play). It takes the same arguments, returns nothing, and swallows the `AbortError` for you.
 
 ```ts
 // Await the move, then continue.
@@ -45,7 +43,7 @@ await node.tween({ x: 400, y: 200 }, { duration: 0.5 })
 node.play({ scaleX: 1.1, scaleY: 1.1 }, { duration: 0.15 })
 ```
 
-A {@link Node3D} has its own [`tween`](/module/scene/node3d#tween) and [`play`](/module/scene/node3d#play). They take a {@link Node3DTweenTo} with `position`, `rotation` (a quaternion), `scale` and `alpha`. Position, scale and alpha interpolate linearly. Rotation uses spherical interpolation.
+A {@link Node3D} has its own [`tween`](/module/scene/node3d#tween) and [`play`](/module/scene/node3d#play). They take a {@link Node3DTweenTo}, where position, scale and alpha interpolate linearly and rotation, a quaternion, interpolates spherically.
 
 ```ts
 await pivot.tween(
@@ -56,7 +54,7 @@ await pivot.tween(
 
 ### Animate any object
 
-[`tweenTo`](/module/scene/node#tweento) animates numeric fields on any object and still cancels when the node is destroyed. Use it for anything that is not a transform field, such as a paint property, a physics body's position, or a plain `{ progress: 0 }` value that your code reads. [`playTo`](/module/scene/node#playto) is the version you don't await.
+[`tweenTo`](/module/scene/node#tweento) animates numeric fields on any object and cancels when the node is destroyed. Use it for a paint property, a physics body's position, or a plain `{ progress: 0 }` value that your code reads. [`playTo`](/module/scene/node#playto) is the version to start and move on.
 
 ```ts
 const reveal = { progress: 0 }
@@ -65,9 +63,9 @@ await node.tweenTo(reveal, { progress: 1 }, { duration: 0.8 })
 node.playTo(ring, { width: 12 }, { duration: 0.2, easing: easings.outBack })
 ```
 
-Only properties that hold a number in both the target and `to` are animated. Other properties are ignored.
+A property is animated when it holds a number in both the target and `to`.
 
-[`engine.tween`](/module/engine/engine#tween) and [`engine.wait`](/module/engine/engine#wait) do the same work without a node. Nothing cancels them except a `signal` you pass, or engine destroy. [`engine.animate`](/module/engine/engine#animate) tweens a `Node2D`'s transform and cancels with that node.
+[`engine.tween`](/module/engine/engine#tween) and [`engine.wait`](/module/engine/engine#wait) do the same work for code that has no node. A `signal` you pass, or the engine's destroy, cancels them. [`engine.animate`](/module/engine/engine#animate) tweens a `Node2D`'s transform and cancels with that node.
 
 ```ts
 await engine.tween(fx, { intensity: 1 }, { duration: 0.3 })
@@ -77,7 +75,14 @@ await engine.animate(node, { alpha: 0 }, { duration: 0.3 })
 
 ### Wait
 
-[`node.wait(seconds)`](/module/scene/node#wait) resolves after that many seconds of engine time and rejects with `AbortError` if the node is destroyed first. Engine time stops while the engine is paused or its ticker is stopped, so waits stop too. A wait of `0` resolves on the next frame. An optional second argument is an extra `AbortSignal` that also cancels the wait.
+[`node.wait(seconds)`](/module/scene/node#wait) resolves after that many seconds of engine time, and rejects with `AbortError` when the node is destroyed first.
+
+```ts
+await node.wait(1.5)
+node.visible = true
+```
+
+Waits hold while the engine is paused or its ticker is stopped. A wait of `0` resolves on the next frame. A second argument adds an `AbortSignal` that also cancels the wait.
 
 ### Run steps in order with a timeline
 
@@ -100,64 +105,65 @@ await node
   .run(scope.signal)
 ```
 
-A step is a {@link TimelineStep}: a function that receives the signal given to [`run`](/module/anim/timeline#run) and returns a Promise. `run` checks the signal before each step and passes it into the step, so a step that forwards it as `{ signal: s }` stops mid-tween when the signal aborts. Steps must return a Promise, so use `tween` and `tweenTo`, not `play` and `playTo`.
+A step is a {@link TimelineStep}: a function that receives the signal given to [`run`](/module/anim/timeline#run) and returns a Promise. `run` checks the signal before each step and passes it into the step, so a step that forwards it as `{ signal: s }` stops mid-tween when the signal aborts. Write steps with `tween` and `tweenTo`, which return a Promise, in place of `play` and `playTo`.
 
 A timeline suits a fixed sequence. For branches, loops or state changes between steps, write a plain `async` function and pass the signal to each call.
 
 ### Easings
 
-An easing maps progress from 0 to 1 onto the eased value. The default is linear. The built-in easings are in the {@link easings} namespace:
+An easing maps progress from 0 to 1 onto the eased value. The default is linear, and the built-in easings are in the {@link easings} namespace.
 
 ```ts
 import { easings } from 'stargazer'
 
-easings.linear
-easings.inQuad // also outQuad, inOutQuad
-easings.inCubic // also outCubic, inOutCubic
-easings.outQuint
-easings.outBack // overshoots past 1, then settles
-easings.outElastic // rings around 1 before settling
-easings.outBounce // bounces against 1 as a floor
-easings.cubicBezier(0.42, 0, 0.58, 1) // same as CSS ease-in-out
-easings.makeOutBack(3) // outBack with a larger overshoot
-easings.makeOutBounce(0.5, 0.2, 3) // elasticity, first bounce height, bounces
+await node.tween({ y: 0 }, { duration: 0.6, easing: easings.outBounce })
+
+const easeInOut = easings.cubicBezier(0.42, 0, 0.58, 1) // CSS ease-in-out
+const bigOvershoot = easings.makeOutBack(3)
 ```
 
-In `cubicBezier(x1, y1, x2, y2)`, `x1` and `x2` must be between 0 and 1. `y1` and `y2` can go outside that range to overshoot. Any function of type {@link Easing}, `(t: number) => number`, works as an easing.
+The node drops to `y = 0` and bounces on arrival. `cubicBezier(x1, y1, x2, y2)` takes `x1` and `x2` between 0 and 1, and `y1` and `y2` can leave that range to overshoot. Any function of type {@link Easing}, `(t: number) => number`, works as an easing.
 
 ## Advanced usage
 
-This section covers tween options, cancellation in detail, frame timing and costs.
+Reach for these parts to restart or cancel animations, repeat work while a node lives, combine signals, find out why a tween warns, and know when a tween repaints.
 
 ### Tween options
 
-Every tween helper takes a {@link TweenOptions} object:
+Every tween helper takes a {@link TweenOptions} object.
 
-| Option     | Type          | Default  | Meaning                                                                                   |
-| ---------- | ------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `duration` | `number`      | required | Length in seconds. `0` completes on the next frame.                                       |
-| `delay`    | `number`      | `0`      | Seconds to wait before the tween starts moving.                                           |
-| `easing`   | `Easing`      | linear   | Maps progress to the eased value.                                                         |
-| `signal`   | `AbortSignal` | none     | Aborting it rejects the Promise with `AbortError`. Node helpers combine it with the node. |
-| `onUpdate` | `() => void`  | none     | Called every frame after the tween writes its values.                                     |
-| `key`      | `string`      | none     | Cancels a running tween with the same key on the same target. See below.                  |
+```ts
+await node.tween(
+  { x: 400 },
+  {
+    duration: 0.5,
+    delay: 0.2,
+    easing: easings.inOutQuad,
+    signal: scope.signal,
+    onUpdate: () => moveTrail(node),
+    key: 'slide',
+  },
+)
+```
 
-The tween reads its start values when you call it, before any `delay`. A change to the target during the delay is overwritten when the tween starts moving.
+`duration` is in seconds, and `0` completes on the next frame. `delay` holds the start by that many seconds. `onUpdate` runs every frame after the tween writes its values. Aborting `signal` rejects the Promise with `AbortError`, and the node helpers combine it with the node's own signal. `key` replaces a running tween, see the next section.
+
+The tween reads its start values when you call it, before any `delay`. A write to the target during the delay is overwritten when the tween starts moving.
 
 ### Restart an animation with a key
 
-An animation that can retrigger, such as a glow on each hit, must cancel its previous run first. Otherwise two tweens write the same field. Give the tween a `key`. Starting a keyed tween aborts any running tween with the same `key` on the same target, and the aborted one rejects with `AbortError`.
+An animation that can retrigger, such as a glow on each hit, replaces its previous run when it carries a `key`. Starting a keyed tween aborts any running tween with the same `key` on the same target, and the aborted one rejects with `AbortError`.
 
 ```ts
 // Each call replaces the previous ring animation on this node.
 node.playTo(ring, { width }, { duration: 0.2, key: 'ring' })
 ```
 
-The animator matches the key and the target object. If you call `tweenTo` or `playTo` with a new object each time, the key never matches and does nothing. Pass the same object every time. `Node2D.tween` always targets the node's own transform, and `Node3D.tween` keeps one internal target per key, so `key` works on both as written.
+The animator matches the key and the target object, so pass the same object to `tweenTo` or `playTo` on every call. `Node2D.tween` targets the node's own transform, and `Node3D.tween` keeps one internal target per key, so `key` works on both as written.
 
 ### Cancel a sequence with a scope
 
-An {@link AbortScope} hands out one signal per run of a sequence. Calling [`reset()`](/module/anim/abortscope#reset) aborts the previous run's signal and returns a fresh one. Use it for a sequence that must stop as soon as the next one starts, such as a round of a card game. [`node.scope()`](/module/scene/node#scope) creates a scope that the node's destruction aborts and disposes.
+An {@link AbortScope} hands out one signal per run of a sequence. [`reset()`](/module/anim/abortscope#reset) aborts the previous run's signal and returns a fresh one. Use it for a sequence that stops as soon as the next one starts, such as a round of a card game. [`node.scope()`](/module/scene/node#scope) creates a scope that the node's destruction aborts and disposes.
 
 ```ts
 const scope = node.scope()
@@ -172,17 +178,13 @@ function startRound(): void {
 }
 ```
 
-Read `scope.reset()` once at the top of the sequence and pass that signal into every tween and wait inside it (`{ signal }`). When the next `reset()` runs, those calls reject with `AbortError`, the async function unwinds, and the one `.catch(ignoreAbort)` keeps it quiet. You need no check after each `await`.
+Read `scope.reset()` once at the top of the sequence and pass that signal into every tween and wait inside it (`{ signal }`). When the next `reset()` runs, those calls reject with `AbortError`, the async function unwinds, and the one `.catch(ignoreAbort)` keeps it quiet. The sequence needs no check after each `await`.
 
-A scope has three ways to end a run:
-
-- `reset()` aborts the current signal and starts a new one.
-- `abort()` aborts the current signal and starts nothing until the next `reset()`.
-- `dispose()` aborts the current signal and makes the scope unusable.
+`abort()` aborts the current signal and leaves the scope idle until the next `reset()`. `dispose()` aborts the current signal and retires the scope.
 
 ### Repeat work while a node lives
 
-[`node.loop(body)`](/module/scene/node#loop) runs an async `body` again and again until the node is destroyed. `body` receives `{ node, signal, iteration, nextFrame }`. `nextFrame()` resolves on the next frame. The loop swallows `AbortError` and stops on any other error after logging it with `console.error`. The first run starts a microtask later, so a behavior can call `loop` from `onAttach`.
+[`node.loop(body)`](/module/scene/node#loop) runs an async `body` again and again until the node is destroyed.
 
 ```ts
 node.loop(async ({ signal }) => {
@@ -191,30 +193,37 @@ node.loop(async ({ signal }) => {
 })
 ```
 
-[`node.autoDestroy(promise)`](/module/scene/node#autodestroy) destroys the node when the Promise settles. Use it for a node that only exists for one animation, such as a floating score label. A rejection other than `AbortError` is logged with `console.warn`, and the node is still destroyed.
+The node bobs up and down until it is destroyed. `body` receives `{ node, signal, iteration, nextFrame }`, and `nextFrame()` resolves on the next frame. The loop swallows `AbortError`, and any other error ends the loop and is reported through [Diagnostics](/guides/diagnostics). The first run starts a microtask later, so a behavior can call `loop` from `onAttach`.
+
+[`node.autoDestroy(promise)`](/module/scene/node#autodestroy) destroys the node when the Promise settles. Use it for a node that exists for one animation, such as a floating score label.
+
+```ts
+void label.autoDestroy(label.tween({ y: -80, alpha: 0 }, { duration: 0.8 }))
+```
+
+A rejection other than `AbortError` is reported, and the node is destroyed in every case.
 
 ### Abort contract
 
-Every helper that takes a `signal` behaves the same way:
+Every helper that takes a `signal` follows the same contract:
 
-1. If the signal is already aborted when you call the helper, the Promise rejects with `DOMException('Aborted', 'AbortError')`.
-2. If the signal aborts while the helper runs, the Promise rejects with the same error.
-3. When the helper finishes normally, it removes its listener from the signal.
+1. A signal that is already aborted when you call the helper rejects the Promise with `DOMException('Aborted', 'AbortError')`.
+2. A signal that aborts while the helper runs rejects the Promise with the same error.
+3. A helper that finishes removes its listener from the signal.
 
-Point 3 keeps a long session from piling up listeners on a node's signal, which lives as long as the node. {@link isAbortError} tests for the error without swallowing it, and {@link abortError} creates one, for your own async helpers.
+Point 3 keeps a long session from piling up listeners on a node's signal, which lives as long as the node. {@link isAbortError} tests for the error and leaves it in place, and {@link abortError} creates one for your own async helpers.
 
 ### Destroyed or never attached
 
-The node helpers reach the engine through the node's owner. When there is no engine, the rejection says why:
+The node helpers reach the engine through the node's owner. A node that is destroyed rejects the Promise with `AbortError`, whether the node died during an `await` or before the call. A sequence that outlives its node is a normal cancellation.
 
-- If the node is destroyed, the Promise rejects with `AbortError`. A sequence that outlives its node is a normal cancellation, whether the node died during an `await` or before the call.
-- If the node was never attached, the Promise rejects with a plain `Error`. This is a setup mistake, so `ignoreAbort` rethrows it.
+A node that was never attached rejects the Promise with a plain `Error`, which `ignoreAbort` rethrows, so the setup mistake shows up. Attach the node to a scene before you call its helpers.
 
-This applies to `wait`, `tweenTo`, `Node2D.tween`, `Node3D.tween`, [`CameraNode2D.animateTo`](/module/camera/cameranode2d#animateto) and [`CameraNode3D.animateProjection`](/module/camera/cameranode3d#animateprojection). It lets a sequence of several awaits with no guard between them unwind through one `ignoreAbort`.
+This covers `wait`, `tweenTo`, `Node2D.tween`, `Node3D.tween`, [`CameraNode2D.animateTo`](/module/camera/cameranode2d#animateto) and [`CameraNode3D.animateProjection`](/module/camera/cameranode3d#animateprojection). A sequence of several awaits unwinds through one `ignoreAbort`.
 
 ### Combine signals
 
-{@link combineAbortSignals} returns a {@link CombinedAbort}, `{ signal, dispose }`. The combined signal aborts when any source aborts. `dispose()` removes the listeners it added to the sources. Call it when your operation ends:
+{@link combineAbortSignals} returns a {@link CombinedAbort}, `{ signal, dispose }`. The combined signal aborts when any source aborts, and `dispose()` removes the listeners it added to the sources.
 
 ```ts
 import { combineAbortSignals } from 'stargazer'
@@ -227,35 +236,63 @@ try {
 }
 ```
 
-The node helpers and `engine.animate` do this already. Sources that are `undefined` or `null` are skipped. If a source is already aborted, the combined signal aborts at once and `dispose()` does nothing.
+Call `dispose()` when your operation ends. The node helpers and `engine.animate` do this already. Sources that are `undefined` or `null` are skipped. When a source is already aborted, the combined signal aborts at once and `dispose()` has nothing to remove.
 
 ### Overlapping tweens
 
-When two tweens without a `key` animate the same field of the same target, both run to the end. The one started later writes last on each frame, so its value wins. The animator logs a warning when the second one starts:
+Two tweens on the same field of the same target both run to the end, and the one started later writes last on each frame. The animator reports diagnostic `SG5003` when the second one starts, see [Diagnostics](/guides/diagnostics#sg5003). To hand over cleanly, give both tweens the same `key`, or pass a `signal` to the first and abort it before you start the second.
 
-```
-[stargazer] overlapping tween on the same target key 'x'. Last-writer wins per tick; cancel the earlier tween to avoid drift.
+```ts
+let slide: AbortController | null = null
+
+function slideTo(x: number): void {
+  slide?.abort()
+  slide = new AbortController()
+  node.play({ x }, { duration: 1, signal: slide.signal })
+}
 ```
 
-To hand over cleanly, give both tweens the same `key`, or pass a `signal` to the first and abort it before you start the second.
+Each call stops the previous slide where it is and starts the next one from the node's current `x`. The check covers the same target object, so tweens on a `Node2D` and `tweenTo` calls that reuse one object are covered. Give tweens that overlap on a {@link Node3D} a shared `key`, because each unkeyed `Node3D.tween` call uses a target of its own.
 
 ### What a tween repaints
 
-A tween of a transform field or of `alpha` never repaints the node. It only changes the matrix the renderer applies. A tween of a property declared with {@link definePaintProps} marks the node for repaint on every frame the value changes. Tween the transform when the effect allows it. See [Drawing](/guides/drawing).
+A tween of a transform field or of `alpha` replays the node's picture through a new matrix. A tween of a property declared with {@link definePaintProps} marks the node for repaint on every frame the value changes. Tween the transform when the effect allows it. See [Drawing](/guides/drawing).
 
 ### Frame order and pausing
 
-Each frame, the engine runs before-frame hooks ([`onBeforeFrame`](/module/engine/engine#onbeforeframe)), then input, then the animator, then each node's `onUpdate`. Your `onUpdate` code therefore reads the values the tweens wrote this frame. A tween started during the animator's pass first moves on the next frame.
+The animator runs before each node's `onUpdate` in a frame, so `onUpdate` reads the values the tweens wrote this frame. A tween created during `onUpdate` first moves on the next frame. [Architecture](/guides/architecture) lists the whole frame.
 
-While [`engine.setPaused(true)`](/module/engine/engine#setpaused) is in effect, the animator does not advance. Tweens and waits hold where they are and continue when you unpause.
+While [`engine.setPaused(true)`](/module/engine/engine#setpaused) is in effect, tweens and waits hold where they are and continue when you unpause.
 
 ### Engine destroy
 
-[`engine.destroy()`](/module/engine/engine#destroy) calls [`animation.cancelAll()`](/module/anim/animator#cancelall) before it tears down any scene. Every pending tween and wait rejects with `AbortError`, and later calls on that animator reject at once. Then the scenes are destroyed, which aborts every node signal. A `.catch(ignoreAbort)` keeps each of these quiet. A Promise without one surfaces as an unhandled rejection.
+[`engine.destroy()`](/module/engine/engine#destroy) calls [`animation.cancelAll()`](/module/anim/animator#cancelall) before it tears down any scene. Every pending tween and wait rejects with `AbortError`, and later calls on that animator reject at once. Then the scenes are destroyed, which aborts every node signal. A `.catch(ignoreAbort)` keeps each of these quiet.
 
 ### Keyframe animation from glTF
 
-Tweens are separate from keyframe playback. An {@link AnimationPlayer} plays an {@link AnimationClip} loaded from a glTF file. See [3D](/guides/3d).
+Tweens and keyframe playback are separate systems. An {@link AnimationPlayer} plays an {@link AnimationClip} loaded from a glTF file. See [3D](/guides/3d).
+
+## Common problems
+
+### The console shows an unhandled AbortError
+
+A Promise from a tween or wait rejected with `AbortError` because its node was destroyed, its signal aborted, or the engine was destroyed. End the chain with `.catch(ignoreAbort)`.
+
+```ts
+await node.tween({ alpha: 0 }, { duration: 0.3 }).catch(ignoreAbort)
+```
+
+### A keyed tween does not replace the earlier one
+
+The key matches only when the target object is the same. A `tweenTo` or `playTo` call with a new object each time starts a second tween. Create the object once and pass it on every call.
+
+### A helper rejects with a plain Error
+
+The node is not in a scene yet. Add it to the scene tree first, as described in [Destroyed or never attached](#destroyed-or-never-attached).
+
+## Next step
+
+Reuse and organize what you animate with [Scene graph](/guides/scene), or play keyframes from a model file in [3D](/guides/3d).
 
 ## See also
 

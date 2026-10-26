@@ -1,29 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { GpuGfx } from './GpuGfx'
 import { GfxPath } from './GfxPath'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import { DataTexture, ShaderQuad, quadShader } from './ShaderQuad'
+import {
+  beginFrame,
+  makeGpuGfx as makeHarnessGfx,
+} from './testing/gpuGfxHarness'
 
-function makeGpuGfx(stencil = false): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  return { gfx: new GpuGfx(canvas, device, { stencil }), device }
-}
-
-async function frame(gfx: GpuGfx, device: MockGfxDevice): Promise<void> {
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#000000',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-}
+const makeGpuGfx = (stencil = false) => makeHarnessGfx({ stencil })
+const frame = (gfx: GpuGfx, device: MockGfxDevice) =>
+  beginFrame(gfx, device, { clearColor: '#000000' })
 
 /** Lets the quad's async pipeline compile settle. */
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0))

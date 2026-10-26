@@ -209,12 +209,11 @@ export function resolveMsaaSamples(explicit?: number): number {
  * precedence.
  *
  * @example
- *   const host = createEngineHost({
- *     canvas,
- *     clearColor: '#0d1a2c',
- *     initialViewport: { x: 0, y: 0, width: 1920, height: 1080 },
- *   })
+ *   const host = createEngineHost({ canvas, clearColor: '#0d1a2c' })
  *   await host.loadScene((scene) => {
+ *     const camera = new CameraNode2D()
+ *     camera.setViewport({ x: 0, y: 0, width: 1920, height: 1080 })
+ *     scene.root.add(camera)
  *     scene.root.add(
  *       new ShapeNode({
  *         geometry: { kind: 'circle', radius: 40 },
@@ -349,8 +348,7 @@ export function createEngineHost(opts: EngineHostOptions): EngineHost {
       engine.destroy()
     },
     async loadScene(build) {
-      // Wipe game content but keep the stage's intrinsic default cameras (and
-      // reset them to current), so a rebuilt scene still has a camera.
+      // Persistent and intrinsic nodes survive, everything else is destroyed.
       engine.primaryStage.clearScene()
       await build(engine.tree, engine)
     },

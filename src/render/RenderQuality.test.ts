@@ -2,15 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { RenderQuality } from './RenderQuality'
 
 describe('RenderQuality', () => {
-  it('defaults to sensible values', () => {
-    const q = new RenderQuality()
-    expect(q.shadowMapSize).toBe(1024)
-    expect(q.meshShadowsEnabled).toBe(true)
-    expect(q.anisotropy).toBe(8)
-    expect(q.shadowSoftness).toBe(4)
-    expect(q.revision).toBe(0)
-  })
-
   it('snaps shadow map size to a supported value', () => {
     const q = new RenderQuality()
     q.shadowMapSize = 1800

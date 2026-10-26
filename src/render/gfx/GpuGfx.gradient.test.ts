@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import { registerPathTessellation } from './PathTessellationRegistry'
 import type { GfxFill, GfxLinearGradient } from './Gfx2D'
 import { tessellateContours } from '../../assets/SvgPathContours'
+import { beginFrame as baseFrame, makeGpuGfx } from './testing/gpuGfxHarness'
 
 // happy-dom's OffscreenCanvas has no real 2D context. Stub a minimal one so
 // the ramp builder reaches the texture-cache logic under test (same stub as
@@ -22,33 +23,6 @@ beforeEach(() => {
 afterEach(() => {
   getCtxSpy.mockRestore()
 })
-
-function makeCanvas(): HTMLCanvasElement {
-  const c = document.createElement('canvas')
-  c.width = 400
-  c.height = 300
-  return c
-}
-
-function makeGpuGfx(): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = makeCanvas()
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device)
-  return { gfx, device }
-}
-
-async function baseFrame(gfx: GpuGfx, device: MockGfxDevice): Promise<void> {
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#0d1a2c',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-}
 
 const ramp = (): GfxLinearGradient => ({
   kind: 'linear',

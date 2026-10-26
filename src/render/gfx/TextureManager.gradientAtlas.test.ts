@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ATLAS_ROWS, TextureManager } from './TextureManager'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import type { GfxGradientStop } from './Gfx2D'
 
 // happy-dom's OffscreenCanvas has no real 2D context. Stub a minimal one so

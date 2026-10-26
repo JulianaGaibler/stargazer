@@ -1,24 +1,29 @@
 ---
 title: Vector particles
 group: Features
-order: 14
+order: 16
 ---
 
 # Vector particles
 
-{@link VectorParticleNode} is a base class for particle bursts where each piece is drawn with your own vector code. Use it when one burst mixes shapes, such as triangles and line shards, or when pieces need their own spin or despawn rules.
+{@link VectorParticleNode} is a base class for particle bursts in which your own vector code draws each piece. Use it when one burst mixes shapes, such as triangles and line shards, or when pieces need their own spin or despawn rules. After this guide you can write a burst class, add per-particle data, and remove the node when its particles are gone. The `particles-custom` demo (`?demo=particles-custom`) shows a burst.
 
-The base class stores position, velocity, and angle for a fixed number of particles and moves them every frame. Your subclass spawns each particle and paints it with the {@link Canvas} drawing calls.
-
-Try [particles](/guides/particles) first. {@link ParticleEmitterNode} draws one baked sprite style per emitter and needs no subclass.
+The base class stores position, velocity and angle for a fixed number of particles and moves them every frame. Your subclass spawns each particle and paints it with the {@link Canvas} drawing calls. When one baked sprite per emitter is enough, a {@link ParticleEmitterNode} from the [Particles guide](/guides/particles) needs no subclass.
 
 ## Basic usage
 
-The example below is a burst of triangles and line shards that slows down, despawns, and then removes its node.
+This burst of triangles and line shards slows down, despawns and then removes its node.
 
 ```ts
 import { VectorParticleNode } from 'stargazer'
-import type { Canvas, Vec2, VectorParticleSpawnInit } from 'stargazer'
+import type {
+  Canvas,
+  SceneTree,
+  Vec2,
+  VectorParticleSpawnInit,
+} from 'stargazer'
+
+declare const scene: SceneTree
 
 const TRI = new Float32Array([0, -6, 5, 3, -5, 3])
 
@@ -64,67 +69,102 @@ class ShrapnelBurst extends VectorParticleNode {
 scene.root.add(new ShrapnelBurst({ x: 400, y: 300 }, 24))
 ```
 
-The constructor spawns 24 pieces at the node's origin. Each frame the base class applies drag and moves them. A piece despawns once its speed falls below 2% of its launch speed. When none are left, `waitUntilEmpty()` resolves and `autoDestroy` removes the node.
+The constructor spawns 24 pieces at the node's origin. Each frame the base class applies drag and moves them. A piece despawns once its speed falls under 2% of its launch speed. When none are left, `waitUntilEmpty()` resolves and `autoDestroy` removes the node.
 
-### The hooks
+### Spawn and paint hooks
 
-A subclass implements two hooks and can override two more. The base class calls all of them with the particle's slot index `i`.
+`spawnParticle(i, out)` runs once per particle during `burst(count)`. Fill `out` with the node-local `x`, `y`, `vx`, `vy`, `angle` and `speed0`, and any field you leave out stays 0. `out` is one reused object, so copy values out of it and keep no reference. Set `speed0` to the launch speed when `shouldDespawn` or `paintParticle` compares against it.
 
-- `spawnParticle(i, out)` runs once per particle during `burst(count)`. Fill `out` with the node-local `x`, `y`, `vx`, `vy`, `angle`, and `speed0`. Every field starts at 0.
-- `paintParticle(canvas, i)` paints one particle. The base class has already moved the origin to the particle's position and rotated it by its angle, so paint around `(0, 0)` facing angle 0.
-- `updateExtra(i, dt)` runs once per live particle per frame, after the base class moves it. The default does nothing.
-- `shouldDespawn(i)` runs after `updateExtra`. Return `true` to kill the particle. The default returns `false`.
-
-`out` is one reused object, so copy values out of it and don't keep a reference. Set `speed0` to the launch speed when `shouldDespawn` or `paintParticle` compares against it.
+`paintParticle(canvas, i)` paints one particle. The base class has already moved the origin to the particle's position and rotated it by its angle, so paint around `(0, 0)` facing angle 0.
 
 ### Extra per-particle data
 
-The base class owns only the `x`, `y`, `vx`, `vy`, `angle`, `speed0`, and `alive` arrays. Add your own typed arrays sized to `capacity` for anything else, and index them with the same `i`.
-
-The example below adds a spin per particle.
+The base class owns the `x`, `y`, `vx`, `vy`, `angle`, `speed0` and `alive` arrays. Add your own typed arrays sized to `capacity` for anything else, and index them with the same `i`. This burst gives each piece a spin and turns it every frame in `updateExtra`, which runs once per live particle after the base class moves it.
 
 ```ts
-readonly #spin = new Float32Array(this.capacity)
+class SpinningBurst extends VectorParticleNode {
+  readonly #spin = new Float32Array(this.capacity)
 
-// In spawnParticle:
-this.#spin[i] = (Math.random() * 2 - 1) * 8
+  constructor(count: number) {
+    super({ capacity: count })
+    this.burst(count)
+  }
 
-protected override updateExtra(i: number, dt: number): void {
-  this.angle[i] += this.#spin[i] * dt
+  protected override spawnParticle(
+    i: number,
+    out: VectorParticleSpawnInit,
+  ): void {
+    out.vx = Math.random() * 100 - 50
+    out.vy = Math.random() * 100 - 50
+    this.#spin[i] = (Math.random() * 2 - 1) * 8
+  }
+
+  protected override paintParticle(canvas: Canvas): void {
+    canvas.fillConvexPoly(TRI, 3, '#89d5ff')
+  }
+
+  protected override updateExtra(i: number, dt: number): void {
+    this.angle[i] += this.#spin[i] * dt
+  }
 }
 ```
 
-The base class doesn't change `angle` on its own, so without `updateExtra` each piece keeps its spawn angle.
+The triangles tumble as they drift apart. `angle` changes when your code changes it, so each piece keeps its spawn angle until `updateExtra` turns it.
 
 ### Permanent debris
 
-If you don't override `shouldDespawn`, particles never despawn. They settle and stay until something destroys the node. Don't call `waitUntilEmpty` for such a node, because it never resolves.
+When a subclass keeps the default `shouldDespawn`, its particles stay until something destroys the node. They settle and stay, which suits debris that remains on screen. Put such bursts under one parent node, and call [`destroyChildren`](/module/scene/node#destroychildren) on the parent to clear them, for example at a level reset.
 
-Put permanent bursts under one parent node. To clear them, for example at a level reset, call [`destroyChildren`](/module/scene/node#destroychildren) on the parent.
+```ts
+import { Node2D } from 'stargazer'
+
+const debris = new Node2D()
+scene.root.add(debris)
+debris.add(new SpinningBurst(30))
+
+// At a level reset.
+debris.destroyChildren()
+```
 
 ## Advanced usage
 
-This section covers the motion model, spawn order, paint cost, and state.
-
 ### Motion model
 
-[`onUpdate`](/module/nodes/vectorparticlenode#onupdate) runs this for each live particle, then calls `updateExtra` and `shouldDespawn`:
-
-```
-v *= exp(-dampingPerSec * dt)
-v += accelerationWorld * dt
-p += v * dt
-```
-
-{@link VectorParticleNodeOptions} sets `capacity`, `dampingPerSec` (default 0), and `accelerationWorld` (default none). This is the same math as {@link ParticleEmitter}, without lifetime or spin.
+Each frame, for each live particle, the base class applies drag, adds the acceleration and moves the particle. It then calls `updateExtra` and `shouldDespawn`. {@link VectorParticleNodeOptions} sets `capacity`, `dampingPerSec` and `accelerationWorld`. The motion matches {@link ParticleEmitter} minus lifetime and spin, and {@link VectorParticleNode.onUpdate} documents the steps.
 
 ### Bursts and capacity
 
-`burst(count)` and `kill(i)` are protected, so only the subclass calls them. Expose a public method if outside code needs to trigger more bursts. `burst` stops early when every slot is in use.
+`burst(count)` and `kill(i)` are protected, so only the subclass calls them. Expose a public method if outside code should trigger more bursts. `burst` stops early when every slot is in use.
+
+```ts
+class Fountain extends VectorParticleNode {
+  constructor() {
+    super({ capacity: 200, accelerationWorld: { x: 0, y: 600 } })
+  }
+
+  fire(count: number): void {
+    this.burst(count)
+  }
+
+  protected override spawnParticle(
+    _i: number,
+    out: VectorParticleSpawnInit,
+  ): void {
+    out.vx = Math.random() * 80 - 40
+    out.vy = -300 - Math.random() * 100
+  }
+
+  protected override paintParticle(canvas: Canvas): void {
+    canvas.fillConvexPoly(TRI, 3, '#ffd34d')
+  }
+}
+```
+
+Other code calls `fountain.fire(20)` whenever it wants more particles.
 
 ### Spawn order
 
-`burst(count)` calls `spawnParticle` synchronously for each slot before it claims the next one. To give each particle a value computed outside, set a field and call `burst(1)` in a loop:
+`burst(count)` calls `spawnParticle` synchronously for each slot before it claims the next one. To give each particle a value computed outside, set a field and call `burst(1)` in a loop.
 
 ```ts
 const step = (Math.PI * 2) / count
@@ -136,21 +176,33 @@ for (let k = 0; k < count; k++) {
 
 ### Waiting for a burst
 
-[`waitUntilEmpty()`](/module/nodes/vectorparticlenode#waituntilempty) resolves when the live count reaches 0, or right away if it's already 0. Call it right after the `burst()` it should track, with no `await` in between. Destroying the node kills every particle and resolves a pending promise.
+[`waitUntilEmpty()`](/module/nodes/vectorparticlenode#waituntilempty) resolves when the live count reaches 0, or right away when it is already 0. Call it right after the `burst()` it tracks, in the same synchronous run of code. Destroying the node kills every particle and resolves a pending promise.
 
 ### Paint cost
 
-The node repaints every frame while any particle is alive, and once more after the last one dies. Each repaint records every live particle again. If the pieces only need to move and never change shape, one child node per piece is cheaper, because moving a node doesn't repaint it.
+The node repaints every frame while any particle is alive, and once more after the last one dies. Each repaint records every live particle again. When pieces only move and keep their shape, one child node per piece costs less, because moving a node replays its picture and repaints nothing.
 
 ### Reading state
 
 [`aliveCount`](/module/nodes/vectorparticlenode#alivecount) and `particleCount` return the live particle count. Free slots are `capacity` minus `aliveCount`.
 
+## Common problems
+
+A burst that you wait on with `waitUntilEmpty()` keeps running forever. The subclass keeps the default `shouldDespawn`, which returns `false`, so its particles live until the node is destroyed. Override `shouldDespawn` to return `true` when a piece is done, as `ShrapnelBurst` does.
+
+Every piece starts at the same point or with the wrong velocity. `out` holds zeros at the start of each `spawnParticle` call, so set every field you need, including `speed0` when `shouldDespawn` reads it.
+
+The `waitUntilEmpty()` promise resolves at once. It ran while no particle was alive. Call it right after `burst()`.
+
+## Next step
+
+Learn how a custom node records its drawing in the [Drawing guide](/guides/drawing).
+
 ## See also
 
-- {@link VectorParticleNode}: base class with the spawn, paint, update, and despawn hooks
+- {@link VectorParticleNode}: base class with the spawn, paint, update and despawn hooks
 - {@link VectorParticleSpawnInit}: spawn state filled by `spawnParticle`
-- {@link VectorParticleNodeOptions}: capacity, damping, and acceleration
+- {@link VectorParticleNodeOptions}: capacity, damping and acceleration
 - {@link Canvas}: drawing calls for `paintParticle`
 - [Particles](/guides/particles): the baked sprite particle system
 - [Drawing](/guides/drawing): the `Canvas` recorder and `paint`

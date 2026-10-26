@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MeshRenderer } from './MeshRenderer'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import { Camera3D } from '../../camera/Camera3D'
 import { SceneTree } from '../../scene/SceneTree'
 import { Node3D } from '../../scene/Node3D'

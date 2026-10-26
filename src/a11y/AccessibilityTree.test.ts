@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Engine } from '../engine/Engine'
 import { Node2D } from '../scene/Node2D'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 
 /**
  * Happy-dom's `<canvas>` doesn't return a real WebGL2 context, but `GpuGfx`
@@ -265,8 +265,7 @@ describe('AccessibilityTree', () => {
       const root = mount(engine)
       const node = new Node2D('n1')
       engine.tree.root.add(node)
-      const ret = node.a11y({ role: 'button', label: 'Go' })
-      expect(ret).toBe(node) // chainable
+      node.a11y({ role: 'button', label: 'Go' })
       frame(engine)
       expect(root.querySelector('button')?.getAttribute('aria-label')).toBe(
         'Go',

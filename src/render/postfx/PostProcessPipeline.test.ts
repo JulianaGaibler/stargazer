@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { fullscreenTri, PostProcessPipeline } from './PostProcessPipeline'
-import { MockGfxDevice } from '../gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../gfx/mock/mockGfxDevice'
 import { ChromaticAberration } from './effects/ChromaticAberration'
 import { Vignette } from './effects/Vignette'
 import { VignetteBlur } from './effects/VignetteBlur'
@@ -250,17 +250,6 @@ describe('PostProcessPipeline', () => {
     expect(device.deletedRenderTargets).toBeGreaterThan(deletedBefore)
   })
 
-  it('a pass with scale acquires a smaller pooled target', async () => {
-    const device = new MockGfxDevice()
-    const pp = new PostProcessPipeline(device)
-    pp.add(new TestEffect([testPass({ scale: 0.5 })]))
-    await warmRun(pp, device, makeSource(device, 64, 32), FRAME)
-    const halfSize = device.renderTargets.filter(
-      (r) => r.width === 32 && r.height === 16,
-    )
-    expect(halfSize.length).toBeGreaterThan(0)
-  })
-
   it('reports source and destination sizes separately across a scale change', async () => {
     const device = new MockGfxDevice()
     const pp = new PostProcessPipeline(device)
@@ -283,6 +272,10 @@ describe('PostProcessPipeline', () => {
     // The second pass reads the first pass's half-size output.
     expect([up.width, up.height]).toEqual([64, 32])
     expect([up.inputWidth, up.inputHeight]).toEqual([32, 16])
+    // The scaled pass drew into a half-size pooled target.
+    expect(
+      device.renderTargets.some((r) => r.width === 32 && r.height === 16),
+    ).toBe(true)
   })
 
   it('a rebuilt pass list releases the old passes GPU resources', async () => {

@@ -62,7 +62,10 @@ export interface PhysicsWorldConfig {
    * upgrades itself to a spatial hash once it holds more than ~64 bodies.
    */
   broadPhase?: BroadPhase
-  /** Cell size for the auto-selected spatial hash (world units). */
+  /**
+   * Cell size for the auto-selected spatial hash (world units). Default twice
+   * the average body size when the world switches, at least 8.
+   */
   broadPhaseCellSize?: number
 }
 
@@ -791,7 +794,8 @@ export class PhysicsWorld {
   /**
    * Move `body` by `(dx, dy)`, then push it out of any solid overlaps, and
    * report the deepest blocking contact (or null if the move was clear). The
-   * body's velocity is not changed. Use for character/kinematic movement.
+   * body's velocity is not changed. A long move is split into steps of at most
+   * half the body's smallest size. Use for character/kinematic movement.
    */
   moveAndCollide(
     body: Body,

@@ -24,27 +24,14 @@ vi.mock('./rasterizeLabel', async (importOriginal) => {
 })
 
 import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
+import {
+  beginFrame as beginHarnessFrame,
+  makeGpuGfx,
+} from './testing/gpuGfxHarness'
 
-function makeGpuGfx(): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device)
-  return { gfx, device }
-}
-
-async function beginFrame(gfx: GpuGfx, device: MockGfxDevice): Promise<void> {
-  await gfx.whenReady // pipelines warm asynchronously
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#0d1a2c',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-}
+const beginFrame = (gfx: GpuGfx, device: MockGfxDevice) =>
+  beginHarnessFrame(gfx, device, { resetState: false })
 
 describe('GpuGfx.fillText', () => {
   it('emits one shape textured instance with the expected rotated affine and white tint', async () => {

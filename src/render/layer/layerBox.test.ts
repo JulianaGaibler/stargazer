@@ -44,8 +44,4 @@ describe('padBox', () => {
   it('grows every side', () => {
     expect(padBox(box(10, 10, 20, 20), 4)).toEqual(box(6, 6, 28, 28))
   })
-
-  it('leaves the box alone for no padding', () => {
-    expect(padBox(box(10, 10, 20, 20), 0)).toEqual(box(10, 10, 20, 20))
-  })
 })

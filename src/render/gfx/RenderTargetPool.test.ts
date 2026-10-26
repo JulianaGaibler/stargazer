@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { RenderTargetPool } from './RenderTargetPool'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 
 describe('RenderTargetPool', () => {
   it('reuses a transient target by key after release', () => {

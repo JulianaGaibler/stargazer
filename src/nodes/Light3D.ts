@@ -32,14 +32,16 @@ export interface Light3DOptions {
  * renderer reads its world position and its local −Z axis (in world space) each
  * frame, so a light parented to a moving node tracks it. Add lights to the
  * scene tree like any node. A scene with no light nodes falls back to the
- * renderer's default directional light.
+ * renderer's default directional light. The PBR program shades with up to eight
+ * lights. Up to four directional and spot lights cast shadows at once, one
+ * shadow map each, and one point light casts, because its map is a cube map.
  */
 export abstract class Light3D extends Node3D {
   /** Linear RGB color in `0..1`. */
   color: [number, number, number]
   /** Brightness multiplier applied to `color`. */
   intensity: number
-  /** Cast shadows (a scene supports several shadow-casting lights at once). */
+  /** Cast shadows. See {@link Light3D} for how many lights can cast at once. */
   shadowEnabled: boolean
   /** Constant depth offset against shadow acne, in the shadow map's depth space. */
   shadowBias: number

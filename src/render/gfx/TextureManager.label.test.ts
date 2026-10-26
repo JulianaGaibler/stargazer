@@ -19,7 +19,7 @@ vi.mock('./rasterizeLabel', async (importOriginal) => {
 })
 
 import { PARTICLE_ATLAS_MARKER, TextureManager } from './TextureManager'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import type { LabelStyle } from './rasterizeLabel'
 
 const style: LabelStyle = {

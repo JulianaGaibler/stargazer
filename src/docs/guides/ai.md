@@ -1,18 +1,18 @@
 ---
 title: Adversarial search
 group: Features
-order: 20
+order: 22
 ---
 
 # Adversarial game search
 
-{@link searchBestMove} picks a move for a computer opponent in a two-player, zero-sum game with perfect information, such as tic-tac-toe, Connect Four, or checkers. Zero-sum means one player's gain is the other's loss. Perfect information means both players see the whole state.
+{@link searchBestMove} picks a move for a computer opponent in a two-player, zero-sum game with perfect information, such as tic-tac-toe, Connect Four or checkers. Zero-sum means one player's gain is the other's loss. Perfect information means both players see the whole state. After this guide you can describe your own game, ask for the best move at a chosen depth, and tune the opponent's difficulty.
 
-The search is negamax with alpha-beta pruning. It knows nothing about scenes, rendering, or time, so it works the same in a game loop and in a test. You describe your game with an {@link AdversarialGame} object and call `searchBestMove` with a search depth.
+The search is negamax with alpha-beta pruning over a state object you own, so it runs the same way in a game loop and in a test. You describe your game with an {@link AdversarialGame} object and call `searchBestMove` with a search depth.
 
 ## Basic usage
 
-The example below describes tic-tac-toe and asks for the best move for the player to move.
+This example describes tic-tac-toe and asks for the best move for the player to move.
 
 ```ts
 import { searchBestMove, type AdversarialGame } from 'stargazer'
@@ -56,31 +56,26 @@ const board: Board = { cells: new Int8Array(9), turn: 1 }
 const { move, score, nodes } = searchBestMove(ticTacToe, board, { depth: 9 })
 ```
 
-`move` is the chosen cell, or `null` when the game is over or has no legal moves. `score` is the value of that move for the player to move. `nodes` is the number of positions the search visited. The search leaves `board` as it found it.
+`move` is the chosen cell, or `null` when the game is over or has no legal moves. `score` is the value of that move for the player to move. `nodes` is the number of positions the search visited. `board` is the same after the call as before it.
 
-### The game interface
-
-An {@link AdversarialGame} has five functions. `S` is your state type and `M` is your move type.
-
-- `moves(state)` returns the legal moves, best guess first, or an empty array.
-- `makeMove(state, move)` changes the state in place to the position after the move.
-- `unmakeMove(state, move)` exactly undoes the matching `makeMove`.
-- `isTerminal(state)` returns `true` when someone has won or the game is a draw.
-- `evaluate(state)` scores the state for the player to move. Positive is good for that player.
+Each of the five functions is documented on {@link AdversarialGame}.
 
 ### Choosing a depth
 
-{@link SearchOptions} has `depth`, the number of moves to look ahead, counting both players. A deeper search sees more threats but visits many more positions. The search is synchronous, so a large depth blocks the frame. Use `nodes` to tune the depth against your frame budget on the slowest device you support.
+{@link SearchOptions} has `depth`, the number of moves to look ahead, counting both players. A deeper search sees more threats and visits many more positions. The search is synchronous, so the frame waits for it. Read `nodes` to tune the depth against your frame budget on the slowest device you support.
+
+```ts
+const { move, nodes } = searchBestMove(ticTacToe, board, { depth: 4 })
+console.log(`depth 4 visited ${nodes} positions`)
+```
 
 ## Advanced usage
 
-This section covers the scoring convention, why the search changes the state in place, move ordering, difficulty, and ties.
-
 ### The negamax sign convention
 
-`evaluate` and every score are from the point of view of the player whose turn it is. The search negates the score each time it goes down a move. That one rule lets the same function play both sides.
+`evaluate` and every score are from the point of view of the player whose turn it is. The search negates the score each time it goes down a move, so one function plays both sides.
 
-The sign matters most at the end of the game. In many games the game ends on the move that completes a line. In a finished position, the player to move is then the one who just lost. Return a large negative number for that, offset by the move count so a fast loss scores worse than a slow one:
+The sign matters most at the end of the game. In many games the game ends on the move that completes a line, so in a finished position the player to move is the one who just lost. Return a large negative number for that, offset by the move count so a fast loss scores worse than a slow one.
 
 ```ts
 function evaluate(state: State): number {
@@ -94,22 +89,17 @@ The negation on the way up turns that loss into a large positive score for the w
 
 ### Make and unmake
 
-The search changes the state in place and restores it, instead of copying it at every position. A deep search visits tens of thousands of positions, and a copy at each one makes a lot of garbage. The search calls `makeMove` and `unmakeMove` in strict last-in, first-out order, so `unmakeMove` only has to reverse the last move. In a column-drop game, for example, each is one write: drop a piece and raise the column height, or clear the cell and lower it again.
+The search changes the state in place and restores it at each position. A deep search visits tens of thousands of positions, and copying the state at each one makes a lot of garbage. The search calls `makeMove` and `unmakeMove` in last-in, first-out order, so `unmakeMove` reverses only the latest move. In a column-drop game, each is one write: drop a piece and raise the column height, or clear the cell and lower it again.
 
-Because the search is synchronous and restores the state, you can search your live board. Nothing else sees the state while the search runs.
+The search is synchronous and restores the state, so you can search your live board. The state is yours alone while the search runs.
 
 ### Move ordering
 
-Return stronger moves first from `moves`. Alpha-beta pruning skips a branch once it finds that the opponent has a reply good enough to avoid it. Good moves early find those replies sooner, so the search visits fewer positions. In the example, the center and corners come first.
+Return stronger moves first from `moves`. Alpha-beta pruning skips a branch once it finds a reply good enough for the opponent to avoid it, and good moves early find those replies sooner. The search then visits fewer positions. In the tic-tac-toe example the center and corners come first.
 
 ### Difficulty
 
-Keep the search itself exact and set difficulty in your game code. Two settings cover most needs:
-
-- A shallower depth, so the opponent sees fewer threats.
-- A chance to play a random legal move instead of searching, for the easiest levels.
-
-A random move works better than picking a move that scores slightly below the best. A move that scores only a little lower can still hand the player an immediate win.
+Keep the search exact and set difficulty in your game code. A shallower depth makes the opponent see fewer threats. For the easiest levels, add a chance to play a random legal move instead of searching.
 
 ```ts
 function chooseMove(state: State, depth: number, blunderChance: number): Move {
@@ -121,9 +111,23 @@ function chooseMove(state: State, depth: number, blunderChance: number): Move {
 }
 ```
 
+A random move gives an easier opponent than a move with a slightly lower score, because a near-best move can still hand the player an immediate win.
+
 ### Ties and reproducible tests
 
-When several moves share the best score, the search picks one of them at random, each with the same chance. This way the opponent doesn't play the same game every time. `SearchOptions.random` sets the random source, which defaults to `Math.random`. Pass a seeded generator to make a search reproducible in tests.
+When several moves share the best score, the search picks one at random, each with the same chance, so the opponent plays a different game each time. `SearchOptions.random` sets the random source and defaults to `Math.random`. Pass a seeded generator to make a search reproducible in tests.
+
+```ts
+import { searchBestMove } from 'stargazer'
+
+let seed = 1
+const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+const { move } = searchBestMove(ticTacToe, board, { depth: 9, random })
+```
+
+## Next step
+
+Run the search from a pointer handler or a behavior and play the move on your scene. The [Testing guide](/guides/testing) shows how to run the engine without a GPU, so you can test a whole game.
 
 ## See also
 

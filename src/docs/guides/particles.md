@@ -1,23 +1,25 @@
 ---
 title: Particles
 group: Features
-order: 13
+order: 15
 ---
 
 # Particles
 
-{@link ParticleEmitterNode} draws many small sprites that move, fade, and die on their own: trails, sparks, explosions, confetti. Each particle is one baked sprite, scaled and faded by curves you set in a {@link ParticleEmitterConfig}.
+A {@link ParticleEmitterNode} draws many small sprites that move, fade and die on their own, such as trails, sparks, explosions and confetti. After this guide you can add a continuous trail, fire one-shot bursts, remove a burst when it ends, and shape particles with a {@link ParticleEmitterConfig}. The `particles` demo (`?demo=particles`) shows these effects.
 
-The node wraps a {@link ParticleEmitter}, which owns a fixed-size {@link ParticlePool}. The pool allocates all its storage when you build the emitter. Emitting and updating particles after that allocates nothing.
-
-For particles that need their own vector shapes, such as triangles and line shards mixed in one burst, see [Vector particles](/guides/vector-particles).
+Each particle is one baked sprite, scaled and faded by curves you set in the config. For particles with vector shapes of their own, such as triangles and line shards mixed in one burst, see the [Vector particles guide](/guides/vector-particles).
 
 ## Basic usage
 
-The example below adds a continuous trail to the scene and moves its emission point each frame.
+This example adds a continuous trail to the scene and moves its emission point each frame.
 
 ```ts
 import { ParticleEmitterNode } from 'stargazer'
+import type { SceneTree } from 'stargazer'
+
+declare const scene: SceneTree
+declare const pointerWorld: { x: number; y: number }
 
 const trail = new ParticleEmitterNode({
   config: {
@@ -39,13 +41,11 @@ scene.root.add(trail)
 trail.emitter.setOrigin(pointerWorld.x, pointerWorld.y)
 ```
 
-The node spawns 90 particles per second at the origin. Each one gets a random lifetime, speed, size, and palette color from the ranges. It slows down, shrinks to 30% of its size, and fades out before it dies. With no `emitDirectionRad`, particles leave in every direction.
-
-The node updates the emitter in `onUpdate` and paints the live particles. It repaints every frame while any particle is alive, and once more after the last one dies.
+The node spawns 90 particles per second at the origin. Each particle gets a random lifetime, speed, size and palette color from the ranges, slows down, shrinks to 30% of its size and fades out before it dies. Particles leave in every direction until you set `emitDirectionRad`. The node updates its {@link ParticleEmitter} every frame and paints the live particles.
 
 ### Bursts
 
-A burst emits a number of particles at one point right away. Set `ratePerSec: 0` for an emitter that only fires bursts.
+A burst emits a number of particles at one point right away. Set `ratePerSec: 0` for an emitter that fires only bursts.
 
 ```ts
 const sparks = new ParticleEmitterNode({
@@ -54,7 +54,7 @@ const sparks = new ParticleEmitterNode({
     ratePerSec: 0,
     lifetimeSec: [0.4, 0.9],
     speedWorld: [200, 400],
-    spreadRad: Math.PI,
+    spreadRad: Math.PI / 4,
     sizeWorld: [6, 12],
     palette: ['#ffffff', '#89d5ff'],
     dampingPerSec: 4,
@@ -64,126 +64,156 @@ const sparks = new ParticleEmitterNode({
 })
 scene.root.add(sparks)
 
-sparks.emitter.burst(200, x, y)
-// Override the cone axis for this burst only.
-sparks.emitter.burst(100, x, y, Math.PI / 4)
+sparks.emitter.burst(200, 960, 540)
+// Aim a cone along +x for this burst only.
+sparks.emitter.burst(100, 960, 540, 0)
 ```
 
-[`burst`](/module/particles/particleemitter#burst) stops when the pool is full, so a burst never emits more than `capacity` minus the live count. A continuous stream and bursts can share one emitter.
+The first call sends 200 sparks in every direction from the middle of the world, because the config sets no axis. The last argument sets an axis in radians for one call, with 0 pointing along +x, and the sparks spread up to `spreadRad` to each side of it. A continuous stream and bursts can share one emitter.
 
-### Removing a burst when it's done
+### Remove a burst when it ends
 
 For a one-shot burst, pair [`waitUntilEmpty`](/module/particles/particleemitter#waituntilempty) with [`autoDestroy`](/module/scene/node#autodestroy). The node destroys itself once its last particle dies.
 
 ```ts
+import type { ParticleEmitterConfig } from 'stargazer'
+
+declare const config: ParticleEmitterConfig
+
 const burst = new ParticleEmitterNode({ config })
-burst.emitter.burst(count, x, y)
-scene.root.add(burst)
+burst.emitter.burst(120, 400, 300)
 void burst.autoDestroy(burst.emitter.waitUntilEmpty())
+scene.root.add(burst)
 ```
 
-Call `waitUntilEmpty()` right after the `burst()` it should track, with no `await` in between. It resolves when the live count reaches 0, or right away if it's already 0. It has no memory of earlier bursts, so a call before the burst can resolve at once.
+`waitUntilEmpty()` resolves when the live count reaches 0. Call it right after the `burst()` it tracks, in the same synchronous run of code.
 
 ### Coordinate space
 
-Particles live in the node's local space, and `setOrigin` takes a local point. A node at `scene.root` with no transform uses world coordinates.
+Particles live in the node's local space, and `setOrigin` and `burst` take local points. A node under `scene.root` with no transform uses world coordinates.
 
-If you add the node under a moving node, the particles move with it. That suits a glow that stays attached to an object. For a trail that stays behind in the world, add the node to the root and move the origin instead.
+```ts
+import type { Node2D } from 'stargazer'
+
+declare const ship: Node2D
+
+const aura = new ParticleEmitterNode({ config })
+ship.add(aura) // particles move and turn with the ship
+scene.root.add(trail) // particles stay at their emission point
+```
+
+A node under a moving node carries its particles along, which suits a glow attached to an object. For a trail that stays behind in the world, add the node to the root and move the origin.
 
 ## Advanced usage
 
-This section lists every config option and covers the motion model, rotation, speed-driven scale, early despawn, sprite styles, and cleanup.
-
 ### Config options
 
-All ranges are `[min, max]` and sampled uniformly once, when the particle spawns.
+Every range in the config is `[min, max]` and is sampled uniformly once, when the particle spawns. This example adds gravity and a tumble to a burst of debris.
 
-| Option              | Type                           | Default      | Meaning                                                      |
-| ------------------- | ------------------------------ | ------------ | ------------------------------------------------------------ |
-| `capacity`          | `number`                       | required     | Maximum live particles                                       |
-| `ratePerSec`        | `number`                       | required     | Continuous emissions per second, 0 for bursts only           |
-| `lifetimeSec`       | `[number, number]`             | required     | Lifetime range in seconds                                    |
-| `speedWorld`        | `[number, number]`             | required     | Launch speed range in world units per second                 |
-| `spreadRad`         | `number`                       | required     | Half-angle of the emission cone in radians                   |
-| `emitDirectionRad`  | `number`                       | none         | Cone axis in radians, 0 is +x. Unset emits in all directions |
-| `sizeWorld`         | `[number, number]`             | required     | Sprite size range in world units                             |
-| `palette`           | `string[]`                     | required     | Colors, each particle picks one at random                    |
-| `spriteStyle`       | {@link ParticleSpriteStyle}    | `'gradient'` | Sprite shape                                                 |
-| `blend`             | `'lighter'` or `'source-over'` | `'lighter'`  | Composite mode                                               |
-| `dampingPerSec`     | `number`                       | `0`          | Exponential drag per second                                  |
-| `accelerationWorld` | {@link Vec2}                   | none         | Constant acceleration, such as gravity or wind               |
-| `scaleOverLife`     | `[number, number]`             | `[1, 1]`     | Size multiplier at spawn and at death                        |
-| `alphaOverLife`     | `[number, number]`             | `[1, 0]`     | Alpha at spawn and at death                                  |
-| `spinRadPerSec`     | `[number, number]`             | none         | Angular velocity range in radians per second                 |
-| `scaleBy`           | `'life'` or `'speed'`          | `'life'`     | What drives `scaleOverLife`                                  |
-| `minSpeedFrac`      | `number`                       | none         | Kill a particle below this fraction of its launch speed      |
+```ts
+const debris = new ParticleEmitterNode({
+  config: {
+    capacity: 200,
+    ratePerSec: 0,
+    lifetimeSec: [0.8, 1.4],
+    speedWorld: [150, 320],
+    emitDirectionRad: -Math.PI / 2,
+    spreadRad: Math.PI / 3,
+    sizeWorld: [8, 14],
+    palette: ['#c9b79c', '#8a7d6b'],
+    spriteStyle: 'square',
+    blend: 'source-over',
+    accelerationWorld: { x: 0, y: 900 },
+    spinRadPerSec: [-6, 6],
+  },
+})
+```
 
-With `emitDirectionRad` unset, the emitter ignores `spreadRad`. With an axis set, `spreadRad: Math.PI` also covers every direction.
+The debris launches upward in a cone of 60 degrees on each side of the axis, then falls under gravity while it tumbles in both directions. {@link ParticleEmitterConfig} documents every option and its default. A `spreadRad` of `Math.PI` covers every direction around the axis, and the emitter uses `spreadRad` only when `emitDirectionRad` or the `burst` axis is set.
 
 ### Motion model
 
-[`update(dt)`](/module/particles/particleemitter#update) runs once per frame. It first emits `ratePerSec * dt` particles, carrying the fraction over to the next frame. Then it moves each live particle:
-
-```
-v *= exp(-dampingPerSec * dt)   // drag
-v += accelerationWorld * dt     // gravity, wind
-p += v * dt                     // move
-angle += spin * dt              // rotation
-life -= dt
-```
-
-A particle dies when `life` reaches 0. Higher `dampingPerSec` values stop particles sooner after they spawn.
-
-At paint time, `t = 1 - life / maxLife` runs from 0 at spawn to 1 at death. The node draws each particle at `size * lerp(scaleOverLife, t)` with alpha `lerp(alphaOverLife, t)`. It skips particles whose alpha or size is 0 or less.
+Each frame, the emitter first spawns `ratePerSec * dt` particles and carries the fraction over to the next frame. It then slows every live particle by `dampingPerSec`, adds `accelerationWorld`, moves it, turns it by its spin and counts its life down. A particle dies when its life reaches 0, so a higher `dampingPerSec` brings particles to rest sooner. {@link ParticleEmitter.update} documents the step.
 
 ### Rotation
 
-`spinRadPerSec` gives each particle a constant angular velocity, sampled with its sign. `[-6, 6]` makes particles tumble both ways. Without it, the node draws every sprite unrotated and skips the rotate transform.
+`spinRadPerSec` gives each particle a constant angular velocity, sampled with its sign. `[-6, 6]` makes particles tumble both ways. Leave it out and the node draws every sprite unrotated.
 
 ### Scale driven by speed
 
-With `scaleBy: 'speed'`, the scale curve follows `t = 1 - clamp(speed / launchSpeed, 0, 1)` instead of lifetime. A fast particle draws at `scaleOverLife[0]` and a nearly stopped one at `scaleOverLife[1]`. Use it for debris that should shrink away as it settles. Alpha still follows lifetime.
+`scaleBy: 'speed'` makes `scaleOverLife` follow the particle's speed instead of its age. A fast particle draws at the first value and a nearly stopped one at the second. Alpha follows lifetime.
+
+```ts
+const dust = new ParticleEmitterNode({
+  config: {
+    capacity: 150,
+    ratePerSec: 0,
+    lifetimeSec: [1, 2],
+    speedWorld: [100, 260],
+    spreadRad: Math.PI,
+    sizeWorld: [10, 20],
+    palette: ['#d9d2c3'],
+    dampingPerSec: 3,
+    scaleOverLife: [1, 0],
+    scaleBy: 'speed',
+  },
+})
+```
+
+The dust shrinks away as it slows down, whatever its remaining lifetime.
 
 ### Early despawn
 
-`minSpeedFrac` kills a particle once its speed drops below that fraction of its own launch speed, even if its lifetime hasn't run out. `0.02` is a typical value. Paired with `scaleBy: 'speed'` and `waitUntilEmpty`, a burst removes itself as soon as it has settled. The upper bound of `lifetimeSec` still kills particles that never slow down.
+`minSpeedFrac` kills a particle once its speed falls under that fraction of its own launch speed, even when its lifetime has time left. Add it to the dust config and the burst removes itself as soon as it settles.
+
+```ts
+const settling = new ParticleEmitterNode({
+  config: { ...dust.emitter.config, minSpeedFrac: 0.02 },
+})
+settling.emitter.burst(80, 600, 400)
+void settling.autoDestroy(settling.emitter.waitUntilEmpty())
+scene.root.add(settling)
+```
+
+The upper bound of `lifetimeSec` ends particles that keep their speed.
 
 ### Sprite styles and blend
 
-`spriteStyle` picks the sprite shape. Each style is a 64-pixel square tile that the node scales to the particle's size, so all styles cost the same. These are the five styles:
+`spriteStyle` picks the sprite shape, and `blend` decides how overlapping particles combine. `blend: 'lighter'`, the default, adds them together so dense areas glow brighter. `blend: 'source-over'` paints them over each other. {@link ParticleSpriteStyle} lists the styles and what each pairs with. The burst example earlier on this page uses `'disc'` with `'source-over'` for sharp sparks.
 
-- `'gradient'`: a soft radial fade from an opaque center to a clear edge
-- `'disc'`: a solid disc with an anti-aliased edge
-- `'hexagon'`: a solid flat-topped hexagon
-- `'square'`: a solid centered square
-- `'triangle'`: a solid equilateral triangle, apex up, best paired with `spinRadPerSec`
-
-`blend: 'lighter'` adds overlapping particles together, so dense areas glow brighter. `blend: 'source-over'` paints particles over each other. The table shows the four common pairings.
-
-| Sprite     | Blend         | Look                                        |
-| ---------- | ------------- | ------------------------------------------- |
-| `gradient` | `lighter`     | Soft additive bloom                         |
-| `gradient` | `source-over` | Soft glow without bloom stacking            |
-| `disc`     | `lighter`     | Hard particles that still bloom on overlap  |
-| `disc`     | `source-over` | Sharp particles, such as sparks or confetti |
-
-{@link getParticleSprite} returns the cached tile for a color and style. The cache keeps each tile for the life of the page. {@link clearParticleSpriteCache} empties it, for tests and teardown.
+The node scales each style's tile to the particle's size. {@link getParticleSprite} returns the cached tile for a color and style. The cache keeps each tile for the life of the page, and {@link clearParticleSpriteCache} empties it for tests and teardown.
 
 ### Reading state
 
-The emitter's `aliveCount` is the live particle count. `emitter.pool.availableCount` is the number of free slots. [`particleCount`](/module/scene/node2d#particlecount) on any `Node2D` is 0, and the particle nodes return their live count. The debug HUD sums it across the scene.
+```ts
+console.log(trail.emitter.aliveCount, trail.emitter.pool.availableCount)
+```
+
+`aliveCount` is the live particle count and `pool.availableCount` is the number of free slots. [`particleCount`](/module/scene/node2d#particlecount) on any `Node2D` returns the live count of a particle node, and the debug HUD sums it across the scene.
 
 ### Cleanup
 
-[`clear()`](/module/particles/particleemitter#clear) kills every particle and resets the emission accumulator. Destroying the node also clears the emitter, so a pending `waitUntilEmpty()` promise resolves.
+[`clear()`](/module/particles/particleemitter#clear) kills every particle and resets the emission accumulator. Destroying the node clears the emitter too, so a pending `waitUntilEmpty()` promise resolves.
+
+## Common problems
+
+A burst shows fewer particles than you asked for. The pool holds `capacity` particles, and `burst` stops when it is full. Raise `capacity`, or check `emitter.pool.availableCount` before the burst.
+
+A one-shot burst disappears on the first frame. `waitUntilEmpty()` ran before the `burst()` and resolved at once, because no particle was alive. Call it right after `burst()`.
+
+A trail follows its parent when it should stay behind. Particles live in the node's local space. Add the node to `scene.root` and call `setOrigin` with the world position.
+
+## Next step
+
+Draw particles with their own vector shapes in the [Vector particles guide](/guides/vector-particles).
 
 ## See also
 
 - {@link ParticleEmitterNode}: scene node that updates and paints an emitter
-- {@link ParticleEmitter}: pool, emission, and motion
+- {@link ParticleEmitter}: pool, emission and motion
 - {@link ParticleEmitterConfig}: every emitter option
 - {@link ParticlePool}: typed-array storage with a free list
 - {@link VectorParticleNode}: particles with custom vector shapes
 - [Vector particles](/guides/vector-particles): per-particle shapes and despawn rules
-- [Scene](/guides/scene): nodes, `onUpdate`, and `autoDestroy`
+- [Scene](/guides/scene): nodes, `onUpdate` and `autoDestroy`
 - [Debugging](/guides/debugging): the HUD's particle count

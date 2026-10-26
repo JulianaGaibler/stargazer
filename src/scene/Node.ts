@@ -540,8 +540,8 @@ export abstract class Node {
   /** See {@link Node.onPointerDown}. Fires when the pointer is released. */
   onPointerUp?(p: PointerEvent2D): void
   /**
-   * See {@link Node.onPointerDown}. Fires when the gesture is interrupted, which
-   * includes destroying the node that holds the capture.
+   * See {@link Node.onPointerDown}. Fires when the gesture is interrupted. The
+   * handlers of a destroyed node do not run.
    */
   onPointerCancel?(p: PointerEvent2D): void
 
@@ -606,11 +606,6 @@ export abstract class Node {
   // --- lifecycle -------------------------------------------------------------
 
   /**
-   * Destroy this node and its whole subtree. Aborts {@link Node.abortSignal}
-   * before recursing, so pending tweens and waits reject with `AbortError`
-   * rather than running against a dead node. Idempotent.
-   */
-  /**
    * Run a lifecycle hook so a throw from game code cannot leave the node half
    * attached or half detached.
    */
@@ -625,6 +620,11 @@ export abstract class Node {
   /**
    * Destroy the node and its children. Behaviors detach, pending tweens and
    * loops abort, and the node leaves its parent. Safe to call twice.
+   *
+   * @remarks
+   *   The steps run in this order: the node is marked destroyed, every child is
+   *   destroyed, every behavior detaches, `abortSignal` aborts, `'destroy'` is
+   *   emitted on `events`, and the node is removed from its parent.
    */
   destroy(): void {
     if (this.#_destroyed) return

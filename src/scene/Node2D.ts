@@ -162,10 +162,12 @@ export class Node2D extends Node {
    * other, up to 7 deep.
    *
    * @remarks
-   *   Maintainers: the compose walk pushes the stencil clip on entering the node
-   *   and pops it on leaving its subtree, so everything under it pays for the
-   *   clip once. A clip costs two stencil draws plus one to undo it, and a rect
-   *   is built into a cached path.
+   *   Maintainers: the compose walk pushes the clip on entering the node and pops
+   *   it on leaving its subtree, so everything under it pays for the clip once.
+   *   A rect on an axis-aligned node outside an inset view clips in the shader,
+   *   one at a time, at no draw cost. Any other clip uses the stencil buffer,
+   *   at two draws plus one to undo it, and a rect there is built into a cached
+   *   path.
    * @example
    *   // A scroll panel: content below this node never paints outside it.
    *   panel.clip = { x: 0, y: 0, width: 320, height: 200 }

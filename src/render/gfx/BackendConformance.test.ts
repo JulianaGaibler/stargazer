@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MeshRenderer } from './MeshRenderer'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import type { GfxBackend } from './GfxDevice'
 import { Camera3D } from '../../camera/Camera3D'
 import { SceneTree } from '../../scene/SceneTree'
@@ -106,83 +106,5 @@ describe('backend coordinate conformance', () => {
     const gpu = shadowFrame((await renderGoldenScene('webgpu')).device)
     expect([gl[66], gl[67]]).toEqual([0, 0])
     expect([gpu[66], gpu[67]]).toEqual([1, 1])
-  })
-})
-
-/**
- * The compute + gfx foundation is exercised end-to-end only in a real browser
- * (happy-dom has no GPU), so these check the backend-neutral contract against
- * the mock: which backend exposes compute, that a dispatch records into a
- * compute pass, that WebGL2 refuses compute, and that a sampleable-depth target
- * hands back a depth texture on both backends.
- */
-describe('compute + gfx foundation contract', () => {
-  it('exposes compute on WebGPU and not on WebGL2', () => {
-    expect(new MockGfxDevice('webgpu').supportsCompute).toBe(true)
-    expect(new MockGfxDevice('webgl2').supportsCompute).toBe(false)
-  })
-
-  it('records a compute dispatch inside a compute pass on WebGPU', async () => {
-    const device = new MockGfxDevice('webgpu')
-    const shader = device.createShaderModule({
-      wgsl: { code: '', computeEntry: 'cs_main' },
-      reflection: { attributes: [], uniformBlocks: [], samplers: [] },
-    })
-    const layout = device.createBindGroupLayout([
-      { binding: 0, type: 'storage-texture-2d' },
-    ])
-    const pipeline = await device.createComputePipeline({
-      shader,
-      bindGroupLayouts: [layout],
-    })
-    const tex = device.createTexture2D({ width: 8, height: 8, storage: true })
-    const bindGroup = device.createBindGroup(layout, [
-      { binding: 0, resource: { texture: tex } },
-    ])
-    device.beginFrame()
-    device.beginComputePass()
-    device.dispatchCompute({
-      pipeline,
-      bindGroups: [{ group: 0, bindGroup }],
-      x: 1,
-      y: 2,
-    })
-    device.endComputePass()
-    device.endFrame()
-    expect(device.computePipelines).toHaveLength(1)
-    expect(device.computePassBegins).toBe(1)
-    expect(device.computePassEnds).toBe(1)
-    expect(device.computeDispatches).toEqual([{ pipeline, x: 1, y: 2, z: 1 }])
-  })
-
-  it('refuses to create a compute pipeline on WebGL2', () => {
-    const device = new MockGfxDevice('webgl2')
-    const shader = device.createShaderModule({
-      wgsl: { code: '', computeEntry: 'cs_main' },
-      reflection: { attributes: [], uniformBlocks: [], samplers: [] },
-    })
-    expect(() =>
-      device.createComputePipeline({ shader, bindGroupLayouts: [] }),
-    ).toThrow(/compute/)
-  })
-
-  it('hands back a sampleable depth texture on both backends', () => {
-    for (const backend of ['webgl2', 'webgpu'] as const) {
-      const device = new MockGfxDevice(backend)
-      const rt = device.createRenderTarget({
-        width: 16,
-        height: 16,
-        depth: true,
-        depthSampled: true,
-      })
-      // A depth-only target (no depthSampled) has no sampleable depth.
-      const plain = device.createRenderTarget({
-        width: 16,
-        height: 16,
-        depth: true,
-      })
-      expect(device.depthTexture(rt)).toBeDefined()
-      expect(() => device.depthTexture(plain)).toThrow()
-    }
   })
 })

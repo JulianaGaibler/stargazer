@@ -1,34 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
 import type { GfxShadowStyle } from './Gfx2D'
-
-function makeCanvas(): HTMLCanvasElement {
-  const c = document.createElement('canvas')
-  c.width = 400
-  c.height = 300
-  return c
-}
-
-function makeGpuGfx(): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = makeCanvas()
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device)
-  return { gfx, device }
-}
-
-async function baseFrame(gfx: GpuGfx, device: MockGfxDevice): Promise<void> {
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#0d1a2c',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-}
+import { beginFrame as baseFrame, makeGpuGfx } from './testing/gpuGfxHarness'
 
 const shadow = (overrides: Partial<GfxShadowStyle> = {}): GfxShadowStyle => ({
   color: 'rgba(20,16,40,0.35)',

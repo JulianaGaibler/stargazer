@@ -44,6 +44,22 @@ export class RenderQuality {
    * render scale, and last ambient occlusion and shadows off. Default true. It
    * only steps down, so a caller that wants a fixed quality sets this to
    * false.
+   *
+   * @remarks
+   *   The engine measures the frame interval and the CPU time of each frame over
+   *   about 1.5 seconds. When the median interval is above 37 ms and the CPU
+   *   time is under half of it, the GPU is the bottleneck and the engine takes
+   *   one tier. A median above 74 ms takes half of the tiers left. It waits one
+   *   second after each change before it measures again. With a frame cap, a
+   *   frame is slow when it takes longer than 1.3 times the cap's interval.
+   *
+   *   The tiers run in this order: ambient occlusion at half resolution, MSAA 2x,
+   *   ambient occlusion preset `low`, MSAA 1x, shadow softness 4 taps, render
+   *   scale 0.85 and then 0.75, shadow softness 1 tap, render scale 0.6,
+   *   ambient occlusion off, shadows off, render scale 0.5. A tier that would
+   *   change nothing is skipped. A 2D scene only goes through MSAA and the
+   *   render scale, WebGPU has no 2x MSAA, and a setting held with
+   *   `QualityControl` stays where it is.
    */
   adaptive = true
   /** 2D vector-renderer quality: path drop shadows and gradient dithering. */

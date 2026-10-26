@@ -44,8 +44,8 @@ export interface TextNodeOptions {
   /** Vertical anchor. Default `'alphabetic'`. */
   baseline?: CanvasTextBaseline
   /**
-   * Line spacing for multi-line text, as a multiple of the effective pixel font
-   * size. Default `1.2`. Ignored for single-line text.
+   * Line spacing for multi-line text, as a multiple of the font's own line
+   * height. Default `1.2`. Ignored for single-line text.
    */
   lineHeight?: number
 }

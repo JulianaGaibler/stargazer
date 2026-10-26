@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Engine } from '../engine/Engine'
-import { MockGfxDevice } from './gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from './gfx/mock/mockGfxDevice'
 
 describe('StageOptions.lockInteraction', () => {
   function makeEngine(lockInteraction?: boolean): Engine {

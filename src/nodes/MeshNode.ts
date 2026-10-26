@@ -147,8 +147,8 @@ export interface MeshMaterial {
 
 /**
  * A drawable 3D node: a {@link MeshGeometry} and a {@link MeshMaterial} placed by
- * a `Transform3D`. Add it under a `World3D`. The 3D render pass draws every
- * ready mesh, sorted back-to-front, with depth testing.
+ * a `Transform3D`. The 3D render pass draws every ready mesh with depth
+ * testing, opaque meshes nearest first, then `'BLEND'` meshes back to front.
  *
  * Geometry can be `null` at construction and filled in later (a glTF mesh whose
  * buffers are still downloading). The pass skips a mesh until its geometry is

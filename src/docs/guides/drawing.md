@@ -1,23 +1,25 @@
 ---
 title: Drawing
 group: Getting started
-order: 4
+order: 5
 ---
 
 # Drawing
 
-A 2D node draws by recording what it looks like into a {@link Picture}. The engine replays the picture every frame under the node's transform and alpha. Moving, scaling, fading or rotating a node never runs its drawing code again.
+Stargazer draws a scene made of nodes. A built-in node such as {@link ShapeNode} or {@link TextNode} describes what to show through options. When no built-in node fits, you write a custom node that overrides `paint` and records draw commands on a {@link Canvas}. This page draws one card both ways, then covers fills, strokes, text, images, clips, shadows and gradients. Afterwards you can pick the right kind of node for a picture and draw it.
 
-The built-in nodes record for you. {@link ShapeNode} draws circles, ellipses and rectangles, {@link Path2DNode} draws SVG paths, {@link PolylineNode} draws lines, {@link ImageNode} draws images, and {@link TextNode} draws text. They handle bounds, hit testing and stroke scaling. When none of them fits, such as for a board's grid or a gauge, subclass {@link Node2D} and override [`paint`](/module/scene/node2d#paint). You then record through a {@link Canvas}, in the node's own local coordinates.
-
-You need a stage with a scene first. See [Setup](/guides/setup) and [Scene graph](/guides/scene).
+The examples add nodes to `scene.root` and assume a stage with a camera. See [Setup](/guides/setup) for the stage, [Camera](/guides/camera) for the camera and [Scene graph](/guides/scene) for the tree.
 
 ## Basic usage
 
-The smallest drawing is a built-in node added to the scene.
+Start with built-in nodes. Write a custom node when one node should draw many things, or when no built-in node draws what you need.
+
+### Draw with built-in nodes
+
+A built-in node takes options and handles bounds, hit testing and stroke scaling. A card is a {@link ShapeNode} with a {@link TextNode} as its child.
 
 ```ts
-import { ShapeNode } from 'stargazer'
+import { ShapeNode, TextNode } from 'stargazer'
 
 const card = new ShapeNode({
   geometry: { kind: 'rect', width: 240, height: 140, radii: 16 },
@@ -25,16 +27,100 @@ const card = new ShapeNode({
   stroke: '#ffd34d',
   lineWidth: 2,
 })
-card.transform.x = 200
-card.transform.y = 120
+card.add(
+  new TextNode({
+    text: 'Ready',
+    fontSize: 28,
+    fontWeight: 700,
+    sizeSpace: 'world',
+    color: '#ffffff',
+    align: 'center',
+    baseline: 'middle',
+  }),
+)
+card.transform.x = 960
+card.transform.y = 540
 scene.root.add(card)
 ```
 
-This draws a rounded rectangle centered on `(200, 120)`, filled dark blue with a 2 pixel yellow border. The border stays 2 CSS pixels wide at any camera zoom, because `strokeSpace` is `'screen'` by default. Writing `card.fill = '#2a3550'` repaints the card. Writing `card.transform.x` moves it without repainting.
+A dark blue rounded rectangle with a 2 pixel yellow border and the word "Ready" at its center appears in the middle of the 1920 by 1080 world. The border stays 2 CSS pixels wide at any camera zoom, because `strokeSpace` is `'screen'` by default. `sizeSpace: 'world'` makes the text scale with the camera, like the rectangle.
 
-### Draw your own content
+### Draw with a custom node
 
-Override `paint` on a `Node2D` subclass and call drawing methods on the `Canvas` it receives. Declare the values `paint` reads with {@link definePaintProps}, so that writing one repaints the node.
+A custom node subclasses {@link Node2D} and overrides `paint`. Declare the values `paint` reads with {@link definePaintProps}, so that writing one repaints the node.
+
+```ts
+import { Node2D, definePaintProps } from 'stargazer'
+import type { Canvas } from 'stargazer'
+
+class Card extends Node2D {
+  declare label: string
+
+  constructor(label: string) {
+    super()
+    definePaintProps(this, { label })
+  }
+
+  override paint(canvas: Canvas): void {
+    canvas.fillAndStrokeRoundRect(-120, -70, 240, 140, 16, '#1c2438', {
+      color: '#ffd34d',
+      width: { screen: 2 },
+    })
+    canvas.fillText(this.label, 0, 0, {
+      font: '700 28px sans-serif',
+      color: '#ffffff',
+      align: 'center',
+      baseline: 'middle',
+    })
+  }
+}
+
+const card = new Card('Ready')
+card.transform.x = 960
+card.transform.y = 540
+scene.root.add(card)
+```
+
+The picture is the same as the one from built-in nodes. The engine records the draw commands once into a {@link Picture} and replays it every frame under the node's transform and alpha. Draw commands use the node's own coordinates. The rectangle starts at `(-120, -70)` to center on the node's origin, because `Canvas.fillRect` and its relatives take a top-left corner, while a `ShapeNode` rectangle is centered by default.
+
+Pick built-in nodes for single shapes, text and images. Pick a custom node when one node draws many things, such as a grid, a gauge or a board, because one picture holds all of them.
+
+### Draw on top of a built-in node
+
+A built-in node and a custom node combine. A custom node added as a child of the card draws in the card's local space, so it moves, scales and fades with the card.
+
+```ts
+import { Node2D } from 'stargazer'
+import type { Canvas } from 'stargazer'
+
+class Badge extends Node2D {
+  override paint(canvas: Canvas): void {
+    canvas.fillCircle(100, -50, 8, '#ff5a5f')
+  }
+}
+
+card.add(new Badge())
+```
+
+A red dot appears near the top-right corner of the card. To keep the card and the dot in one node, subclass the built-in node and call `super.paint` before your own draw commands.
+
+```ts
+import { ShapeNode } from 'stargazer'
+import type { Canvas } from 'stargazer'
+
+class ScoreCard extends ShapeNode {
+  override paint(canvas: Canvas): void {
+    super.paint(canvas)
+    canvas.fillCircle(100, -50, 8, '#ff5a5f')
+  }
+}
+```
+
+`ScoreCard` takes the same options as `ShapeNode` and draws the same dot.
+
+### Repaint when state changes
+
+`paint` runs the first time the node is drawn. After that it runs when a paint property changes, including a change made by a tween.
 
 ```ts
 import { Node2D, definePaintProps } from 'stargazer'
@@ -53,116 +139,76 @@ class Gauge extends Node2D {
     canvas.fillRoundRect(0, 0, 200 * this.value, 24, 12, '#ffd34d')
   }
 }
+
+const gauge = new Gauge()
+scene.root.add(gauge)
+gauge.value = 0.8
 ```
 
-The gauge draws a dark track and a yellow bar over 40 percent of it. Declare each property with `declare` and no initializer. A class field with an initializer hides the accessor, and in development `definePaintProps` throws when it finds one.
+The gauge draws a dark track with a yellow bar over 40 percent of it. Writing `gauge.value = 0.8` paints the node again on the next frame. Moving, scaling, rotating or fading the gauge through `transform` replays the picture and leaves `paint` alone.
 
-### When a node paints again
+A node also paints again when a resource declared with [`canvas.use`](/module/scene/canvas#use) changes its `version`, when code calls [`markNeedsPaint()`](/module/scene/node2d#markneedspaint), and when `paint` read the scale or the view and that value changed.
 
-`paint` runs the first time the node is drawn. After that it runs only when the node is dirty. A node becomes dirty in these cases:
+### Fill shapes
 
-- A paint property changes, including a change made by a tween.
-- A resource it declared with [`canvas.use`](/module/scene/canvas#use) changes its `version`.
-- Code calls [`markNeedsPaint()`](/module/scene/node2d#markneedspaint) on it.
-- The picture depends on scale, and the scale the node is drawn at stops at a new value.
-
-Writing `gauge.value = 0.8`, or tweening it, repaints the gauge. Writing `gauge.transform.x`, `alpha` or `visible` does not.
-
-### Fills and colors
-
-Each fill call takes its color as an argument. A fill is a CSS color string or a gradient.
+Each fill call takes its color as an argument. A color is a CSS color string.
 
 ```ts
 override paint(canvas: Canvas): void {
   canvas.fillRect(0, 0, 320, 200, '#101522')
   canvas.fillCircle(160, 100, 40, '#7cc4ff')
-  canvas.fillRoundRect(20, 20, 80, 32, [8, 8, 0, 0], {
-    kind: 'linear',
-    x0: 0,
-    y0: 20,
-    x1: 0,
-    y1: 52,
-    stops: [
-      { offset: 0, color: '#3a2d5c' },
-      { offset: 1, color: '#1d1d2b' },
-    ],
-  })
+  canvas.fillRoundRect(20, 20, 80, 32, [8, 8, 0, 0], '#3a2d5c')
 }
 ```
 
-`fillRoundRect` takes the CSS `border-radius` shorthand: `24`, `[0, 32, 0, 0]` or `[tl, tr, br, bl]`. A radius at or above half the shorter side gives a capsule. Circles and rounded rectangles are drawn as signed distance fields in local space, so they stay crisp at any zoom or rotation.
+The node draws a dark panel, a light blue circle in its middle and a purple tab with rounded top corners. `fillRoundRect` takes the CSS `border-radius` shorthand: `24`, `[0, 32, 0, 0]` or `[tl, tr, br, bl]`. A radius at or above half the shorter side gives a capsule. Circles and rounded rectangles are drawn as signed distance fields in local space, so they stay crisp at any zoom or rotation. The other fill calls are listed on {@link Canvas}.
 
-### Strokes
+### Stroke lines and borders
 
-A stroke takes a full style object on every call. There is no current style to set first. Keep a style that never changes in a module-level constant.
+A stroke takes a full style object on every call. Keep a style that stays the same in a module-level constant.
 
 ```ts
+import { Node2D } from 'stargazer'
+import type { Canvas } from 'stargazer'
+
 const RULE = { color: '#2a3550', width: { screen: 1 } }
 
-override paint(canvas: Canvas): void {
-  for (let i = 0; i <= 8; i++) {
-    canvas.strokeLine(0, i * 40, 320, i * 40, RULE)
+class Ruled extends Node2D {
+  override paint(canvas: Canvas): void {
+    for (let i = 0; i <= 8; i++) {
+      canvas.strokeLine(0, i * 40, 320, i * 40, RULE)
+    }
   }
 }
 ```
 
-A stroke width is a number in the node's local units, or `{ screen: n }` for `n` CSS pixels at any zoom. The renderer resolves a screen width each frame, so the picture does not repaint when the camera zooms. Dash lengths are in local units. The style type is {@link CanvasStrokeStyle}.
+The node draws nine horizontal lines, 1 CSS pixel wide, 40 units apart. A stroke width is a number in the node's local units, or `{ screen: n }` for `n` CSS pixels at any zoom. The renderer resolves a screen width each frame, so the picture stays as it is when the camera zooms. Dash lengths are in local units. The style type is {@link CanvasStrokeStyle}.
 
-### Clip to a shape
-
-[`setClip`](/module/scene/canvas#setclip) crops every following draw to a circle or a rounded rectangle, with an anti-aliased edge. Bracket it with `save` and `restore`.
+A shape with a fill and a border uses one call, so a translucent border blends against the fill once.
 
 ```ts
-canvas.save()
-canvas.setClip({ kind: 'roundRect', x: 0, y: 0, w: 240, h: 160, radius: 16 })
-canvas.drawImage(portrait, 0, 0, 240, 160)
-canvas.restore()
-```
-
-The image shows only inside the rounded rectangle. A rounded rectangle clip takes `radii` in place of `radius` for different corners, in the same shorthand as `fillRoundRect`. `setClip(null)` clears the clip, and `restore` does too. To clip a whole subtree of nodes instead, set [`clip`](/module/scene/node2d#clip) on the parent node. A node clip never repaints anything.
-
-### Smooth corners
-
-A rounded rectangle can have smooth corners instead of circular ones, as with the corner smoothing setting in Figma. A smooth corner eases from the straight side into its curve, so the shape reads as one continuous outline. `smoothing` runs from 0, a circular corner, to 1. {@link IOS_CORNER_SMOOTHING}, 0.6, matches the iOS app icon shape.
-
-```ts
-import { IOS_CORNER_SMOOTHING, ShapeNode } from 'stargazer'
-
-const icon = new ShapeNode({
-  geometry: {
-    kind: 'rect',
-    width: 120,
-    height: 120,
-    radii: 27,
-    smoothing: IOS_CORNER_SMOOTHING,
-  },
-  fill: '#ffffff',
+canvas.fillAndStrokeRoundRect(0, 0, 240, 140, 16, '#1c2438', {
+  color: 'rgba(255, 211, 77, 0.5)',
+  width: { screen: 2 },
 })
 ```
 
-The icon draws in the same single instance as any rounded rectangle. A smooth corner uses more of each side than a circular one, `(1 + smoothing)` times its radius. When a side is too short for that, smoothing is reduced before the radius is, the way Figma fits corners. Inside `paint`, `fillRoundRect`, `strokeRoundRect`, `fillAndStrokeRoundRect` and `shadowRoundRect` take `smoothing` as their last parameter.
+### Draw text and images
 
-To mask other content, such as a photo, to a smooth-cornered shape, use a squircle {@link ShapeNode} as the content's [`matte`](/module/scene/node2d#matte), which gives an anti-aliased edge. For a cheaper hard-edged clip, set the parent's [`clip`](/module/scene/node2d#clip) to an outline from {@link squirclePath}.
+`fillText` draws one line of text at a point. See [Text](/guides/text) for `TextNode`, wrapping and measuring. `drawImage` draws an image into a rectangle.
 
 ```ts
-import { GfxPath, IOS_CORNER_SMOOTHING, squirclePath } from 'stargazer'
-
-card.clip = squirclePath(
-  new GfxPath(),
-  0,
-  0,
-  200,
-  120,
-  24,
-  IOS_CORNER_SMOOTHING,
-)
+canvas.fillText('Score', 16, 16, {
+  font: '600 24px sans-serif',
+  color: '#ffffff',
+  baseline: 'top',
+})
+canvas.drawImage(portrait, 0, 48, 240, 160, { smoothing: false })
 ```
 
-Everything under `card` is clipped to the 200 by 120 shape. {@link squircleSvgPath} gives the same outline as SVG path data, and {@link squirclePath2D} gives it as a `Path2D` that a {@link Path2DNode} can draw.
+The label appears at the top-left corner and the image under it. `{ smoothing: false }` selects nearest filtering, for pixel art. Text and small images share one label page. They are rasterized for the scale the node is drawn at when the picture replays, so zooming a node leaves its picture as it is.
 
-### Draw an image
-
-An {@link ImageNode} draws a loaded image, such as an `<img>` element, an `ImageBitmap`, or a canvas, as a rectangle.
+An {@link ImageNode} draws a loaded image, such as an `<img>` element, an `ImageBitmap` or a canvas element, as a rectangle.
 
 ```ts
 import { ImageNode } from 'stargazer'
@@ -176,51 +222,119 @@ scene.root.add(new ImageNode({ image: logo, x: 16, y: 16, height: 40 }))
 
 The logo is drawn 40 units high at `(16, 16)`, with the width that keeps its proportions. Give both `width` and `height` to stretch it, or neither to draw it at its natural size. Assigning a new `image` shows on the next frame.
 
-The GPU samples an image without mipmaps, so an image drawn at a small fraction of its natural size looks jagged. Scale it to the drawn size once, for example with `createImageBitmap(image, { resizeWidth, resizeHeight, resizeQuality: 'high' })`.
+### Clip to a shape
+
+[`setClip`](/module/scene/canvas#setclip) crops every following draw to a circle or a rounded rectangle, with an anti-aliased edge. Bracket it with `save` and `restore`.
+
+```ts
+canvas.save()
+canvas.setClip({ kind: 'roundRect', x: 0, y: 0, w: 240, h: 160, radius: 16 })
+canvas.drawImage(portrait, 0, 0, 240, 160)
+canvas.restore()
+```
+
+The image shows only inside the rounded rectangle. A rounded rectangle clip takes `radii` in place of `radius` for different corners, in the same shorthand as `fillRoundRect`. `setClip(null)` clears the clip, and `restore` does too.
+
+To clip a whole subtree of nodes, set [`clip`](/module/scene/node2d#clip) on the parent node. Setting `clip` repaints nothing.
+
+```ts
+panel.clip = { x: 0, y: 0, width: 320, height: 200 }
+```
+
+Everything under `panel` is cropped to that rectangle, in the panel's local space.
+
+### Add shadows
+
+A rectangle, rounded rectangle or circle gets an analytic shadow from `shadowRoundRect`, `shadowCircle` or the `shadow` option of {@link ShapeNode}. Draw the shadow first, then the shape.
+
+```ts
+canvas.shadowRoundRect(0, 0, 240, 140, 16, {
+  color: 'rgba(20, 16, 40, 0.35)',
+  offsetY: 8,
+  blur: 32,
+})
+canvas.fillRoundRect(0, 0, 240, 140, 16, '#1c1c22')
+```
+
+A soft dark shadow appears under the card. The style is {@link GfxShadowStyle}. `offsetX`, `offsetY`, `blur` and `spread` are lengths in the node's local units. `blur` is the CSS blur radius, and the shadow's Gaussian sigma is half of it. `inset: true` draws the shadow inside the shape, as CSS `box-shadow` does.
+
+`ShapeNode` takes the same style in its `shadow` option and draws in CSS order: outset shadows, the fill, inset shadows, then the border. An outset shadow is cut out from under the shape, so the shadow stays hidden behind a translucent fill. {@link Path2DNode} takes a `shadow` option too, which draws from a cached mask. See [Path shadows](/path-shadows) for what the cache costs and what stays free to animate.
+
+### Fill with a gradient
+
+A fill is a CSS color string or a gradient. A linear gradient has an axis from `(x0, y0)` to `(x1, y1)` in the current local space.
+
+```ts
+canvas.fillRoundRect(20, 20, 160, 32, 8, {
+  kind: 'linear',
+  x0: 0,
+  y0: 20,
+  x1: 0,
+  y1: 52,
+  stops: [
+    { offset: 0, color: '#3a2d5c' },
+    { offset: 1, color: '#1d1d2b' },
+  ],
+})
+```
+
+The bar shades from purple at its top to near black at its bottom. A point at the start of the axis reads `stops[0]`, and a point past the far end reads the last stop, as in CSS `linear-gradient`. A gradient works as the `color` of a stroke too. The radial gradient and a builder for CSS angles are in [Use radial and CSS gradients](#use-radial-and-css-gradients).
 
 ## Advanced usage
 
-This section covers the rules `paint` must follow, the full set of drawing calls, paths, borders, shadows, compositing groups, layers, custom shaders, and what costs time on the GPU.
+These sections cover the rules `paint` follows, drawing in a changing view, paths, exact borders, smooth corners, clips, groups, layers and pixel snapping.
 
-### Rules for `paint`
+### Follow the rules for `paint`
 
-`paint` has to be a function of the node's declared state. It must not read the clock, the node's own transform, the camera, or state that is not declared. It must not dirty any node, and in development `markNeedsPaint` throws while a node paints.
+`paint` is a function of the node's declared state. It reads declared paint properties and resources declared with `canvas.use`. A node whose content changes every frame, such as a growing bar, calls `markNeedsPaint()` from `onUpdate`.
 
-A node whose content changes every frame, such as a growing bar or a trail, calls `markNeedsPaint()` from `onUpdate`. In development the engine paints two clean nodes again each frame and warns when the result differs from the picture it kept. That is how an undeclared dependency shows up.
+```ts
+import { Node2D } from 'stargazer'
+import type { Canvas } from 'stargazer'
 
-Content that moves or turns on a clock belongs in a small child node, whose transform the update writes. Painting a rotation into the parent would repaint the parent for the whole turn.
+class Bar extends Node2D {
+  progress = 0
 
-The canvas copies arguments when it records them. A scratch array or a style object that the caller reuses can change afterwards without changing the picture. Images and paths are kept by reference. A `Canvas` is valid only while `paint` runs, and in development a call after that throws.
+  override onUpdate(dt: number): void {
+    this.progress = Math.min(1, this.progress + dt)
+    this.markNeedsPaint()
+  }
 
-### Reading the scale and the view
+  override paint(canvas: Canvas): void {
+    canvas.fillRect(0, 0, 200 * this.progress, 12, '#ffd34d')
+  }
+}
+```
 
-[`canvas.screenScale()`](/module/scene/canvas#screenscale) returns the world size of one CSS pixel. Use it for a screen-sized length that is not a stroke width, such as a shadow offset. Reading it makes the picture repaint whenever that size changes, so prefer `{ screen: n }` where it fits.
+The bar grows over one second. In development the engine paints two clean nodes again each frame and warns when the result differs from the picture it kept. That is how an undeclared dependency of `paint` shows up.
 
-[`canvas.visibleWorldRect()`](/module/scene/canvas#visibleworldrect) returns the world rectangle the camera shows. Reading it makes the picture repaint every time the camera moves. Use it only for a node that draws to the edges of the screen.
+Read the clock, the node's own transform and the camera in `onUpdate`, and store what `paint` needs in a declared property. Call `markNeedsPaint()` from `onUpdate` too, because in development it throws while a node paints. Content that moves or turns on a clock belongs in a small child node whose transform the update writes. [Common problems](#a-picture-lags-the-clock) shows an example.
 
-### All drawing calls
+The `Canvas` copies arguments when it records them, so a scratch array or a style object that the caller reuses can change afterwards while the picture keeps what was recorded. Images and paths are kept by reference. Use the `Canvas` inside `paint`. In development a call after `paint` returns throws.
 
-The `Canvas` has these fill calls:
+### Read the scale and the view
 
-- `fillRect`, `fillRoundRect`, `fillCircle`, `fillEllipse`, `fillConvexPoly`
-- `fillPath` for a {@link GfxPath}, and `fillPath2D` for a registered `Path2D`
-- `fillCircleRadialGradient`, `fillPolyLinearGradient`, `fillMaskedRadialGradient`
+[`canvas.screenScale()`](/module/scene/canvas#screenscale) returns the world size of one CSS pixel. Use it for a screen-sized length that is not a stroke width, such as a shadow offset.
 
-It has these stroke calls:
+```ts
+const px = canvas.screenScale()
+canvas.shadowRoundRect(0, 0, 240, 140, 16, {
+  color: 'rgba(20, 16, 40, 0.35)',
+  offsetY: 8 * px,
+  blur: 32 * px,
+})
+```
 
-- `strokeLine`, `strokeQuadratic`, `strokePolyline`
-- `strokeCircle`, `strokeEllipse`, `strokeRoundRect`
-- `strokePath` for a `GfxPath`, and `strokePath2D` for a registered `Path2D`
+The shadow keeps its size on screen at any zoom. Reading the scale makes the picture repaint whenever that size changes, so prefer `{ screen: n }` where it fits.
 
-`fillAndStrokeRoundRect`, `fillAndStrokeCircle` and `fillAndStrokeEllipse` draw a fill and a border in one call. A translucent border then blends against the fill once, and does not blend over it a second time.
+[`canvas.visibleWorldRect()`](/module/scene/canvas#visibleworldrect) returns the world rectangle the camera shows. Reading it makes the picture repaint every time the camera moves, so use it only for a node that draws to the edges of the screen.
 
-`shadowRoundRect`, `shadowCircle` and `shadowPath2D` draw drop shadows. `drawImage` draws an image, and `fillText` draws a line of text. See [Text](/guides/text) for text.
+```ts
+const view = canvas.visibleWorldRect()
+canvas.fillRect(view.x, view.y, view.width, view.height, '#0d1a2c')
+```
 
-Text and small images go through a shared label page. They are rasterized for the scale the node is drawn at when the picture replays, so zooming a node does not repaint its picture. `drawImage` takes `{ smoothing: false }` for nearest filtering, for pixel art.
-
-`fillPath2D`, `strokePath2D` and `shadowPath2D` need a `Path2D` with a registered tessellation. {@link parseSvgPaths} registers one for every path it returns, and {@link registerPathTessellation} registers one by hand. A `Path2D` without one draws nothing. See [Assets](/guides/assets).
-
-### Transform, alpha and blend
+### Transform, fade and blend
 
 `save` and `restore` bracket a change to the transform, alpha, blend or clip. `translate`, `rotate`, `scale` and `transform(a, b, c, d, e, f)` multiply onto the current transform, as in Canvas 2D.
 
@@ -237,15 +351,15 @@ override paint(canvas: Canvas): void {
 }
 ```
 
-Inside `paint` these calls change the recorded geometry, not the node's `transform`. The engine applies the node's own transform and alpha when it replays the picture.
+Inside `paint` these calls change the recorded geometry. The engine applies the node's own transform and alpha when it replays the picture.
 
-[`setAlpha`](/module/scene/canvas#setalpha) is relative to the node. It multiplies into the alpha the node gets from its own `transform.alpha` and its ancestors. A picture drawn at `setAlpha(0.5)` under a node at alpha 0.5 draws at 0.25. Within one picture a later `setAlpha` replaces an earlier one, like `globalAlpha`.
+[`setAlpha`](/module/scene/canvas#setalpha) is relative to the node. It multiplies into the alpha the node gets from its own `transform.alpha` and its ancestors, so a picture drawn at `setAlpha(0.5)` under a node at alpha 0.5 draws at 0.25. Within one picture a later `setAlpha` replaces an earlier one, like `globalAlpha`.
 
-[`setBlend`](/module/scene/canvas#setblend) takes `'source-over'` (the default) or `'lighter'` (additive). Any other mode draws as `'source-over'` and logs one warning per mode. For other blend modes on a whole node, see [Groups, blends and mattes](#groups-blends-and-mattes).
+[`setBlend`](/module/scene/canvas#setblend) takes `'source-over'` (the default) or `'lighter'` (additive). Another mode draws as `'source-over'` and logs one warning per mode. Blend modes for a whole node are in [Group, blend and matte nodes](#group-blend-and-matte-nodes).
 
-### Paths that change
+### Build paths that change
 
-A {@link GfxPath} is a path you build in code and can edit at any time. It needs no registration, and `clear()` keeps its storage, so refilling it allocates nothing. Every edit increases its `version`. `fillPath` and `strokePath` record the path as a dependency, so editing it repaints the node that drew it.
+A {@link GfxPath} is a path you build in code and edit at any time. `fillPath` and `strokePath` record it as a dependency, so editing the path repaints the node that drew it.
 
 ```ts
 import { GfxPath, Node2D } from 'stargazer'
@@ -265,21 +379,15 @@ class Blob extends Node2D {
 }
 ```
 
-`fillPath` takes a fill rule, `'nonzero'` (the default) or `'evenodd'`, as in Canvas 2D. A star drawn as one self-crossing outline fills solid under `'nonzero'`. Under `'evenodd'` it has a hole in the middle.
+The node draws a light blue blob with a white outline. Every edit increases the path's `version`. `clear()` keeps the path's storage, so refilling it every frame allocates nothing. Call `release()` when the path's owner is destroyed.
 
-A convex path, such as a rectangle or a circle, fills with one draw that batches with its neighbors. Any other path uses the stencil buffer. It costs two draws and covers its bounding box, so a large concave path costs about as much fill rate as its bounding box. Winding is counted modulo 16. Sixteen contours wound the same way over one point cancel out, and `fillPath` warns once when a nonzero fill has 16 or more contours.
+`fillPath` takes a fill rule, `'nonzero'` (the default) or `'evenodd'`, as in Canvas 2D. A star drawn as one self-crossing outline fills solid under `'nonzero'` and has a hole in the middle under `'evenodd'`. Fills that resolve overlap use the stencil buffer, which the stage's main surface has. See [Combined depth and stencil](/combined-depth-stencil) for the bit layout.
 
-A surface without a stencil buffer cannot resolve overlap. `fillPath` then fills even-odd whatever the rule, and warns once. The stage's main surface has a stencil buffer. See [Combined depth and stencil](/combined-depth-stencil) for the bit layout.
+`strokePath` cuts a `dash` pattern of any length, starting `dashOffset` into the pattern, and strokes each dash with the style's caps. With a gradient `color` or `exactJoins: true`, it draws the stroke as one filled shape, so sharp bends keep exact joins. That shape honors `cap`, `join` and `miterLimit`.
 
-`strokePath` cuts a `dash` pattern of any length on the CPU, starting `dashOffset` into the pattern. It strokes each dash with the style's caps, so a dashed path costs one stroke per dash. With a gradient color or `exactJoins: true`, `strokePath` draws the stroke as one filled shape, so sharp bends never fold over themselves. That shape honors `cap`, `join` and `miterLimit`.
+### Use radial and CSS gradients
 
-Call `release()` on a `GfxPath` when its owner is destroyed.
-
-### Gradients
-
-A linear gradient (`GfxLinearGradient`) works on every fill call that takes a fill and on a stroke's `color`. Its axis runs from `(x0, y0)` to `(x1, y1)` in the current local space. A point at the start reads `stops[0]`, and a point past the far end reads the last stop, as in CSS `linear-gradient`.
-
-A radial gradient (`GfxRadialGradient`) has `kind: 'radial'`, a center, a radius and an optional focal point.
+A radial gradient has `kind: 'radial'`, a center, a radius and an optional focal point.
 
 ```ts
 canvas.fillPath(blob, {
@@ -296,9 +404,9 @@ canvas.fillPath(blob, {
 })
 ```
 
-Offset 0 is at the focal point and offset 1 is on the circle. A focal point on or outside the circle is pulled just inside. The circle is in the current local space, so under a rotation, a skew, or an uneven scale its rings are ellipses, as with a CSS or SVG gradient under the same transform.
+Offset 0 is at the focal point and offset 1 is on the circle. A focal point on or outside the circle is pulled just inside. The circle is in the current local space, so under a rotation, a skew or an uneven scale its rings are ellipses, as with a CSS or SVG gradient under the same transform.
 
-A radial gradient works on `fillRect`, `fillPath`, `fillConvexPoly`, `fillPath2D`, and a `strokePath` border. `fillRoundRect` and `fillCircle` draw it as its middle stop in one flat color, and warn once. A gradient stroke on `strokeCircle`, `strokeRoundRect` or the border of a fill-and-stroke call draws in the gradient's first stop.
+A radial gradient works on `fillRect`, `fillPath`, `fillConvexPoly`, `fillPath2D` and a `strokePath` border. `fillRoundRect` and `fillCircle` draw it as its middle stop in one flat color and warn. A gradient stroke on `strokeCircle`, `strokeRoundRect` or the border of a fill-and-stroke call draws in the gradient's first stop.
 
 {@link cssLinearGradient} builds the linear gradient that CSS `linear-gradient(<angle>, ...)` paints over a box, so a design given in CSS carries over directly.
 
@@ -313,13 +421,11 @@ const fill = cssLinearGradient(330, 330, 75, [
 canvas.fillRect(0, 0, 330, 330, fill)
 ```
 
-The angle follows CSS: `0` runs bottom to top and `90` runs left to right. Offsets are the CSS positions as fractions, and like CSS positions they may lie before `0` or past `1`.
+The angle follows CSS: `0` runs bottom to top and `90` runs left to right. Offsets are the CSS positions as fractions, and like CSS positions they may lie before `0` or past `1`. Reuse one `stops` array across frames, for example a module-level constant. The renderer then finds the gradient's ramp row instead of building its key from a new array.
 
-All gradients in a frame share one small ramp texture. Ten gradient fills cost ten draws for the ten shapes, and no extra texture binds. Reuse one `stops` array across frames, for example a module-level constant, so the ramp row is found without rebuilding its key from a new array.
+### Align borders and join corners exactly
 
-### Borders: alignment and exact joins
-
-A stroke is centered on its path by default, half inside and half outside. Set `align` to move it.
+A stroke is centered on its path by default, half inside and half outside. Set `align` to `'inside'` or `'outside'` to move it.
 
 ```ts
 canvas.strokeRoundRect(0, 0, 240, 140, 16, {
@@ -329,9 +435,9 @@ canvas.strokeRoundRect(0, 0, 240, 140, 16, {
 })
 ```
 
-The values are `'center'` (the default), `'inside'` and `'outside'`. On `strokeRoundRect` and `strokeCircle`, alignment only offsets the distance field, so it costs nothing extra.
+The border sits fully outside the rectangle. On `strokeRoundRect` and `strokeCircle`, alignment offsets the distance field, so it costs nothing extra.
 
-On `strokeLine`, `strokeQuadratic`, `strokePolyline` and `strokePath2D`, three things switch the stroke to the outline renderer: a non-center `align`, `exactJoins: true`, or a gradient `color`. The outline renderer builds the border as one filled shape with exact miter, round or bevel joins and caps. The default renderer draws one piece per segment with round caps and no join geometry. Adjacent pieces overlap enough to cover a gentle bend.
+On `strokeLine`, `strokeQuadratic`, `strokePolyline` and `strokePath2D`, three things switch the stroke to the outline renderer: an `align` other than `'center'`, `exactJoins: true` and a gradient `color`. The outline renderer builds the border as one filled shape with exact miter, round or bevel joins and caps. The default renderer draws one piece per segment with round caps and no join geometry, and adjacent pieces overlap enough to cover a gentle bend.
 
 ```ts
 canvas.strokePolyline(points, count, {
@@ -343,44 +449,58 @@ canvas.strokePolyline(points, count, {
 })
 ```
 
-`miterLimit` defaults to 4, which is the SVG default. Canvas 2D uses 10.
+`miterLimit` defaults to 4, which is the SVG default. Canvas 2D uses 10. The outline renderer ignores `dash` on these four calls.
 
-A non-center `align` needs a closed contour with a clear winding. An open polyline has no inside, and a zero-area shape has no winding to read. Either one falls back to `'center'` with a one-time console warning.
+An aligned border needs a closed contour with a clear winding. An open polyline falls back to `'center'` with a one-time console warning, and so does a zero-area shape. The outline of a `strokePath2D` call is cached per path. Outlines from `strokePolyline`, `strokeLine` and `strokeQuadratic` are built again on every draw, so register a `Path2D` for an aligned border that stays the same.
 
-The outline renderer caches the outline of a `strokePath2D` call per path, keyed by the style and a half-octave scale bucket. A zoom then builds the outline again only a few times. `strokePolyline`, `strokeLine` and `strokeQuadratic` outlines are not cached. Register a `Path2D` if you need a cached aligned border. The outline renderer ignores `dash`.
+Under a translucent border, a very short segment or a sharp inner corner shows a slightly darker patch where the outline overlaps itself. A round join or a longer segment avoids it.
 
-A short segment or a sharp inner corner can make the outline overlap itself. Under a translucent border this shows as a slightly darker patch at that corner. A round join, or a longer segment, avoids it.
+### Round corners smoothly
 
-### Drop shadows
-
-A rectangle, rounded rectangle or circle gets an analytic shadow from `shadowRoundRect`, `shadowCircle`, or `ShapeNode`'s `shadow` option. An analytic shadow needs no render target and no cache, and costs the same every frame.
+A rounded rectangle can have smooth corners, as with the corner smoothing setting in Figma. A smooth corner eases from the straight side into its curve, so the outline reads as continuous. `smoothing` runs from 0, a circular corner, to 1. {@link IOS_CORNER_SMOOTHING} matches the iOS app icon shape.
 
 ```ts
-canvas.shadowRoundRect(0, 0, 240, 140, 16, {
-  color: 'rgba(20, 16, 40, 0.35)',
-  offsetY: 8,
-  blur: 32,
+import { IOS_CORNER_SMOOTHING, ShapeNode } from 'stargazer'
+
+const icon = new ShapeNode({
+  geometry: {
+    kind: 'rect',
+    width: 120,
+    height: 120,
+    radii: 27,
+    smoothing: IOS_CORNER_SMOOTHING,
+  },
+  fill: '#ffffff',
 })
-canvas.fillRoundRect(0, 0, 240, 140, 16, '#1c1c22')
 ```
 
-The style is `GfxShadowStyle`. `offsetX`, `offsetY`, `blur` and `spread` are lengths in the node's local units. `blur` is the CSS blur radius, and the shadow's Gaussian sigma is half of it. `inset: true` draws the shadow inside the shape, as CSS `box-shadow` does with `inset`. A shadow that should keep its size on screen at any zoom multiplies its lengths by `canvas.screenScale()`.
+The icon draws as a smooth-cornered square. A smooth corner uses `(1 + smoothing)` times its radius of each side. When a side is too short for that, smoothing is reduced before the radius is, the way Figma fits corners. Inside `paint`, `fillRoundRect`, `strokeRoundRect`, `fillAndStrokeRoundRect` and `shadowRoundRect` take `smoothing` as their last parameter.
 
-An analytic shadow's corners are circular. A smooth-cornered shape's shadow uses the circular radius that cuts the same area off each corner, which matches a blurred smooth corner once the blur is at least 0.6 of the radius at the iOS smoothing, and the whole radius at full smoothing. With less blur, the shadow's corners look rounder than the shape's.
+The analytic shadow has circular corners. A smooth-cornered shape's shadow uses the circular radius that cuts the same area off each corner. The two match once the blur is large enough, as documented on {@link Gfx2D.shadowRoundRect}.
 
-`ShapeNode` draws in CSS order: outset shadows, then the fill, then inset shadows, then the border. An outset shadow is cut out from under the shape, so a translucent fill does not show the shadow through itself.
+To mask other content, such as a photo, to a smooth-cornered shape, use a squircle `ShapeNode` as the content's [`matte`](/module/scene/node2d#matte), which gives an anti-aliased edge. For a cheaper hard-edged clip, set the parent's `clip` to an outline from {@link squirclePath}.
 
-`Path2DNode`'s `shadow` option draws through `shadowPath2D`. A path has no closed-form distance, so the renderer rasterizes the path once into a small mask, blurs it, and reuses it every frame. The bake runs before the next frame, so a new shadow shows a nearby cached mask or a hard unblurred copy for its first frame. An inset shadow with no mask is skipped.
+```ts
+import { GfxPath, IOS_CORNER_SMOOTHING, squirclePath } from 'stargazer'
 
-Offset can animate without a new bake. Blur and spread cannot. With `strokeSpace: 'screen'` the blur changes in local units on every frame of a zoom, which bakes a new mask each frame. Use `strokeSpace: 'world'` for a path shadow on a node the camera zooms. See [Path shadows](/path-shadows) for the cache, its budgets and its key.
+card.clip = squirclePath(
+  new GfxPath(),
+  0,
+  0,
+  200,
+  120,
+  24,
+  IOS_CORNER_SMOOTHING,
+)
+```
 
-### Path clips and bitmap masks
+Everything under `card` is clipped to the 200 by 120 shape. {@link squircleSvgPath} gives the same outline as SVG path data, and {@link squirclePath2D} gives it as a `Path2D` that a {@link Path2DNode} can draw.
 
-The `Canvas` has three clips. `setClip` handles a circle or a rounded rectangle. [`clipPath`](/module/scene/canvas#clippath) handles any `GfxPath`. [`setClipMask`](/module/scene/canvas#setclipmask) samples a {@link BitmapMask}.
+### Clip to paths and bitmaps
 
-A `setClip` shape keeps the local space it was set in, together with the transform. Each pixel is measured against it there. A circle clip under an uneven scale becomes the matching ellipse. The shape, fill, text and image draws read the clip per primitive, so changing the clip does not end their batch. Strokes, gradient programs, shader quads and path shadows read the clip in device space. That approximates a circle under an uneven scale and a rounded rectangle under rotation, and a clip change ends their batch.
+The `Canvas` has three clips. `setClip` takes a circle or a rounded rectangle. [`clipPath`](/module/scene/canvas#clippath) takes any `GfxPath`. [`setClipMask`](/module/scene/canvas#setclipmask) samples a {@link BitmapMask}.
 
-`clipPath(path, rule?)` limits every following draw to the inside of a `GfxPath`, exactly per pixel under any transform. `restore()` undoes it. Clips nest, each one narrowing the last.
+`clipPath(path, rule?)` limits every following draw to the inside of a `GfxPath`, exactly per pixel under any transform. `restore()` undoes it. Clips nest, each one narrowing the last, and a path clip combines with `setClip`.
 
 ```ts
 canvas.save()
@@ -389,19 +509,21 @@ canvas.fillRect(0, 0, 400, 400, '#7cc4ff')
 canvas.restore()
 ```
 
-Only the part of the rectangle inside `blob` is drawn. A path clip uses the stencil buffer. It costs two extra draws to set up and one to undo, and every draw inside it tests the stencil. Nesting stops at 7 levels, and a deeper clip is ignored with a warning. A surface without a stencil buffer ignores `clipPath` and warns once. A path clip combines with `setClip`.
+Only the part of the rectangle inside `blob` is drawn. The stencil buffer holds path clips, up to 7 levels deep. A deeper clip is ignored with a warning.
 
-`setClipMask(mask)` masks by a `BitmapMask`'s alpha. It masks fills only, not strokes or text, and it uploads the mask as a texture. Use it only when the shape cannot be a circle, a rounded rectangle or a path.
+`setClipMask(mask)` masks by a `BitmapMask`'s alpha. It masks fills and uploads the mask as a texture, so use it when the shape cannot be a circle, a rounded rectangle or a path.
 
-A node's `clip` works on the whole subtree. A rectangle `clip` on an axis-aligned node clips in the shader and costs no draw. A path clip, a rectangle clip inside another clip, and a clip on a rotated node use the stencil.
+A `setClip` shape keeps the local space it was set in, together with the transform. Shape, fill, text and image draws measure each pixel against it there, so a circle clip under an uneven scale becomes the matching ellipse. Strokes, gradient programs, shader quads and path shadows measure the clip in device space, which approximates a circle under an uneven scale and a rounded rectangle under rotation.
 
-### Groups, blends and mattes
+A node's `clip` works on the whole subtree. A rectangle `clip` on an axis-aligned node clips in the shader. A path clip, a rectangle clip inside another clip and a clip on a rotated node use the stencil buffer.
+
+### Group, blend and matte nodes
 
 Inside one picture, a translucent group fades per draw. Alpha multiplies into each draw separately, so overlapping parts show through each other.
 
-A subtree that must fade as one flat image sets [`compositeGroup`](/module/scene/node2d#compositegroup) to `true` on its root node. The engine draws the node and its subtree into an offscreen surface, then composites the surface once with the node's cascaded `alpha`. Each group costs a surface for the frame, rendered in its own pass before the main pass. Use it only where parts overlap while translucent. A group that holds an inset view fades per draw instead.
+A subtree that fades as one flat image sets [`compositeGroup`](/module/scene/node2d#compositegroup) to `true` on its root node. The engine draws the node and its subtree into an offscreen surface, then composites the surface once with the node's cascaded `alpha`. Use it where parts overlap while translucent. A group that holds an inset view fades per draw instead.
 
-[`compositeBlend`](/module/scene/node2d#compositeblend) sets how a node composites into what is under it. Any value other than `'source-over'` makes the node a group. The supported modes are `'source-over'`, `'lighter'`, `'screen'`, `'multiply'`, `'destination-out'`, `'destination-in'` and `'xor'`. Any other mode composites as `'source-over'` and warns once.
+[`compositeBlend`](/module/scene/node2d#compositeblend) sets how a node composites into what is under it. A value other than `'source-over'` makes the node a group. The supported modes are listed on the property. Another mode composites as `'source-over'` and warns once.
 
 [`matte`](/module/scene/node2d#matte) takes another node whose drawing scales this one's, as a track matte. The engine draws the node and its subtree into one surface, and the matte node and its subtree into another over the same area. The node then composites through the matte by [`matteMode`](/module/scene/node2d#mattemode): `'alpha'`, `'inverted-alpha'`, `'luma'` or `'inverted-luma'`.
 
@@ -417,15 +539,13 @@ photo.matteMode = 'alpha'
 parent.add(reveal, photo)
 ```
 
-`photo` shows only inside the circle. The matte node is not drawn on its own. It usually sits next to the node it serves, so both share the parent's transform. A hidden matte is empty, which hides the node, or shows all of it with an inverted mode.
+`photo` shows only inside the circle. The matte node draws only through the node it serves. It usually sits next to that node, so both share the parent's transform. A hidden matte is empty, which hides the node, or shows all of it with an inverted mode.
 
 A mask made of several shapes is a matte whose children are groups with `compositeBlend` set. `'destination-out'` subtracts a shape from the coverage so far, `'destination-in'` intersects with it, and `'xor'` keeps what lies in only one of them.
 
-These groups use the renderer-level {@link Gfx2D} calls `beginOffscreen` and `endOffscreen`. The `Canvas` a node paints into has no offscreen calls, so a picture cannot open a surface itself.
+### Place content in layers
 
-### Layers
-
-A {@link Layer} is a node that gives its subtree its own placement, its own post-processing effects, or a kept render. It draws through the same kind of surface a group uses.
+A {@link Layer} is a node that gives its subtree its own placement, its own post-processing effects, or a kept render.
 
 ```ts
 import { Layer } from 'stargazer'
@@ -437,59 +557,11 @@ scene.root.add(hud)
 hud.add(scoreLabel)
 ```
 
-The layer fits a 1920 by 1080 frame into the canvas and ignores the camera, so `scoreLabel` stays put while the camera pans. [`space`](/module/scene/layer#space) is `'world'` (the default), `'screen'`, or `{ frame }`. A frame can be a function of the canvas size, see [Scene graph](/guides/scene#layers).
+The layer fits a 1920 by 1080 frame into the canvas element and follows its own view instead of the camera, so `scoreLabel` stays put while the camera pans. The `space`, `effects` and `cache` options and the rules for when a cached layer renders again are described on {@link Layer}. See [Scene graph](/guides/scene) for layers in a scene and [Post-processing](/guides/post-processing) for effects.
 
-[`effects`](/module/scene/layer#effects) runs post-processing over the layer's subtree only. See [Post-processing](/guides/post-processing). A layer draws without its effects while their pipelines compile, and when it holds an inset view or sits inside one.
+### Snap to device pixels
 
-[`cache: 'raster'`](/module/scene/layer#cache) keeps the layer's rendered result and draws it again as one textured quad while nothing under the layer changes. The layer renders again when a node under it moves, changes visibility or alpha, repaints, or is added or removed. It also renders again when an effect's parameters, the canvas, the view or the region change. Call [`invalidate()`](/module/scene/layer#invalidate) for a change that none of these cover. A node under the layer that draws with `draw` instead of `paint` makes the layer render every frame.
-
-### Custom shaders
-
-[`canvas.drawShaderQuad(quad, x, y, w, h)`](/module/scene/canvas#drawshaderquad) draws a rectangle with your own shader. Use it when one fragment shader can stand in for many shapes, such as a field of dots or a procedural fill. Drawing each shape separately would cost a draw record each.
-
-```ts
-import { DataTexture, Node2D, ShaderQuad, quadShader } from 'stargazer'
-import type { Canvas } from 'stargazer'
-
-const shader = quadShader(vertGlsl, fragGlsl, wgsl, reflection)
-const cells = new DataTexture(cols, rows)
-const quad = new ShaderQuad({ shader, paramsBytes: 32, textures: [cells] })
-
-class Field extends Node2D {
-  override paint(canvas: Canvas): void {
-    canvas.drawShaderQuad(quad, 0, 0, width, height)
-  }
-
-  override onUpdate(): void {
-    quad.params[0] = cols
-    cells.data[i * 4] = 200
-    cells.markDirty()
-  }
-}
-```
-
-The picture holds the quad by reference. Each replay draws it with the params and texture contents as they are at that moment, so changing them does not repaint the node.
-
-The current transform (rotation included), `setAlpha`, `setBlend`, `setClip` and `clipPath` apply. `setClipMask` does not, so a shader that needs a bitmap outline samples it itself. Nothing draws until the quad's pipelines finish compiling. `ShaderQuad` takes at most 4 textures and 256 bytes of params.
-
-#### The shader contract
-
-Write one WGSL module with `vs_main` and `fs_main`. Run `npm run gen:shaders` to generate the GLSL and the reflection file beside it. The module declares these bindings and inputs:
-
-- Group 0, binding 0 holds the shared `Frame` block, and binding 8 holds the `Clip` block. Copy the `Frame` struct from an existing shader such as `render/gfx/shaders/maskedRadialGradient.wgsl`, and the `Clip` struct, `clipCoverage` and the distance helpers it calls from `render/gfx/shaders/include/clipUniform.inc.wgsl` and `sdf.inc.wgsl`.
-- Vertex input `a_unit` at location 0 is the quad's corner in `0..1`. `a_originAxisX` at location 1 is a `vec4` with the origin in device pixels and the x edge vector. `a_axisYAlpha` at location 2 holds the y edge vector, then the draw's alpha.
-- Group 1, binding 10 is a `Params` uniform block, written from `quad.params`.
-- Group 1, bindings 0 to 3 are up to four textures, each a `DataTexture`.
-
-The vertex shader places the corner at `origin + axisX * unit.x + axisY * unit.y`, projects it with `frame.proj`, and passes `unit` on as the quad's UV.
-
-Each draw takes a snapshot of `params`. A `DataTexture` is different. Its uploads are not ordered against draws already recorded in the frame, so every draw that samples it sees the contents as they were when the last of those draws was recorded. Write a texture once per frame, before drawing with it.
-
-### Pixel snapping
-
-The engine has two tools for crisp pixels, one for sizes and one for positions.
-
-[`canvas.snap(length)`](/module/scene/canvas#snap) rounds a local length to a whole number of device pixels at the scale the node is drawn at. It marks the picture as depending on scale. Use it on sizes, not positions. A grid of equal cells then loses the cell-to-cell width differences that look like aliasing, and the block keeps one shared subpixel offset, so it still slides smoothly.
+Two tools keep edges crisp, one for sizes and one for positions. [`canvas.snap(length)`](/module/scene/canvas#snap) rounds a local length to a whole number of device pixels at the scale the node is drawn at. Use it on sizes. A grid of equal cells then keeps equal cell widths, and the block keeps one shared subpixel offset, so it still slides smoothly.
 
 ```ts
 override paint(canvas: Canvas): void {
@@ -508,13 +580,13 @@ override paint(canvas: Canvas): void {
 
 The picture repaints once the scale stops at a new value, because a snapped length rounds differently at each scale.
 
-[`pixelSnap`](/module/scene/node2d#pixelsnap) set to `true` on a node rounds the node's origin to a whole device pixel when it is drawn. It moves the node by less than half a pixel and never repaints. Sharp edges and nearest-filtered images then land on pixel boundaries at rest.
+[`pixelSnap`](/module/scene/node2d#pixelsnap) set to `true` on a node rounds the node's origin to a whole device pixel when it is drawn. It moves the node by less than half a pixel and repaints nothing. Sharp edges and nearest-filtered images then land on pixel boundaries at rest.
 
-### Bounds and culling
+### Set bounds for culling and hit testing
 
-A node's [`bounds`](/module/scene/node2d#bounds) is the local box of what its picture drew. The canvas works it out while recording, so ordinary drawing needs no setup. The engine uses bounds to skip a node whose world box is outside the view, for the default `hitTest`, and for the debug outline. Screen-width strokes and shadows reach a little past the box, and culling and hit testing allow for that.
+A node's [`bounds`](/module/scene/node2d#bounds) is the local box of what its picture drew. The `Canvas` works it out while recording, so ordinary drawing needs no setup. The engine uses bounds to skip a node whose world box is outside the view, for the default `hitTest` and for the debug outline. Screen-width strokes and shadows reach a little past the box, and culling and hit testing allow for that.
 
-A picture whose extent is unknown has no bounds, and it draws every frame wherever the camera is. `fillPath2D`, `strokePath2D` and `shadowPath2D` make a picture unbounded, because a `Path2D` has no bounds of its own. This is a common reason a scene stays slow after zooming in. Set [`boundsOverride`](/module/scene/node2d#boundsoverride) to the local box to fix it.
+`fillPath2D`, `strokePath2D` and `shadowPath2D` give a picture no bounds, because a `Path2D` has no bounds of its own. Such a node draws every frame wherever the camera is, until you set [`boundsOverride`](/module/scene/node2d#boundsoverride) to its local box.
 
 ```ts
 import { Node2D } from 'stargazer'
@@ -527,60 +599,122 @@ class Panel extends Node2D {
 }
 ```
 
-`boundsOverride` replaces `bounds` for hit testing and the debug outline. Culling uses it together with the picture's bounds, so a node never disappears while part of what it paints is still in view. A container with no picture of its own sets it to take taps over a region. `Path2DNode` takes the box as its `bounds` option.
+`boundsOverride` replaces `bounds` for hit testing and the debug outline. Culling uses it together with the picture's bounds, so a node stays visible while part of what it paints is in view. A container with no picture of its own sets it to take taps over a region. {@link Path2DNode} takes the box as its `bounds` option.
 
-### Immediate drawing with `draw`
+### Draw immediately with `draw`
 
-A `Node2D` that has no `paint` method can override [`draw(gfx, camera, dt)`](/module/scene/node2d#draw) instead. The engine calls `draw` every frame with a `Gfx2D`, and records nothing. Use `paint` wherever you can. A `draw` node has no picture bounds, so it is never culled unless it sets `boundsOverride`, and it makes a cached `Layer` above it render every frame.
+Immediate drawing runs the draw commands again every frame, through {@link Gfx2D}. Use it for content that changes on every frame, when recording a picture each frame would cost more than drawing directly. A `Node2D` that has no `paint` method overrides [`draw(gfx, camera, dt)`](/module/scene/node2d#draw) instead.
 
-### Keeping the batch intact
+```ts
+import { Node2D } from 'stargazer'
+import type { Gfx2D } from 'stargazer'
 
-When a picture replays, its draws are appended to per-program buffers. At the end of the frame the renderer submits them in painter order. A change of program, texture or blend mode starts a new batch. Alpha, color and transform do not, because they are stored per instance. The renderer also merges runs of the same program and state when no draw between them overlaps them, so interleaving programs does not stop their draws from batching.
+class Scope extends Node2D {
+  readonly samples = new Float32Array(128)
 
-The `shape` program (rects, rounded rects, circles, text, small images and atlas sprites) and the `coloredTri` program (fills) store the clip as an index per primitive. Changing the clip does not end their run. Strokes, gradient programs, shader quads and path shadows still start a new batch on a change of clip.
+  override draw(gfx: Gfx2D): void {
+    gfx.strokePolyline(this.samples, 64, { color: '#7cc4ff', width: 2 })
+  }
+}
+```
 
-The buffers grow when a frame needs more room and halve again after 60 frames under a quarter full. The renderer never drops a draw for lack of room. A scene with thousands of separate runs pays in upload bytes and uniform slices, which the debug HUD shows.
+The engine calls `draw` every frame with the node's transform and alpha already set on `gfx`, and records nothing. A `draw` node has no picture bounds, so it is culled only when it sets `boundsOverride`. It makes a cached `Layer` above it render every frame.
 
-A few habits keep batches long:
+### Draw with your own shader
 
-- Fade with alpha, not color. A node's `alpha` and `setAlpha` are stored per instance, and a fade never repaints. Writing a new color string repaints the node, and for text it rasterizes the label again.
-- Don't build color strings per object in `paint`. {@link mixColor} and {@link withAlpha} return new strings. Call them once at module load. To cross-fade many things, draw the old color and then the new one under `setAlpha`.
-- Don't draw a translucent shape in two overlapping parts, such as a plus sign made of two bars. The overlap blends twice and reads as a dark patch. Mix the color once with `mixColor(background, ink, amount)` to get an opaque color that looks the same. For the same reason, animate such a shape in by scaling its node, not by fading it.
-- Group images by texture, not by object. Switching between images from different sources starts a new batch each time. Text, small images and atlas sprites share fixed texture units, so they interleave without breaking a batch.
+When one fragment shader can stand in for many shapes, such as a field of dots, draw a rectangle with `canvas.drawShaderQuad`. See [Custom shaders](/guides/custom-shaders).
 
-A translucent stroke with several segments is the one case the engine fixes for you. It uses the stencil buffer so that the stroke paints each pixel once, and a dashed translucent polyline does not show beads at its joins. An outline-rendered border is one filled shape and needs no fix. A surface without a stencil buffer draws plain overlapping segments. The stage's surface keeps its stencil bits when a 3D pass adds depth, see [Combined depth and stencil](/combined-depth-stencil).
+## Common problems
 
-### What the renderer keeps
+### A property never repaints the node
 
-A picture at rest is replayed every frame. The renderer keeps on the GPU what it builds from the picture, so a still scene uploads little per frame. You don't ask for this. Something is kept once it is drawn the same way on two frames in a row, and only where keeping it costs no extra draw call.
+A class field with an initializer defines an own property on the instance, which hides the accessor that `definePaintProps` installs. Writing the field then never reaches the accessor. In development `definePaintProps` throws when it finds one. Declare the field with `declare` and no initializer.
 
-The renderer keeps these:
+```ts
+import { Node2D, definePaintProps } from 'stargazer'
 
-- A stroke of 256 segments or more, from `strokePolyline` or a registered `Path2D`.
-- The tessellation of a registered `Path2D` with a linear gradient fill or an inset shadow. Geometry with 1500 indices or more is kept from its first draw. `registerPathTessellation` takes `{ retained: true }` to keep smaller geometry too.
-- The filled shape of a `strokePath` drawn with a gradient or `exactJoins`, and the outline of a registered `Path2D` stroke.
-- The flattened form of a `GfxPath`, for the last few scales it was drawn at.
-- Text and small images, in the label page.
-- Path shadow masks.
+// Hides the accessor, so writes to value never repaint.
+class Stuck extends Node2D {
+  value = 0.4
 
-A flat fill, or a gradient fill that shares its gradient with another fill, is not kept. It already draws in one call with its neighbors. Kept content is freed when it goes undrawn for a while, or when its cache passes its memory budget, and built again on its next draw.
+  constructor() {
+    super()
+    definePaintProps(this, { value: 0.4 })
+  }
+}
 
-These stop the renderer from keeping content:
+class Gauge extends Node2D {
+  declare value: number
 
-- Repainting. A new recording frees what was kept for the old one.
-- Moving every frame. A kept stroke is held in device pixels, so a node that moves, scales or rotates builds its strokes again each frame, even when its picture rests.
-- Dashes, which are cut again on every draw.
-- Editing a `GfxPath` every frame.
+  constructor() {
+    super()
+    definePaintProps(this, { value: 0.4 })
+  }
+}
+```
 
-Paths that don't touch share draws. Several stencil-filled paths that sit apart cost one pass for their winding and one for their paint. Translucent strokes that sit apart share their three passes. Paths that overlap draw in order, each with its own passes.
+### Content sits half its size off
 
-### Reading the cost
+A `ShapeNode` rectangle is centered on the node's origin by default, while `Canvas.fillRect` takes a top-left corner. Mixing the two shifts content by half its size. Set `centered: false` to give a `ShapeNode` a top-left origin, or draw from `(-width / 2, -height / 2)` in `paint`.
 
-`?debug=hud` opens the debug HUD. Its Rendering panel shows draw calls, repaints, upload bytes per frame, program switches, texture binds, blend switches, merged runs, uniform slices, instance counts and cache memory. The tooltip on the Uploaded card breaks the upload down by program and names the pictures that stream the most. A picture that uploads kilobytes every frame while it looks still is worth a look. The panel's Textures section shows the atlas and the label page.
+```ts
+import { ShapeNode } from 'stargazer'
 
-A label page reset means every label in the scene was rasterized again in one frame. That is the most expensive thing the text cache does.
+const panel = new ShapeNode({
+  geometry: { kind: 'rect', width: 240, height: 140, centered: false },
+  fill: '#1c2438',
+})
+```
 
-`?debug=perf` also wraps each node's update and draw in `performance` marks, so the browser profiler shows a per-node timeline. [`Engine.lastFrameWorkSec`](/module/engine/engine#lastframeworksec) is the CPU work inside the frame, not the time between frames. See [Debugging](/guides/debugging).
+### A picture lags the clock
+
+`paint` that reads the clock, the node's transform or the camera records a picture that goes stale, because the engine replays it until a declared value changes. Put content that moves on a clock in a child node and write the child's transform in `onUpdate`.
+
+```ts
+import { Node2D } from 'stargazer'
+import type { Canvas } from 'stargazer'
+
+class Hand extends Node2D {
+  override paint(canvas: Canvas): void {
+    canvas.strokeLine(0, 0, 0, -60, { color: '#ffd34d', width: { screen: 3 } })
+  }
+}
+
+class Clock extends Node2D {
+  readonly hand = new Hand()
+
+  constructor() {
+    super()
+    this.add(this.hand)
+  }
+
+  override onUpdate(dt: number): void {
+    this.hand.transform.rotation += dt
+  }
+}
+```
+
+The hand paints once and turns every frame. Painting a rotation into the parent would repaint the parent for the whole turn.
+
+### A path draws nothing
+
+`fillPath2D`, `strokePath2D` and `shadowPath2D` need a `Path2D` with a registered tessellation. {@link parseSvgPaths} registers one for every path it returns, and {@link registerPathTessellation} registers one by hand. See [Assets](/guides/assets).
+
+### An image looks jagged
+
+The GPU samples an image from one resolution, with no mipmaps, so an image drawn at a small fraction of its natural size aliases. Scale the bitmap to the drawn size once.
+
+```ts
+const small = await createImageBitmap(logo, {
+  resizeWidth: 80,
+  resizeHeight: 80,
+  resizeQuality: 'high',
+})
+```
+
+## Next step
+
+Keep frames cheap as the scene grows with [Rendering performance](/guides/performance), which covers what breaks a batch and how to read the cost in the debug HUD.
 
 ## See also
 
@@ -599,5 +733,7 @@ A label page reset means every label in the scene was rasterized again in one fr
 - [Assets](/guides/assets): SVG paths, tessellation and bitmap masks
 - [Camera](/guides/camera): coordinate spaces and `screenScale`
 - [Post-processing](/guides/post-processing): effects on the stage and on a layer
+- [Rendering performance](/guides/performance): batches, kept content and the debug HUD
+- [Custom shaders](/guides/custom-shaders): your own fragment shader on a rectangle
 - [Path shadows](/path-shadows): how path shadow masks are baked and cached
 - [Combined depth and stencil](/combined-depth-stencil): the stencil bit layout

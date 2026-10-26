@@ -34,6 +34,9 @@ const pathToContourClosed = new WeakMap<Path2D, boolean[]>()
  * matches SVG shape paths (states, hexes) whose contours end with a `Z`. Set
  * explicit `false` for open curves like the tutorial arch, otherwise
  * `strokePath2D` will emit a spurious closing segment.
+ *
+ * `opts.retained` keeps the tessellation on the GPU from its first draw. It
+ * defaults to true for geometry of 1500 indices or more.
  */
 export function registerPathTessellation(
   path: Path2D,

@@ -1,26 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { GpuGfx } from './GpuGfx'
 import { GfxPath } from './GfxPath'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { makeFrameGfx } from './testing/gpuGfxHarness'
 
-async function makeGfx(): Promise<{ gfx: GpuGfx; device: MockGfxDevice }> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device, { stencil: true })
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#000000',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-  return { gfx, device }
-}
+const makeGfx = () => makeFrameGfx({ stencil: true }, { clearColor: '#000000' })
 
 function star(): GfxPath {
   const p = new GfxPath()

@@ -107,7 +107,7 @@ export class InputSystem {
   get touchSlopScreen(): number {
     return this.#touchSlopScreenPx
   }
-  /** Set how far a press may move, in CSS pixels, before it counts as a drag. */
+  /** Set the hit margin around nodes in CSS pixels. */
   setTouchSlopScreen(cssPx: number): void {
     this.#touchSlopScreenPx = Math.max(0, cssPx)
   }

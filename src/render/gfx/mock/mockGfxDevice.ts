@@ -30,7 +30,6 @@ import type {
   PipelineDesc,
   DepthStencilFormat,
   RenderPassDesc,
-  ScissorRect,
   RenderTarget,
   RenderTargetOpts,
   ShaderModule,
@@ -109,8 +108,6 @@ export interface DrawRecord {
   colorWrite: boolean
   /** The reference the draw tests against: the call's, else the pipeline's. */
   stencilReference: number
-  /** The draw's scissor rectangle, or `null` when unscissored. */
-  scissor: ScissorRect | null
   /**
    * Program identity: the pipeline's shader module, stable across blend
    * variants.
@@ -191,11 +188,10 @@ export class MockGfxDevice implements GfxDevice {
   readonly ndc: NdcConventions
 
   // Derived device-level mirrors for tests that assert render state without
-  // inspecting pipeline descriptors: the last-drawn pipeline's cull/depth, and
-  // the shadow render passes begun/ended this session.
+  // inspecting pipeline descriptors: the last-drawn pipeline's cull and depth
+  // test, and the shadow render passes begun and ended this session.
   cull: CullMode = 'none'
   depthTest = false
-  depthWrite = true
   readonly shadowLayerBegins: number[] = []
   readonly shadowCubeFaceBegins: number[] = []
   shadowPassEnds = 0
@@ -655,7 +651,6 @@ export class MockGfxDevice implements GfxDevice {
     }
     this.cull = desc.cull
     this.depthTest = desc.depth?.test ?? false
-    this.depthWrite = desc.depth?.write ?? true
     const kind: DrawRecord['kind'] = call.indexBuffer
       ? 'elements'
       : desc.primitive === 'line-list'
@@ -694,7 +689,6 @@ export class MockGfxDevice implements GfxDevice {
       stencil: desc.stencil ?? null,
       colorWrite: desc.color?.write !== false,
       stencilReference: call.stencilReference ?? desc.stencil?.reference ?? 0,
-      scissor: call.scissor ? { ...call.scissor } : null,
       texture,
     })
     if (this.#curPass) this.#curPass.drawCount++
@@ -804,7 +798,6 @@ export class MockGfxDevice implements GfxDevice {
     this.computePassEnds = 0
     this.cull = 'none'
     this.depthTest = false
-    this.depthWrite = true
     this.#curPassShadow = false
     this.#bufferBytes.clear()
     this.#lastBufferBytes = null

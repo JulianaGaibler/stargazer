@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DebugLine3DRenderer } from './DebugLine3DRenderer'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import type { PipelineDesc } from './GfxDevice'
 import { mat4 } from '../../math/Mat4'
 

@@ -257,8 +257,10 @@ export function kernelTruncatedMass(
 }
 
 /**
- * The resolution formula (§7.4): mask size and the per-axis device-px-per-texel
- * scale.
+ * The mask size and the per-axis device-px-per-texel scale. A larger blur
+ * lowers the resolution, so its sigma in texels stays near `sigmaBudget`. The
+ * scale is computed after the size is quantized, separately for each axis, so a
+ * wide and short shape blurs the same on both.
  */
 export function resolveMaskSize(
   localBoundsW: number,

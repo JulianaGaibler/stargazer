@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GpuGfx } from '../render/gfx/GpuGfx'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 import { parseLottie } from '../lottie/model/parse'
 import { LottieNode } from './LottieNode'
 import type { Affine2x3, CameraView2D } from '../camera/CameraView2D'

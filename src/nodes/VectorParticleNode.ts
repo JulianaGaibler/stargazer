@@ -226,6 +226,10 @@ export abstract class VectorParticleNode extends Node2D {
     this.#drainEmptyResolvers()
   }
 
+  /**
+   * Move each live particle: damping, then acceleration, then position. Then
+   * run `updateExtra` and `shouldDespawn` for it.
+   */
   override onUpdate(dt: number): void {
     if (dt <= 0) return
     const damp = this.#damping === 0 ? 1 : Math.exp(-this.#damping * dt)

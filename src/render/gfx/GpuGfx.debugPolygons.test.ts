@@ -1,28 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
-
-function makeGpuGfx(): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device)
-  return { gfx, device }
-}
-
-async function beginFrame(gfx: GpuGfx, device: MockGfxDevice): Promise<void> {
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#0d1a2c',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-}
+import { beginFrame, makeGpuGfx } from './testing/gpuGfxHarness'
 
 describe("GpuGfx 'polygons' debug mode on the outline tessellator", () => {
   it('draws extra stroke-program instances for the tessellated mesh, not the source contour', async () => {

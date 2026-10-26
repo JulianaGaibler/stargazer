@@ -27,12 +27,8 @@ export interface ParticleEmitterConfig {
   /** Palette of hex colors, particles pick one uniformly at random. */
   palette: readonly string[]
   /**
-   * Sprite shape: `'gradient'` (default), soft radial fade, pair with `blend:
-   * 'lighter'` for classic bloom, or `blend: 'source-over'` for a softer glow.
-   * `'disc'`, solid disc with an AA edge, pair with `blend: 'source-over'` for
-   * sharp, non-bloomed particles (sparks, projectiles). `'hexagon'` and
-   * `'square'`, solid flat shapes with the same AA margin, for crisp debris or
-   * data-style trails under `blend: 'source-over'`.
+   * Sprite shape, default `'gradient'`. See {@link ParticleSpriteStyle} for the
+   * styles and the blend each one suits.
    */
   spriteStyle?: ParticleSpriteStyle
   /** Canvas composite mode. Default `'lighter'`, additive bloom. */
@@ -173,8 +169,10 @@ export class ParticleEmitter {
   }
 
   /**
-   * Advance every live particle by `dt` and emit up to `ratePerSec * dt` new
-   * particles from the current origin.
+   * Emit up to `ratePerSec * dt` new particles from the current origin,
+   * carrying the fraction to the next call. Then move each live particle:
+   * damping, then acceleration, then position, then spin. A particle dies below
+   * `minSpeedFrac` of its launch speed or when its life reaches 0.
    */
   update(dt: number): void {
     if (dt <= 0) return

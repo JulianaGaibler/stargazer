@@ -991,8 +991,8 @@ export class ColoredTriProgram implements GpuProgram {
    * Fill the flattened contours of `flat` with the stencil-then-cover recipe.
    * The fan counts winding into the stencil bits with color writes off, then a
    * device-space quad over the path's bounds paints where the count is set and
-   * clears it. The two are recorded back to back from one reservation, so the
-   * winding bits are never left set. `rule` picks the recipe row.
+   * clears it. The two are recorded back to back, so the winding bits are zero
+   * again once the cover is done. `rule` picks the recipe row.
    *
    * Returns false when nothing was drawn.
    */

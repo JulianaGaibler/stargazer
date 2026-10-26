@@ -31,10 +31,12 @@ const EPS = 1e-9
  *
  * A `Stage` tracks one _current_ 2D camera and renders through it. The first
  * camera attached to a stage becomes current. {@link CameraNode2D.makeCurrent}
- * switches, {@link CameraNode2D.enabled} gates.
+ * switches, {@link CameraNode2D.enabled} gates. When the current camera is
+ * disabled, removed or destroyed, the enabled camera with the highest
+ * {@link CameraNode2D.priority} takes over, and the earliest attached wins among
+ * equals. A stage with no enabled camera has no current camera.
  *
- * Camera nodes are leaf-only (they reject children) and {@link Node.intrinsic}
- * when auto-created as a stage default.
+ * Camera nodes are leaf-only and reject children.
  */
 export class CameraNode2D extends Node2D implements CameraView2D {
   /**

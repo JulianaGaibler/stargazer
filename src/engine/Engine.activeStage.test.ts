@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Engine } from './Engine'
 import { Node2D } from '../scene/Node2D'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 
 /**
  * Happy-dom's `<canvas>` doesn't return a real WebGL2 context, but `GpuGfx`

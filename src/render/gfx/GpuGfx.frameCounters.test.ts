@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 
 describe('GpuGfx frame counters', () => {
   it('counts device work done before and after the frame, then starts over', async () => {

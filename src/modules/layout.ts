@@ -44,7 +44,8 @@
  *
  * The pass runs inside the engine frame, between the update walk and
  * world-transform propagation, so the positions `arrange` writes reach the
- * world matrices on the same frame.
+ * world matrices on the same frame. It also runs while the engine is paused, so
+ * a resize during a pause still reflows.
  *
  * It is on demand rather than per frame. `markLayoutDirty` (bubbled up to the
  * owning root) and the engine `resize` event set a flag, and the root
@@ -119,8 +120,7 @@
  * ## Limitations
  *
  * Sizing is a single pass, so there is no intrinsic sizing (a container that
- * sizes to its widest child). Text is not measured, so wrap a label in a
- * {@link SizedBox}. There is no clipping or scrolling.
+ * sizes to its widest child). There is no clipping or scrolling.
  *
  * @module layout
  */

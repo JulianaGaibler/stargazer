@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Engine } from '../engine/Engine'
-import { MockGfxDevice } from './gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from './gfx/mock/mockGfxDevice'
 
 describe('StageOptions.fixedPixelSize', () => {
   const originalDpr = window.devicePixelRatio

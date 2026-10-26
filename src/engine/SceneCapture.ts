@@ -48,8 +48,9 @@ export interface CaptureOptions {
    */
   settleFrames?: number
   /**
-   * Test-only: the `GfxDevice` for the capture stage, used when the stage is
-   * created. See {@link StageOptions.gpuDevice}. Not for app code.
+   * A prebuilt `GfxDevice` for the capture stage, used when the stage is
+   * created. `selectGfxDevice` and `mountEngine` supply one for WebGPU, and
+   * tests inject a mock. See {@link StageOptions.gpuDevice}.
    */
   gpuDevice?: GfxDevice
 }

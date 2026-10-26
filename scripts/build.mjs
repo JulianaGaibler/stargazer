@@ -31,7 +31,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const staged = join(root, '.build', 'src')
 const dist = join(root, 'dist')
 
-// What the package does not ship: tests, demos, docs and generated docs.
+// What the package does not ship: tests, test helpers, demos, docs and
+// generated docs.
 const SKIP_DIRS = new Set(['docs', 'site'])
 
 function isShipped(path) {
@@ -42,6 +43,7 @@ function isShipped(path) {
   const name = parts[parts.length - 1]
   return (
     !name.endsWith('.test.ts') &&
+    !parts.slice(0, -1).includes('testing') &&
     name !== '.DS_Store' &&
     !parts.includes('node_modules')
   )

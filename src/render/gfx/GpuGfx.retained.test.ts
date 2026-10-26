@@ -1,36 +1,19 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import {
   registerPathTessellation,
   releasePathTessellation,
 } from './PathTessellationRegistry'
 import type { GeometryHandle } from './GeometryHandle'
-
-function makeGpuGfx(): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device)
-  return { gfx, device }
-}
+import { beginFrame, makeGpuGfx } from './testing/gpuGfxHarness'
 
 async function frame(
   gfx: GpuGfx,
   device: MockGfxDevice,
   draw: () => void,
 ): Promise<void> {
-  await gfx.whenReady // pipelines warm asynchronously
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#0d1a2c',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
+  await beginFrame(gfx, device)
   draw()
   gfx.endFrame()
 }

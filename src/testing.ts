@@ -15,7 +15,7 @@ import { RenderTargetPool } from './render/gfx/RenderTargetPool'
 import { PostChain } from './render/postfx/PostChain'
 import { PostProgramCache } from './render/postfx/PostProgramCache'
 
-export { MockGfxDevice } from './render/gfx/webgl2/mockGfxDevice'
+export { MockGfxDevice } from './render/gfx/mock/mockGfxDevice'
 export { setTextMeasurer } from './render/gfx/rasterizeLabel'
 export { setSmoothCornerFieldLoader } from './render/gfx/squircleField'
 export type { PostChain }

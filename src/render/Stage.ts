@@ -79,10 +79,9 @@ export interface StageOptions {
    */
   physics?: boolean | PhysicsWorldConfig
   /**
-   * Test-only escape hatch: inject a prebuilt `GfxDevice` instead of acquiring
-   * a real WebGL2 context. Lets Stage/Engine construct in a DOM-only test
-   * environment (e.g. happy-dom, which returns `null` from
-   * `canvas.getContext('webgl2')`) via `MockGfxDevice`. Not for app code.
+   * A prebuilt `GfxDevice` for the stage, used instead of acquiring a WebGL2
+   * context. `selectGfxDevice` and `mountEngine` supply one for WebGPU, and
+   * tests inject a mock.
    */
   gpuDevice?: import('./gfx/GfxDevice').GfxDevice
   /**

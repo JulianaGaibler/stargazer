@@ -58,6 +58,10 @@ export function scaleBucketCenter(index: number): number {
 
 const EPS = 1e-6
 
+/**
+ * The border to outline: its width, alignment, joins and caps, and the
+ * transform scale.
+ */
 export interface StrokeOutlineOptions {
   width: number
   align: StrokeAlign
@@ -161,11 +165,11 @@ function signedArea(x: number[], y: number[], count: number): number {
 
 /**
  * Resolve `align` against the input, falling back to `'center'` (with a
- * diagnostic) when the fallback alone keeps the border from
- * vanishing. An open contour has no inside: `'inside'`/`'outside'` are
- * meaningless on it. A closed contour with zero signed area (a bowtie) has `w *
- * sign(area)` equal to zero too, and "undefined, which side" is not a defense
- * when one of the two readings draws no border at all.
+ * diagnostic) when the fallback alone keeps the border from vanishing. An open
+ * contour has no inside: `'inside'`/`'outside'` are meaningless on it. A closed
+ * contour with zero signed area (a bowtie) has `w * sign(area)` equal to zero
+ * too, and "undefined, which side" is not a defense when one of the two
+ * readings draws no border at all.
  */
 function resolveAlign(
   align: StrokeAlign,

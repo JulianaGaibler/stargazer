@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Engine } from './Engine'
 import { Node2D } from '../scene/Node2D'
 import { Behavior } from '../scene/Behavior'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 
 // The update pass visits only the nodes with work, from a list kept by the
 // tree. These pin what a game can rely on: tree order, a node's own update

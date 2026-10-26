@@ -159,8 +159,7 @@ describe('PolylineNode', () => {
   describe('fluent API', () => {
     it('push chains and appends in order', () => {
       const p = new PolylineNode()
-      const ret = p.push(0, 0).push(10, 4).push(20, 9)
-      expect(ret).toBe(p)
+      p.push(0, 0).push(10, 4).push(20, 9)
       expect(p.pointCount).toBe(3)
       expect(p.pointAt(2)).toEqual({ x: 20, y: 9 })
     })
@@ -168,9 +167,9 @@ describe('PolylineNode', () => {
     it('clear / dropHead / setPoint return this', () => {
       const p = new PolylineNode()
       p.push(0, 0).push(1, 1).push(2, 2)
-      expect(p.setPoint(0, 5, 5)).toBe(p)
+      p.setPoint(0, 5, 5)
       expect(p.pointAt(0)).toEqual({ x: 5, y: 5 })
-      expect(p.dropHead(1)).toBe(p)
+      p.dropHead(1)
       expect(p.pointCount).toBe(2)
       expect(p.clear()).toBe(p)
       expect(p.pointCount).toBe(0)

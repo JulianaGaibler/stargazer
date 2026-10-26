@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { GpuGfx } from './GpuGfx'
 import type { GfxSurfaceCache, GfxSurfaceEffects } from './Gfx2D'
 import type { ShaderReflection } from './GfxDevice'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
 import { postShader } from '../postfx/PostEffect'
 import type { PostEffect, PostPass } from '../postfx/PostEffect'
+import { makeReadyGfx } from './testing/gpuGfxHarness'
+
+const makeGfx = (samples = 1) => makeReadyGfx({ stencil: true, samples })
 
 const EMPTY_REFLECTION: ShaderReflection = {
   attributes: [],
@@ -46,20 +48,6 @@ function layer(
 function sign(fx: GfxSurfaceEffects, ...signature: number[]): void {
   fx.cache!.signature = Float64Array.from(signature)
   fx.cache!.length = signature.length
-}
-
-async function makeGfx(samples = 1): Promise<{
-  gfx: GpuGfx
-  device: MockGfxDevice
-}> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device, { stencil: true, samples })
-  await gfx.whenReady
-  device.reset()
-  return { gfx, device }
 }
 
 async function warm(gfx: GpuGfx, fx: GfxSurfaceEffects): Promise<void> {

@@ -128,7 +128,12 @@ export const MAX_POST_TEXTURES = 4
 export interface PostPass {
   /** WGSL-first shader sources (WGSL + generated GLSL + reflection). */
   readonly shader: PostShaderSource
-  /** Std140 byte size of the pass's `Params` block. `0` for a pass with none. */
+  /**
+   * Std140 byte size of the pass's `Params` block. `0` for a pass with none.
+   * Declare the block with `vec4<f32>` members, because larger types such as
+   * `mat2x2<f32>` take different sizes in WGSL and std140 and one
+   * `Float32Array` cannot match both.
+   */
   readonly paramsBytes: number
   /**
    * Fraction of the frame's device-pixel size this pass renders at, applied
@@ -206,7 +211,8 @@ export interface PostDataPass {
   /**
    * A WGSL module with a `cs_main` entry point. It binds the input texture at
    * 0, the output as a write-only `rgba8unorm` storage texture at 1 and the
-   * params at 6, and runs as `workgroups` workgroups.
+   * params at 6, and runs as `workgroups` workgroups. Every WebGPU device
+   * offers at least 16 KiB of workgroup memory.
    */
   readonly compute?: {
     readonly wgsl: string

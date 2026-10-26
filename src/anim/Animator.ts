@@ -79,9 +79,10 @@ export class Animator {
 
   /**
    * Tween the numeric properties named in `to` on `target` from their current
-   * values to the given values. From-values are snapshotted after any `delay`
-   * so the start point isn't disturbed by other writes during the wait.
-   * Non-number properties are ignored at runtime (constrain them via TS).
+   * values to the given values. From-values are read when `tween` is called,
+   * before any `delay`, so a write to the target during the delay is
+   * overwritten once the tween starts moving. Non-number properties are ignored
+   * at runtime (constrain them via TS).
    *
    * @example
    *   const fx = { intensity: 0 }

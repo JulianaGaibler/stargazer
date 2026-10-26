@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import {
-  opacityNeedsWrite,
-  projectWorldToCss,
-  type CssMatrix,
-} from './DomTransformSync'
+import { Engine } from '../engine/Engine'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
+import { CameraNode2D } from '../camera/CameraNode2D'
+import { Node2D } from '../scene/Node2D'
+import { projectWorldToCss, type CssMatrix } from './DomTransformSync'
 import type { Affine2x3 } from '../camera/CameraView2D'
 
 const IDENTITY: CssMatrix = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }
@@ -60,17 +60,41 @@ describe('projectWorldToCss', () => {
   })
 })
 
-describe('opacityNeedsWrite', () => {
-  it('writes the first value, even when it is zero', () => {
-    expect(opacityNeedsWrite(0, Number.NaN)).toBe(true)
-    expect(opacityNeedsWrite(1, Number.NaN)).toBe(true)
+describe('opacity sync', () => {
+  function setup(alpha: number) {
+    const canvas = document.createElement('canvas')
+    const engine = new Engine({
+      canvas,
+      gpuDevice: new MockGfxDevice(),
+    })
+    // The element is only shown while a sized camera places it.
+    const camera = new CameraNode2D()
+    camera.setViewport({ x: 0, y: 0, width: 100, height: 100 })
+    camera.setPixelSize(100, 100)
+    const node = new Node2D()
+    node.transform.alpha = alpha
+    engine.primaryStage.tree.root.add(camera, node)
+    const element = document.createElement('div')
+    engine.dom.attach(node, element, { syncOpacity: true })
+    const sync = () =>
+      engine.events.emit('frame', { time: 0, dt: 0, frameNum: 0 })
+    return { engine, element, sync }
+  }
+
+  it('writes opacity 0 on the first sync when the alpha starts at 0', () => {
+    const { engine, element, sync } = setup(0)
+    sync()
+    expect(element.style.opacity).toBe('0')
+    engine.destroy()
   })
 
-  it('skips a value that has not changed', () => {
-    expect(opacityNeedsWrite(0.5, 0.5)).toBe(false)
-  })
-
-  it('writes a value that has changed', () => {
-    expect(opacityNeedsWrite(0.4, 0.5)).toBe(true)
+  it('does not rewrite opacity when the alpha is unchanged', () => {
+    const { engine, element, sync } = setup(0)
+    sync()
+    // A sentinel survives only if the second sync skips the write.
+    element.style.opacity = '0.5'
+    sync()
+    expect(element.style.opacity).toBe('0.5')
+    engine.destroy()
   })
 })

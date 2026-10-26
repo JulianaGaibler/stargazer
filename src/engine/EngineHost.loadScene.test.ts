@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createEngineHost } from './EngineHost'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 import { CameraNode2D } from '../camera/CameraNode2D'
 import { Node2D } from '../scene/Node2D'
 

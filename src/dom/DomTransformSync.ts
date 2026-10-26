@@ -707,7 +707,7 @@ export class DomTransformSync {
  * value written (`NaN` before the first). A first write always happens, so an
  * element that starts transparent is transparent from its first frame.
  */
-export function opacityNeedsWrite(alpha: number, last: number): boolean {
+function opacityNeedsWrite(alpha: number, last: number): boolean {
   return !(Math.abs(alpha - last) <= EPSILON)
 }
 

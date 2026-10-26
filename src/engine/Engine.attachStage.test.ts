@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Engine } from './Engine'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 
 function makeEngine(): Engine {
   return new Engine({

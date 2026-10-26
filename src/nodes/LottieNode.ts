@@ -107,6 +107,18 @@ export interface LottieNodeOptions {
  * box.
  *
  * @remarks
+ *   Drawn: shape, solid, null, precomposition, text and image layers with
+ *   parenting, layer timing and time remapping. Paths, rounded rectangles,
+ *   ellipses, polygons and stars. Solid, linear and radial fills and strokes
+ *   with dashes, caps and joins. Skew. Trim paths, repeater, round corners,
+ *   pucker and bloat, and merge paths in the merge, add and exclude modes.
+ *   Masks in all modes, where lighten, darken and difference match the design
+ *   tool only for hard edges. Alpha and luma track mattes, with inversion. The
+ *   multiply, screen and add blend modes. Expressions play their stored
+ *   keyframes. Star roundness, text on a path and the text stroke are not
+ *   drawn. A stroke with butt or square caps or a miter or bevel join uses the
+ *   exact stroker, which costs more than a round one.
+ *
  *   Maintainers: the node holds the animation's layers as child nodes, built by
  *   `LottieScene`. `onUpdate` only advances the player. Evaluation (sampling
  *   properties and rebuilding paths) happens in `draw`, which the compose walk

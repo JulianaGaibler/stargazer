@@ -47,11 +47,15 @@ import { StargazerError } from '../diagnostics/StargazerError'
  * 16-/32-bit indices, quantized attributes dequantized), the node hierarchy
  * with TRS or matrix transforms, and metallic-roughness materials with
  * base-color / metallic-roughness / normal / occlusion / emissive textures,
- * alpha mode, double-sidedness, and `KHR_materials_diffuse_transmission`.
- * Missing normals are computed (smooth). `KHR_materials_transmission` glass
- * degrades to a translucent blend (no refraction). Skinning, morph targets,
- * animations, and IBL are not read here. The world is y-up right-handed,
- * matching glTF, so no axis conversion happens.
+ * alpha mode, double-sidedness, `KHR_materials_diffuse_transmission`,
+ * `KHR_materials_emissive_strength`, `KHR_lights_punctual` lights, and TRS
+ * animations. The first animation clip gets an `AnimationPlayer` that loops it,
+ * with `LINEAR` and `STEP` interpolation exact and `CUBICSPLINE` played as
+ * linear. Missing normals are computed (smooth). `KHR_materials_transmission`
+ * glass degrades to a translucent blend (no refraction). Skinning, morph
+ * targets, a second UV set, and IBL are skipped. An unsupported extension logs
+ * a warning and the model loads without it, even when the file requires it. The
+ * world is y-up right-handed, matching glTF, so no axis conversion happens.
  *
  * @example
  *   const model = await loadGltf('/models/robot.glb')

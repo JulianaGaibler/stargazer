@@ -17,7 +17,14 @@ export interface LottieMarker {
 
 /** Something the loader ignored or approximated. */
 export interface LottieDiagnostic {
-  /** Stable machine-readable id, for example `'expression'`. */
+  /**
+   * Stable machine-readable id, for example `'expression'`. Loader codes name
+   * what the file uses, such as `expression`, `effect`, `layer-style`,
+   * `layer-3d`, `collapse-transform`, `blend-mode`, `audio-layer`,
+   * `camera-layer`, `data-layer`, `layer-type` and `shape-item`. Renderer codes
+   * start with `unsupported-` and name a feature that draws as if it were
+   * absent. `LottieNode` adds `image-missing`.
+   */
   code: string
   /** Human-readable explanation. */
   message: string

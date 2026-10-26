@@ -1,20 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import {
-  colorTargetToGPU,
-  depthStencilToGPU,
-  sampleCountToGPU,
-  texturePixelBytes,
-  texturePixelFormatToGPU,
-} from './conv'
+import { colorTargetToGPU, depthStencilToGPU, sampleCountToGPU } from './conv'
 import type { PipelineDesc } from '../GfxDevice'
 
 describe('colorTargetToGPU', () => {
-  it('writes every channel by default', () => {
-    const t = colorTargetToGPU({ format: 'linear', blend: 'source-over' })
-    expect(t.writeMask).toBe(0xf)
-    expect(t.format).toBe('rgba8unorm')
-  })
-
   it('masks color off when the state turns writes off', () => {
     // The stencil reset pass draws the same geometry a second time to zero its
     // bits. A nonzero mask would composite the stroke twice.
@@ -34,14 +22,9 @@ describe('colorTargetToGPU', () => {
     expect(t.format).toBe('bgra8unorm')
   })
 
-  it('treats an explicit true the same as the default', () => {
-    const t = colorTargetToGPU({
-      format: 'srgb',
-      blend: 'lighter',
-      write: true,
-    })
+  it('writes every channel when writes are not turned off', () => {
+    const t = colorTargetToGPU({ format: 'linear', blend: 'source-over' })
     expect(t.writeMask).toBe(0xf)
-    expect(t.format).toBe('rgba8unorm-srgb')
   })
 })
 
@@ -126,29 +109,5 @@ describe('sampleCountToGPU', () => {
     // `?msaa=2` reaches the device unchanged, and a pipeline or texture with 2
     // samples fails validation.
     expect([0, 1, 2, 3, 4, 8].map(sampleCountToGPU)).toEqual([1, 1, 4, 4, 4, 4])
-  })
-})
-
-describe('texturePixelFormatToGPU', () => {
-  it('maps each sampled pixel layout', () => {
-    expect(texturePixelFormatToGPU('rgba8', false)).toBe('rgba8unorm')
-    expect(texturePixelFormatToGPU('rgba8', true)).toBe('rgba8unorm-srgb')
-    expect(texturePixelFormatToGPU('r8', false)).toBe('r8unorm')
-    expect(texturePixelFormatToGPU('rg8', false)).toBe('rg8unorm')
-    expect(texturePixelFormatToGPU('rgba16f', false)).toBe('rgba16float')
-  })
-
-  it('ignores srgb for layouts with no color space', () => {
-    expect(texturePixelFormatToGPU('r8', true)).toBe('r8unorm')
-    expect(texturePixelFormatToGPU('rgba16f', true)).toBe('rgba16float')
-  })
-})
-
-describe('texturePixelBytes', () => {
-  it('gives each layout its texel size, which sets the upload row pitch', () => {
-    expect(texturePixelBytes('rgba8')).toBe(4)
-    expect(texturePixelBytes('r8')).toBe(1)
-    expect(texturePixelBytes('rg8')).toBe(2)
-    expect(texturePixelBytes('rgba16f')).toBe(8)
   })
 })

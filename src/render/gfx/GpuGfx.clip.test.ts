@@ -1,30 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { GpuGfx } from './GpuGfx'
 import { GfxPath } from './GfxPath'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
-import type { DrawRecord } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
+import type { DrawRecord } from './mock/mockGfxDevice'
+import {
+  beginFrame as beginHarnessFrame,
+  makeGpuGfx as makeHarnessGfx,
+} from './testing/gpuGfxHarness'
 
-function makeGpuGfx(stencil = false): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device, { stencil })
-  return { gfx, device }
-}
-
-async function beginFrame(gfx: GpuGfx, device: MockGfxDevice): Promise<void> {
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#000',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-}
+const makeGpuGfx = (stencil = false) => makeHarnessGfx({ stencil })
+const beginFrame = (gfx: GpuGfx, device: MockGfxDevice) =>
+  beginHarnessFrame(gfx, device, { clearColor: '#000' })
 
 /** The clip dynamic offset a draw binds through the group-0 frame group. */
 const clipOffset = (d: DrawRecord): number =>

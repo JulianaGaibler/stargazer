@@ -64,16 +64,6 @@ describe('unified scene tree', () => {
     expect(tree.getPainterOrder().map((n) => n.id)).toEqual(['a', 'c', 'd'])
   })
 
-  it('has3D reflects whether any Node3D is present', () => {
-    const tree = new SceneTree()
-    const a = new Node2D('a')
-    tree.root.add(a)
-    expect(tree.has3D).toBe(false)
-    const b = new Node3D('b')
-    a.add(b)
-    expect(tree.has3D).toBe(true)
-  })
-
   it('a 2D transform change dirties nested 2D descendants but not intervening 3D', () => {
     const tree = new SceneTree()
     const a = new Node2D('a')

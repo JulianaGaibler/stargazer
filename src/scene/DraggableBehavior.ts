@@ -58,6 +58,7 @@ export interface DraggableOptions<T = unknown> {
   onSettled?: () => void
   /** Animate back to the grab origin when a drag ends off-target. Default true. */
   snapBack?: boolean
+  /** Seconds the snap-back takes. Default 0.18. */
   snapDuration?: number
 }
 

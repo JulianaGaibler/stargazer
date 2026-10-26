@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
+import { makeGpuGfx } from './testing/gpuGfxHarness'
+
+const makeGfx = (stencil: boolean) => makeGpuGfx({ stencil, samples: 1 })
 
 // A stage's offscreen target carries depth and stencil together, so a 3D pass
 // runs without costing the 2D path its deduplicated translucent strokes. These
@@ -8,14 +11,6 @@ import { MockGfxDevice } from './webgl2/mockGfxDevice'
 // the depth is released again: a stage outlives the scenes drawn on it, so a
 // scene that took depth hands it back rather than holding the memory for the
 // rest of the stage's life.
-
-function makeGfx(stencil: boolean): { gfx: GpuGfx; device: MockGfxDevice } {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  return { gfx: new GpuGfx(canvas, device, { stencil, samples: 1 }), device }
-}
 
 /** The attachments the frame's main pass actually opened with. */
 async function frameAttachments(

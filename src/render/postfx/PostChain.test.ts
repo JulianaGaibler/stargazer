@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { MockGfxDevice } from '../gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../gfx/mock/mockGfxDevice'
 import { RenderTargetPool } from '../gfx/RenderTargetPool'
 import type { RenderTarget, ShaderReflection } from '../gfx/GfxDevice'
 import { PostChain, type PostChainSource } from './PostChain'

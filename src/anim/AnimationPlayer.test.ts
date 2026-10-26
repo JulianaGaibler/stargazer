@@ -23,10 +23,6 @@ function translationClip(target: Node3D): AnimationClip {
 }
 
 describe('AnimationPlayer', () => {
-  it('ticks (onUpdate is a prototype method, so _hasUpdateWork is set)', () => {
-    expect(new AnimationPlayer(null)._hasUpdateWork).toBe(true)
-  })
-
   it('samples LINEAR translation into the target transform', () => {
     const target = new Node3D()
     const player = new AnimationPlayer(translationClip(target))

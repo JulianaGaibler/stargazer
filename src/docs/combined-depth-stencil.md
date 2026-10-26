@@ -6,15 +6,25 @@ order: 23
 
 # Combined depth and stencil on one target
 
-A stage's render target carries depth and stencil on one attachment. A scene can then hold 3D content and 2D strokes that use the stencil, such as translucent multi-segment strokes, at the same time. Every pipeline and pass has to match that attachment's format, and a few targets cannot have the combination.
+A stage's render target carries depth and stencil on one attachment. A scene can then hold 3D content and 2D strokes that use the stencil, such as translucent multi-segment strokes, at the same time. Every pipeline and pass matches that attachment's format, and a target allocated with `depthSampled` carries the depth aspect alone. This page is for changes to the backends, the 2D programs and `Stage.render`.
 
 ## Why a pipeline has to know
 
-A pipeline bakes in the depth-stencil format of the attachment it draws into. WebGPU rejects a pipeline whose format differs from the pass's attachment. So every pipeline that shares a pass has to name the same format, including the 2D pipelines that test neither depth nor stencil.
+A pipeline bakes in the depth-stencil format of the attachment it draws into, and WebGPU rejects a pipeline whose format differs from the pass's attachment. Every pipeline that shares a pass therefore names the same format, including the 2D pipelines that test neither depth nor stencil. A 2D pipeline that draws into a combined attachment declares it like this.
 
-`PipelineDesc.depthStencil` is where a pipeline names it. When it is omitted, the format follows from `depth` and `stencil`, which is right whenever a pipeline uses every aspect its target carries. A 2D pipeline drawing into a combined attachment sets it to `'depth-stencil'` and leaves both states null. The backend supplies the inert half: writes off and an always-pass comparison for depth, and all-`keep` operations with a zero write mask for stencil. No caller writes these by hand.
+```ts
+import type { PipelineDesc } from 'src/render/gfx/GfxDevice'
 
-`resolveDepthStencil` in `render/gfx/depthStencil.ts` is the one function both backends and `pipelineKey` call. A cache key that resolved a descriptor differently from the backend compiling it would hand back a pipeline the pass rejects. So the format goes into the key through the same function.
+const states = {
+  depthStencil: 'depth-stencil',
+  depth: null,
+  stencil: null,
+} satisfies Partial<PipelineDesc>
+```
+
+`PipelineDesc.depthStencil` names the format. When it is omitted, the format follows from `depth` and `stencil`, which is right whenever a pipeline uses every aspect its target carries. With both states null, as above, the backend supplies the inert half: writes off and an always-pass comparison for depth, and all-`keep` operations with a zero write mask for stencil.
+
+`resolveDepthStencil` in `render/gfx/depthStencil.ts` is the one function both backends and `pipelineKey` call. The format goes into the cache key through that function, so a key and the backend that compiles the descriptor always agree.
 
 ## The three formats
 
@@ -24,27 +34,25 @@ A pipeline bakes in the depth-stencil format of the attachment it draws into. We
 | `depth`         | `depth24plus`          | `DEPTH24_STENCIL8` |
 | `depth-stencil` | `depth24plus-stencil8` | `DEPTH24_STENCIL8` |
 
-A stencil-only attachment is a quarter of the size of a combined one, which is what a pure-2D stage needs. Only a target that asks for both gets the combined format. WebGL2 has no cheaper depth-only renderbuffer worth using, so depth there is packed with stencil either way.
+A stencil-only attachment takes a quarter of the memory of a combined one, which is what a pure-2D stage needs. A target that asks for both aspects gets the combined format. WebGL2 packs depth with stencil either way.
 
 ## The attachment drives the pass
 
-`WebGPUDevice.beginRenderPass` builds one `depthStencilAttachment` from the target's own format, not from which of `depth` and `stencil` the caller filled in. WebGPU rejects a pass that omits operations for an aspect the format carries. It also rejects one that supplies operations for an aspect the format lacks. The target's format is the only safe source.
+`WebGPUDevice.beginRenderPass` builds one `depthStencilAttachment` from the target's own format. It ignores which of `depth` and `stencil` the caller filled in, because WebGPU requires operations for every aspect the format carries and for no other.
 
-An aspect the caller described nothing for is cleared, not loaded. A load would be legal, because WebGPU zero-initializes lazily. But it leaves depth at `0.0`, and with the engine's `less-equal` default every fragment fails the test. 3D content then vanishes with no error to trace.
+An aspect the caller left out is cleared. A load would be legal, since WebGPU zero-initializes lazily, but it leaves depth at `0.0`, and with the engine's `less-equal` default every fragment then fails the depth test. Clearing keeps 3D content visible.
 
 ## Swapping the attachment
 
-`GpuGfx.enableDepth` and `GpuGfx.disableDepth` both go through one `#retarget`. It rebuilds the target, and warms every pipeline again when the resolved format changed.
+`GpuGfx.enableDepth` and `GpuGfx.disableDepth` both go through one `#retarget`. It rebuilds the target and warms every pipeline again when the resolved format changed. The path-shadow bakes draw into targets of their own, so a swap leaves them alone.
 
-`Stage.render` attaches depth while the scene holds 3D content or the 3D debug camera is active, and releases it when neither is true. The check uses `tree.has3D`, which is structural, not based on visibility. So the attachment does not toggle while a scene hides its meshes.
+`Stage.render` attaches depth while a 3D camera exists and either the scene holds 3D content or the 3D debug camera is active. It releases depth otherwise. The check uses `tree.has3D`, which is structural, so the attachment stays put while a scene hides its meshes. A stage outlives the scenes drawn on it, so a depth attachment kept after the last 3D node would stay allocated for the rest of the stage's life. The release frees that memory, and the stencil bits stay either way.
 
-The release frees memory. The stencil bits stay either way. A stage outlives the scenes drawn on it, so a depth attachment held after the last 3D node would stay allocated for the rest of the stage's life.
+Both calls sit ahead of the readiness gate in `Stage.render`. The swap invalidates every pipeline baked against the old attachment, so the frame that triggers it is the frame that is skipped. The first swap on a stage pays for a real compile. Later swaps find the pipelines in the device's cache.
 
-Both calls sit ahead of the readiness gate in `Stage.render` on purpose. The swap invalidates every pipeline baked against the old attachment, so the frame that triggers it is the frame that gets skipped. The first swap on a stage pays for a real compile. Later swaps hit the device's pipeline cache instead of compiling again.
+## Sampled depth targets
 
-## Where it is not available
-
-A target allocated with `depthSampled`, such as the ambient-occlusion G-buffer, takes the depth aspect alone. Stencil requested alongside it is neither allocated nor reported. WebGL2 samples depth only from a `DEPTH_COMPONENT24` texture, which holds no stencil bits. Reporting stencil there would make WebGL2 differ from WebGPU for the same options.
+A target allocated with `depthSampled`, such as the ambient-occlusion G-buffer, carries the depth aspect alone. Stencil requested with it is neither allocated nor reported. WebGL2 samples depth only from a `DEPTH_COMPONENT24` texture, which has no stencil bits, so reporting stencil would make WebGL2 differ from WebGPU for the same options. `depthStencilFormatFor` applies the rule.
 
 ## What the stencil bits mean
 
@@ -56,26 +64,23 @@ The 2D renderer divides each 8-bit stencil value so that fills, clip paths and t
 | 4    | Flag, set by a translucent stroke while it paints a pixel.          |
 | 3..0 | Winding count modulo 16. Non-zero only between a fan and its cover. |
 
-Anything that writes stencil outside the 2D renderer, such as a 3D pass, has to leave bits 7..5 at zero where 2D content starts.
+A 3D pass or any other writer outside the 2D renderer leaves bits 7..5 at zero where 2D content starts.
 
-`render/gfx/stencilRecipe.ts` holds one row per operation. WebGPU bakes the compare function, the operations and the masks into the pipeline, and keeps only the reference dynamic. So every row is its own pipeline variant. In the table, `D` is the current clip depth. `less` passes when `(ref & readMask) < (stencil & readMask)`.
+`render/gfx/stencilRecipe.ts` holds one row per operation in `STENCIL_ROWS`, with the compare function, operations, masks and the reference each row uses. WebGPU bakes those into the pipeline and keeps only the reference dynamic, so every row is its own pipeline variant. The fan of a nonzero fill shows the pattern.
 
-| Row                | Compare / reference / read mask                     | Operations / write mask                            | Color |
-| ------------------ | --------------------------------------------------- | -------------------------------------------------- | ----- |
-| Draw inside a clip | `equal` / `D<<5` / `0xE0`                           | keep / `0x00`                                      | on    |
-| Fan, nonzero       | `equal` / `D<<5` / `0xE0`                           | front increment-wrap, back decrement-wrap / `0x0F` | off   |
-| Fan, even-odd      | `equal` / `D<<5` / `0xE0`                           | invert / `0x01`                                    | off   |
-| Cover              | `not-equal` / `0` / `0x0F` (even-odd `0x01`)        | pass and fail zero / `0x0F`                        | on    |
-| Clip apply         | `not-equal` / `(D+1)<<5` / `0x0F` (even-odd `0x01`) | pass replace / `0xFF`                              | off   |
-| Clip pop           | `less` / `((D-1)<<5) \| 0x1F` / `0xFF`              | pass replace / `0xE0`                              | off   |
-| Stroke mark        | `equal` / `D<<5` / `0xF0`                           | pass invert / `0x10`                               | on    |
-| Stroke reset       | `equal` / `(D<<5) \| 0x10` / `0xF0`                 | pass invert / `0x10`                               | off   |
+```ts
+import { STENCIL_ROWS, stencilReferenceFor } from 'src/render/gfx/stencilRecipe'
 
-A translucent stroke draws three passes over the same instances. The core pass and the fringe pass both use the stroke mark row, and the reset pass clears the flag again with color writes off.
+const { state, colorWrite } = STENCIL_ROWS.fanNonzero
+const reference = stencilReferenceFor('fanNonzero', 2)
+console.log(state.front, state.back, colorWrite, reference)
+```
 
-A fan is never recorded without its cover, and the pair comes from one buffer reservation, so a dropped draw drops both. That keeps the winding bits zero everywhere outside the pair. The fan's write mask keeps carries and borrows inside the winding bits.
+The row compares with `equal` and the reference is `D << 5`, which is 64 at clip depth 2. Where the depth bits equal `D`, front-facing triangles of the fan add one to the winding bits and back-facing triangles subtract one. The write mask keeps carries and borrows inside bits 3..0, and color writes are off. A cover quad then paints where the count is non-zero and zeroes it again, so the winding bits are zero everywhere outside a fan and its cover. The rows for clip apply, clip pop, the even-odd rule and strokes are commented one by one in the file.
 
-A fill's fan is a set of triangles from the first point of each contour, written with the same vertex layout as every other `coloredTri` draw. The cover is a device-space quad over the path's bounds, clipped to the target, so a path with a small visible part costs a small cover.
+A translucent stroke draws three passes over the same instances. The core pass and the fringe pass both use the stroke mark row, which paints a pixel once because the first fragment sets the flag. The reset pass clears the flag with color writes off.
+
+A fill records its fan and its cover back to back, in the fan stream and the main stream. A clip push writes its fan and apply quad from one reservation. A fan is a set of triangles from the first point of each contour, written with the same vertex layout as every other `coloredTri` draw. The cover is a device-space quad over the path's bounds, clipped to the target, so a path with a small visible part costs a small cover.
 
 ## Verifying it
 

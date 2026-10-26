@@ -10,7 +10,7 @@ import {
   _setSharedLabelCanvasForTests,
   type LabelStyle,
 } from './rasterizeLabel'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 
 const style: LabelStyle = {
   font: '16px sans-serif',

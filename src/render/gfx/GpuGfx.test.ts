@@ -1,42 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 
 // happy-dom's <canvas> doesn't return a real WebGL2 context, but GpuGfx only
 // needs it for `canvas.width` / `canvas.height` bookkeeping and the FBO blit
 // destination. All GL calls go through the mock device.
-function makeCanvas(): HTMLCanvasElement {
-  const c = document.createElement('canvas')
-  c.width = 400
-  c.height = 300
-  return c
-}
-
-function makeGpuGfx(): {
-  gfx: GpuGfx
-  device: MockGfxDevice
-  canvas: HTMLCanvasElement
-} {
-  const canvas = makeCanvas()
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device)
-  return { gfx, device, canvas }
-}
-
-async function baseFrame(gfx: GpuGfx, device: MockGfxDevice): Promise<void> {
-  await gfx.whenReady // pipelines warm asynchronously
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#0d1a2c',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  // Install a trivial base transform (identity in device px).
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-}
-
 describe('GpuGfx pipeline failures', () => {
   it('reports a program whose pipelines fail and keeps the rest ready', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -390,6 +358,11 @@ beforeEach(() => {
 
 import * as SvgPathContours from '../../assets/SvgPathContours'
 import { registerPathTessellation } from './PathTessellationRegistry'
+import {
+  beginFrame as baseFrame,
+  makeCanvas,
+  makeGpuGfx,
+} from './testing/gpuGfxHarness'
 
 describe('GpuGfx Phase 2. SDF batching', () => {
   it('T1: 400 fillCircles collapse into a single SDF instanced draw', async () => {

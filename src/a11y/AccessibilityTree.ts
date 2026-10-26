@@ -30,10 +30,10 @@ import { StargazerError } from '../diagnostics/StargazerError'
  * Register a node with {@link AccessibilityTree.attach} and the subsystem
  * mirrors it into a hidden, screen-reader-readable HTML element inside an
  * app-provided mount ({@link AccessibilityTree.mount}). The mirror is rebuilt
- * only when something changes (a handle `update`, an attach/detach, or a node
- * destroy), not per frame. Real overlay HTML (menus, HUD) stays in its own DOM.
- * Link a canvas node's proxy to it with `Semantics.links` rather than merging
- * the two trees.
+ * only when something changes (a handle `update`, an attach/detach, a mount, or
+ * a node destroy), not per frame. Real overlay HTML (menus, HUD) stays in its
+ * own DOM. Link a canvas node's proxy to it with `Semantics.links` rather than
+ * merging the two trees.
  *
  * The structural template is `DomTransformSync` (`engine.dom`): a frame
  * subscription, a registry with per-node destroy listeners, and a `dispose`.

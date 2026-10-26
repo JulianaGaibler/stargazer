@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { GpuGfx } from './GpuGfx'
 import type { GfxSurfaceEffects } from './Gfx2D'
 import type { ShaderReflection } from './GfxDevice'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import { postShader } from '../postfx/PostEffect'
 import type { PostEffect, PostPass } from '../postfx/PostEffect'
+import { makeReadyGfx } from './testing/gpuGfxHarness'
+
+const makeGfx = (samples = 4) => makeReadyGfx({ stencil: true, samples })
 
 const EMPTY_REFLECTION: ShaderReflection = {
   attributes: [],
@@ -35,19 +38,6 @@ function smoothing(): PostEffect {
 
 function fx(effects: PostEffect[], owner: object = {}): GfxSurfaceEffects {
   return { owner, effects, dt: 0.016, applied: true }
-}
-
-async function makeGfx(
-  samples = 4,
-): Promise<{ gfx: GpuGfx; device: MockGfxDevice }> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device, { stencil: true, samples })
-  await gfx.whenReady
-  device.reset()
-  return { gfx, device }
 }
 
 /** Compile the effects' pipelines, which resolve over a few microtasks. */

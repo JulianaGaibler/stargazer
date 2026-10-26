@@ -4,13 +4,12 @@
  * point stream (finger-drawn paths), {@link TextNode} a line of text,
  * {@link ImageNode} an image, {@link ParticleEmitterNode} a baked, sprite-based
  * particle system, and {@link VectorParticleNode} an open base class for
- * particles that need per-piece vector geometry. {@link Node2D} is a
+ * particles that need per-piece vector geometry. `Node2D` is a
  * transform-only container for grouping children. Subclass `Node2D` for
  * anything custom.
  *
  * @module nodes
  */
-export { Node2D } from '../scene/Node2D'
 export { ShapeNode } from '../nodes/ShapeNode'
 export type { ShapeGeometry, ShapeNodeOptions } from '../nodes/ShapeNode'
 export { PolylineNode } from '../nodes/PolylineNode'

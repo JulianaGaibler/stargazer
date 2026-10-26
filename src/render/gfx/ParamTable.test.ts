@@ -1,26 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { GpuGfx } from './GpuGfx'
-import { MockGfxDevice } from './webgl2/mockGfxDevice'
+import { MockGfxDevice } from './mock/mockGfxDevice'
 import { ParamTable, clipDistance } from './ParamTable'
+import { makeFrameGfx } from './testing/gpuGfxHarness'
 
-async function frame(): Promise<{ gfx: GpuGfx; device: MockGfxDevice }> {
-  const canvas = document.createElement('canvas')
-  canvas.width = 400
-  canvas.height = 300
-  const device = new MockGfxDevice()
-  const gfx = new GpuGfx(canvas, device)
-  await gfx.whenReady
-  device.reset()
-  gfx.beginFrame({
-    clearColor: '#000',
-    transparent: false,
-    pixelW: 400,
-    pixelH: 300,
-  })
-  gfx.setBaseTransform(1, 0, 0, 1, 0, 0)
-  gfx.setAlpha(1)
-  return { gfx, device }
-}
+const frame = () => makeFrameGfx(undefined, { clearColor: '#000' })
 
 /** The clip record the frame wrote for its first clip, after the empty one. */
 function firstClipRecord(device: MockGfxDevice): Float32Array {

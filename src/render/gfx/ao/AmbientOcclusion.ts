@@ -33,7 +33,12 @@ import blurComputeWgsl from '../shaders/ao_blur.compute.wgsl?raw'
  */
 export type AoResolution = 'full' | 'half'
 
-/** Quality preset: slice/step budget and the occlusion feel. */
+/**
+ * Quality preset: slice/step budget and the occlusion feel. `low` scans 2
+ * directions with 3 steps each and has a default `intensity` of 2. `medium`
+ * scans 3 with 4 steps and has 2.5. `high` scans 4 with 6 steps and has 3. All
+ * three use a `radius` of 0.6.
+ */
 export type AoPreset = 'low' | 'medium' | 'high'
 
 interface PresetParams {

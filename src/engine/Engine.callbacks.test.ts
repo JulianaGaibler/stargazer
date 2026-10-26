@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { diagnostics } from '../diagnostics/Diagnostics'
 import { GroupNode } from '../scene/GroupNode'
 import { Behavior } from '../scene/Behavior'
-import { MockGfxDevice } from '../render/gfx/webgl2/mockGfxDevice'
+import { MockGfxDevice } from '../render/gfx/mock/mockGfxDevice'
 import { Engine } from './Engine'
 
 describe('game callbacks that throw', () => {
