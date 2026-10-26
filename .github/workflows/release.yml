@@ -1,8 +1,9 @@
 name: Release
 
 # Run by hand from the Actions tab once the version in package.json is the one
-# to release. It checks the code, publishes to npm, then tags the commit and
-# creates the GitHub release.
+# to release. It checks the code and stages the version on npm. Nothing is live
+# until a maintainer approves the stage with 2FA, see the job summary. Run the
+# GitHub release workflow after that.
 on:
   workflow_dispatch:
 
@@ -14,11 +15,11 @@ jobs:
   check:
     uses: ./.github/workflows/ci.yml
 
-  publish:
+  stage:
     needs: check
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -36,22 +37,31 @@ jobs:
             exit 1
           fi
       - run: npm ci
-      # A version with a dash, such as 0.2.0-beta.1, goes out under the `next`
+      # `npm stage publish` needs a recent npm, and the one that ships with
+      # Node can be older.
+      - run: npm install -g npm@11
+      # A version with a dash, such as 0.6.0-beta.1, goes out under the `next`
       # tag so that `npm install` keeps resolving to the last stable release.
-      - name: Publish to npm
-        run: |
-          if [[ "${{ steps.version.outputs.version }}" == *-* ]]; then tag=next; else tag=latest; fi
-          npm publish --provenance --access public --tag "$tag"
-        env:
-          # The first publish needs this token, because npm can only trust a
-          # workflow for a package that exists. After that, configure a trusted
-          # publisher for this workflow on npmjs.com, then delete this line and
-          # the NPM_TOKEN secret.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Tag and create the GitHub release
+      - name: Stage on npm
         run: |
           version="${{ steps.version.outputs.version }}"
-          if [[ "$version" == *-* ]]; then flags=--prerelease; else flags=; fi
-          gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" --generate-notes $flags
+          if [[ "$version" == *-* ]]; then tag=next; else tag=latest; fi
+          npm stage publish --provenance --access public --tag "$tag"
+          {
+            echo "Staged **$version** of \`@julianagaibler/stargazer\`. It is not live yet."
+            echo
+            echo "Approve it from your machine, with 2FA:"
+            echo
+            echo '```sh'
+            echo "npm stage list @julianagaibler/stargazer"
+            echo "npm stage approve <stage-id>"
+            echo '```'
+            echo
+            echo "Then run the GitHub release workflow to tag and release v$version."
+          } >> "$GITHUB_STEP_SUMMARY"
         env:
-          GH_TOKEN: ${{ github.token }}
+          # A "Read and write (stage only)" token, because npm is ending direct
+          # publishing with tokens. If you later set up trusted publishing for
+          # this workflow on npmjs.com, delete this line and the NPM_TOKEN
+          # secret.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
